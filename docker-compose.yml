@@ -1,0 +1,9 @@
+services:
+  academic-service:
+    build: .
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://host.docker.internal:3306/academic_service
+      SPRING_DATASOURCE_USERNAME: technonix
+      SPRING_DATASOURCE_PASSWORD: Technonix@123
