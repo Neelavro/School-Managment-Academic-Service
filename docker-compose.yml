@@ -1,9 +1,25 @@
+# academic-service/docker-compose.yml
 services:
   academic-service:
     build: .
     ports:
       - "8082:8082"
     environment:
-      SPRING_DATASOURCE_URL: jdbc:mysql://172.17.0.1:3306/academic_service
+      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/academic_service
       SPRING_DATASOURCE_USERNAME: technonix
       SPRING_DATASOURCE_PASSWORD: Technonix@123
+    depends_on:
+      - db
+
+  db:
+    image: mysql:8
+    environment:
+      MYSQL_DATABASE: academic_db
+      MYSQL_USER: technonix
+      MYSQL_PASSWORD: Technonix@123
+      MYSQL_ROOT_PASSWORD: root
+    volumes:
+      - academic_db_data:/var/lib/mysql
+
+volumes:
+  academic_db_data:
