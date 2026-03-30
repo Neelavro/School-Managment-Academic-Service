@@ -7,3 +7,5 @@ services:
       SPRING_DATASOURCE_URL: jdbc:mysql://172.17.0.1:3306/academic_service
       SPRING_DATASOURCE_USERNAME: technonix
       SPRING_DATASOURCE_PASSWORD: Technonix@123
+#      SPRING_DATASOURCE_USERNAME: root
+#      SPRING_DATASOURCE_PASSWORD: NSQ123nsq
