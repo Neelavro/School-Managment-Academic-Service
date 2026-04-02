@@ -1,9 +1,11 @@
 package com.example.academic_service.service;
 
 import com.example.academic_service.dto.EnrollmentResponseDto;
+import com.example.academic_service.dto.EnrollmentWithStudentRequestDto;
 import com.example.academic_service.entity.Enrollment;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -37,7 +39,7 @@ public interface EnrollmentService {
     // Get all enrollments for a student across all years
     List<EnrollmentResponseDto> getEnrollmentsByStudentSystemId(String studentSystemId);
 
-    EnrollmentResponseDto createEnrollment(Enrollment enrollment);
+    EnrollmentResponseDto createEnrollment(EnrollmentWithStudentRequestDto request, MultipartFile image);
 
     EnrollmentResponseDto updateEnrollment(Long id, Enrollment enrollment);
 

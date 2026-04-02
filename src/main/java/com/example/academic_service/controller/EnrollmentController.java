@@ -1,16 +1,20 @@
 package com.example.academic_service.controller;
 
 import com.example.academic_service.dto.EnrollmentResponseDto;
+import com.example.academic_service.dto.EnrollmentWithStudentRequestDto;
 import com.example.academic_service.entity.Enrollment;
 import com.example.academic_service.service.EnrollmentService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -105,12 +109,13 @@ public class EnrollmentController {
      *         section: {id}, shift: {id}, genderSection: {id},
      *         studentGroup: {id}, classRoll }
      */
-    @PostMapping
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<EnrollmentResponseDto> createEnrollment(
-            @RequestBody Enrollment enrollment
+            @RequestPart("data") @Valid EnrollmentWithStudentRequestDto request,
+            @RequestPart(value = "image", required = false) MultipartFile image
     ) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(enrollmentService.createEnrollment(enrollment));
+                .body(enrollmentService.createEnrollment(request, image));
     }
 
     /**
