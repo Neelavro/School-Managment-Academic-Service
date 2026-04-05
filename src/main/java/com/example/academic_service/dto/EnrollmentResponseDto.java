@@ -11,6 +11,7 @@ public class EnrollmentResponseDto {
 
     // ── From student-service ──────────────────────────────────────────────────
     private Long id;
+    private Long enrollmentId;
     private String studentSystemId;
     private String nameEnglish;
     private String nameBangla;
@@ -167,6 +168,7 @@ public class EnrollmentResponseDto {
         EnrollmentResponseDto dto = new EnrollmentResponseDto();
 
         // Academic fields from enrollment
+        dto.setEnrollmentId(enrollment.getId());
         dto.setClassRoll(enrollment.getClassRoll());
         dto.setAcademicYear(AcademicYearDto.from(enrollment.getAcademicYear()));
         dto.setStudentClass(StudentClassDto.from(enrollment.getStudentClass()));
