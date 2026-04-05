@@ -20,6 +20,7 @@ public interface EnrollmentService {
             Integer genderSectionId,
             Integer studentGroupId,
             Boolean isActive,
+            String search,
             Pageable pageable
     );
 

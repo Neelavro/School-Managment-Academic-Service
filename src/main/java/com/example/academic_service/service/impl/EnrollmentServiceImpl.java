@@ -38,6 +38,7 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     private final StudentGroupRepository studentGroupRepository;
 
     // ── Get paginated + filtered enrollments ──────────────────────────────────
+    // ── Get paginated + filtered enrollments ──────────────────────────────────
     @Override
     public Page<EnrollmentResponseDto> getEnrollments(
             Integer academicYearId,
@@ -47,11 +48,12 @@ public class EnrollmentServiceImpl implements EnrollmentService {
             Integer genderSectionId,
             Integer studentGroupId,
             Boolean isActive,
+            String search,
             Pageable pageable
     ) {
         Specification<Enrollment> spec = EnrollmentSpecification.filter(
                 academicYearId, classId, sectionId,
-                shiftId, genderSectionId, studentGroupId, isActive
+                shiftId, genderSectionId, studentGroupId, isActive, search
         );
 
         Page<Enrollment> enrollmentPage = enrollmentRepository.findAll(spec, pageable);
@@ -62,6 +64,9 @@ public class EnrollmentServiceImpl implements EnrollmentService {
 
         Map<String, StudentDto> studentMap = studentServiceClient.fetchAllStudentsAsMap();
 
+        // If search term exists, also filter by student name (lives in student-service)
+        String searchLower = (search != null && !search.isBlank()) ? search.toLowerCase() : null;
+
         List<EnrollmentResponseDto> result = enrollmentPage.getContent().stream()
                 .map(enrollment -> {
                     StudentDto student = studentMap.get(enrollment.getStudentSystemId());
@@ -69,6 +74,19 @@ public class EnrollmentServiceImpl implements EnrollmentService {
                         log.warn("No student found in student-service for systemId: {}",
                                 enrollment.getStudentSystemId());
                         return null;
+                    }
+                    // Post-filter by name if search term provided
+                    if (searchLower != null) {
+                        boolean nameMatch =
+                                (student.getNameEnglish() != null &&
+                                        student.getNameEnglish().toLowerCase().contains(searchLower)) ||
+                                        (student.getNameBangla() != null &&
+                                                student.getNameBangla().toLowerCase().contains(searchLower));
+                        boolean idMatch = enrollment.getStudentSystemId() != null &&
+                                enrollment.getStudentSystemId().toLowerCase().contains(searchLower);
+                        boolean rollMatch = enrollment.getClassRoll() != null &&
+                                enrollment.getClassRoll().toString().contains(searchLower);
+                        if (!nameMatch && !idMatch && !rollMatch) return null;
                     }
                     return EnrollmentResponseDto.from(enrollment, student);
                 })
@@ -92,7 +110,7 @@ public class EnrollmentServiceImpl implements EnrollmentService {
 
         Specification<Enrollment> spec = EnrollmentSpecification.filter(
                 activeYear.getId(), classId, sectionId,
-                shiftId, genderSectionId, studentGroupId, false  // isActive = false
+                shiftId, genderSectionId, studentGroupId, false, null
         );
 
         Page<Enrollment> enrollmentPage = enrollmentRepository.findAll(spec, pageable);

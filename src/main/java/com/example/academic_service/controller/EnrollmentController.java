@@ -25,13 +25,6 @@ public class EnrollmentController {
 
     private final EnrollmentService enrollmentService;
 
-    /**
-     * GET /api/enrollments
-     * Query params:
-     *   academicYearId, classId, sectionId, shiftId,
-     *   genderSectionId, studentGroupId, isActive,
-     *   page, size, sort, direction
-     */
     @GetMapping
     public ResponseEntity<Page<EnrollmentResponseDto>> getEnrollments(
             @RequestParam(required = false) Integer academicYearId,
@@ -41,6 +34,7 @@ public class EnrollmentController {
             @RequestParam(required = false) Integer genderSectionId,
             @RequestParam(required = false) Integer studentGroupId,
             @RequestParam(required = false, defaultValue = "true") Boolean isActive,
+            @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "classRoll") String sort,
@@ -48,20 +42,15 @@ public class EnrollmentController {
     ) {
         Sort.Direction sortDirection = direction.equalsIgnoreCase("DESC")
                 ? Sort.Direction.DESC : Sort.Direction.ASC;
-
         Pageable pageable = PageRequest.of(page, size, Sort.by(sortDirection, sort));
 
         return ResponseEntity.ok(enrollmentService.getEnrollments(
                 academicYearId, classId, sectionId,
                 shiftId, genderSectionId, studentGroupId,
-                isActive, pageable
+                isActive, search, pageable
         ));
     }
 
-    /**
-     * GET /api/enrollments/inactive
-     * Fetch inactive enrollments for the current active academic year
-     */
     @GetMapping("/inactive")
     public ResponseEntity<Page<EnrollmentResponseDto>> getInactiveEnrollments(
             @RequestParam(required = false) Integer classId,
@@ -76,7 +65,6 @@ public class EnrollmentController {
     ) {
         Sort.Direction sortDirection = direction.equalsIgnoreCase("DESC")
                 ? Sort.Direction.DESC : Sort.Direction.ASC;
-
         Pageable pageable = PageRequest.of(page, size, Sort.by(sortDirection, sort));
 
         return ResponseEntity.ok(enrollmentService.getInactiveEnrollmentsForCurrentYear(
@@ -84,18 +72,11 @@ public class EnrollmentController {
         ));
     }
 
-    /**
-     * GET /api/enrollments/{id}
-     */
     @GetMapping("/{id}")
     public ResponseEntity<EnrollmentResponseDto> getEnrollmentById(@PathVariable Long id) {
         return ResponseEntity.ok(enrollmentService.getEnrollmentById(id));
     }
 
-    /**
-     * GET /api/enrollments/student/{studentSystemId}
-     * Get all enrollments for a student across all years
-     */
     @GetMapping("/student/{studentSystemId}")
     public ResponseEntity<List<EnrollmentResponseDto>> getEnrollmentsByStudentSystemId(
             @PathVariable String studentSystemId
@@ -103,12 +84,6 @@ public class EnrollmentController {
         return ResponseEntity.ok(enrollmentService.getEnrollmentsByStudentSystemId(studentSystemId));
     }
 
-    /**
-     * POST /api/enrollments
-     * Body: { studentSystemId, academicYear: {id}, studentClass: {id},
-     *         section: {id}, shift: {id}, genderSection: {id},
-     *         studentGroup: {id}, classRoll }
-     */
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<EnrollmentResponseDto> createEnrollment(
             @RequestPart("data") @Valid EnrollmentWithStudentRequestDto request,
@@ -118,9 +93,6 @@ public class EnrollmentController {
                 .body(enrollmentService.createEnrollment(request, image));
     }
 
-    /**
-     * PUT /api/enrollments/{id}
-     */
     @PutMapping("/{id}")
     public ResponseEntity<EnrollmentResponseDto> updateEnrollment(
             @PathVariable Long id,
@@ -129,17 +101,11 @@ public class EnrollmentController {
         return ResponseEntity.ok(enrollmentService.updateEnrollment(id, enrollment));
     }
 
-    /**
-     * PATCH /api/enrollments/{id}/activate — reactivate a soft deleted enrollment
-     */
     @PatchMapping("/{id}/activate")
     public ResponseEntity<EnrollmentResponseDto> activateEnrollment(@PathVariable Long id) {
         return ResponseEntity.ok(enrollmentService.activateEnrollment(id));
     }
 
-    /**
-     * DELETE /api/enrollments/{id} — soft delete
-     */
     @DeleteMapping("/{id}")
     public ResponseEntity<String> deleteEnrollment(@PathVariable Long id) {
         enrollmentService.deleteEnrollment(id);
