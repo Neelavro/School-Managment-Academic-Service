@@ -30,14 +30,12 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     private final EnrollmentRepository enrollmentRepository;
     private final StudentServiceClient studentServiceClient;
     private final AcademicYearRepository academicYearRepository;
-
     private final ClassRepository classRepository;
     private final SectionRepository sectionRepository;
     private final ShiftRepository shiftRepository;
     private final GenderSectionRepository genderSectionRepository;
     private final StudentGroupRepository studentGroupRepository;
 
-    // ── Get paginated + filtered enrollments ──────────────────────────────────
     // ── Get paginated + filtered enrollments ──────────────────────────────────
     @Override
     public Page<EnrollmentResponseDto> getEnrollments(
@@ -64,7 +62,6 @@ public class EnrollmentServiceImpl implements EnrollmentService {
 
         Map<String, StudentDto> studentMap = studentServiceClient.fetchAllStudentsAsMap();
 
-        // If search term exists, also filter by student name (lives in student-service)
         String searchLower = (search != null && !search.isBlank()) ? search.toLowerCase() : null;
 
         List<EnrollmentResponseDto> result = enrollmentPage.getContent().stream()
@@ -75,7 +72,6 @@ public class EnrollmentServiceImpl implements EnrollmentService {
                                 enrollment.getStudentSystemId());
                         return null;
                     }
-                    // Post-filter by name if search term provided
                     if (searchLower != null) {
                         boolean nameMatch =
                                 (student.getNameEnglish() != null &&
@@ -137,20 +133,17 @@ public class EnrollmentServiceImpl implements EnrollmentService {
         return new PageImpl<>(result, pageable, enrollmentPage.getTotalElements());
     }
 
+    // ── Update class roll ─────────────────────────────────────────────────────
     @Override
     public EnrollmentResponseDto updateClassRoll(Long id, Integer classRoll) {
         Enrollment enrollment = enrollmentRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Enrollment not found: " + id));
         enrollment.setClassRoll(classRoll);
         Enrollment saved = enrollmentRepository.save(enrollment);
-        StudentDto student = fetchStudent(saved.getStudentSystemId());
+        StudentDto student = studentServiceClient.findBySystemId(saved.getStudentSystemId());
+        if (student == null)
+            throw new RuntimeException("Student not found: " + saved.getStudentSystemId());
         return EnrollmentResponseDto.from(saved, student);
-    }
-    private StudentDto fetchStudent(String systemId) {
-        Map<String, StudentDto> map = studentServiceClient.fetchAllStudentsAsMap();
-        StudentDto student = map.get(systemId);
-        if (student == null) throw new RuntimeException("Student not found: " + systemId);
-        return student;
     }
 
     // ── Get single enrollment by id ───────────────────────────────────────────
@@ -159,8 +152,7 @@ public class EnrollmentServiceImpl implements EnrollmentService {
         Enrollment enrollment = enrollmentRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Enrollment not found: " + id));
 
-        Map<String, StudentDto> studentMap = studentServiceClient.fetchAllStudentsAsMap();
-        StudentDto student = studentMap.get(enrollment.getStudentSystemId());
+        StudentDto student = studentServiceClient.findBySystemId(enrollment.getStudentSystemId());
         if (student == null) {
             throw new RuntimeException("Student not found in student-service: "
                     + enrollment.getStudentSystemId());
@@ -177,8 +169,7 @@ public class EnrollmentServiceImpl implements EnrollmentService {
             return List.of();
         }
 
-        Map<String, StudentDto> studentMap = studentServiceClient.fetchAllStudentsAsMap();
-        StudentDto student = studentMap.get(studentSystemId);
+        StudentDto student = studentServiceClient.findBySystemId(studentSystemId);
         if (student == null) {
             throw new RuntimeException("Student not found in student-service: " + studentSystemId);
         }
@@ -194,32 +185,27 @@ public class EnrollmentServiceImpl implements EnrollmentService {
             EnrollmentWithStudentRequestDto request, MultipartFile image) {
 
         // 1. Check if student already exists
-        Map<String, StudentDto> studentMap = studentServiceClient.fetchAllStudentsAsMap();
         StudentDto student = null;
-
         if (request.getStudentSystemId() != null) {
-            student = studentMap.get(request.getStudentSystemId());
+            student = studentServiceClient.findBySystemId(request.getStudentSystemId());
         }
-
-        Long studentDbId = null;
 
         if (student == null) {
             // 2. Create student in student-service → get DB id
             log.info("Student not found for systemId: {} — creating in student-service",
                     request.getStudentSystemId());
-            studentDbId = studentServiceClient.createStudent(request);
+            Long studentDbId = studentServiceClient.createStudent(request);
 
             // 3. Upload image using DB id
             studentServiceClient.uploadStudentImage(studentDbId, image);
 
-            // 4. Re-fetch to get full StudentDto (needed for response)
-            studentMap = studentServiceClient.fetchAllStudentsAsMap();
-            student    = studentMap.get(request.getStudentSystemId());
+            // 4. Fetch back by DB id — avoids null systemId lookup issue
+            student = studentServiceClient.fetchStudentById(studentDbId);
 
             if (student == null) {
                 throw new RuntimeException(
-                        "Student was created but could not be fetched back: "
-                                + request.getStudentSystemId());
+                        "Student was created (DB id: " + studentDbId
+                                + ") but could not be fetched back");
             }
         }
 
@@ -260,13 +246,13 @@ public class EnrollmentServiceImpl implements EnrollmentService {
         Enrollment saved = enrollmentRepository.save(enrollment);
         return EnrollmentResponseDto.from(saved, student);
     }
+
     // ── Update enrollment ─────────────────────────────────────────────────────
     @Override
     public EnrollmentResponseDto updateEnrollment(Long id, Enrollment updated) {
         Enrollment existing = enrollmentRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Enrollment not found: " + id));
 
-        // Only update fields that are provided (null-safe)
         if (updated.getAcademicYear() != null) existing.setAcademicYear(updated.getAcademicYear());
         if (updated.getStudentClass() != null) existing.setStudentClass(updated.getStudentClass());
         if (updated.getSection() != null) existing.setSection(updated.getSection());
@@ -278,8 +264,7 @@ public class EnrollmentServiceImpl implements EnrollmentService {
 
         Enrollment saved = enrollmentRepository.save(existing);
 
-        Map<String, StudentDto> studentMap = studentServiceClient.fetchAllStudentsAsMap();
-        StudentDto student = studentMap.get(saved.getStudentSystemId());
+        StudentDto student = studentServiceClient.findBySystemId(saved.getStudentSystemId());
         if (student == null) {
             throw new RuntimeException("Student not found in student-service: "
                     + saved.getStudentSystemId());
@@ -304,8 +289,7 @@ public class EnrollmentServiceImpl implements EnrollmentService {
         existing.setIsActive(true);
         Enrollment saved = enrollmentRepository.save(existing);
 
-        Map<String, StudentDto> studentMap = studentServiceClient.fetchAllStudentsAsMap();
-        StudentDto student = studentMap.get(saved.getStudentSystemId());
+        StudentDto student = studentServiceClient.findBySystemId(saved.getStudentSystemId());
         if (student == null) {
             throw new RuntimeException("Student not found in student-service: "
                     + saved.getStudentSystemId());
