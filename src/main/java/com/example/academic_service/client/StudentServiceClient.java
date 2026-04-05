@@ -61,7 +61,36 @@ public class StudentServiceClient {
         }
     }
 
-    // ── Create student → returns DB id ────────────────────────────────────────
+    // ── Find single student by DB id ─────────────────────────────────────────
+    public StudentDto fetchStudentById(Long id) {
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(studentServiceUrl + "/api/students/" + id))
+                    .GET()
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(
+                    request, HttpResponse.BodyHandlers.ofString());
+
+            if (response.statusCode() == 404) {
+                log.info("Student not found for DB id: {}", id);
+                return null;
+            }
+            if (response.statusCode() != 200) {
+                log.error("student-service returned {} for DB id {}: {}",
+                        response.statusCode(), id, response.body());
+                return null;
+            }
+
+            return objectMapper.readValue(response.body(), StudentDto.class);
+
+        } catch (Exception e) {
+            log.error("Failed to fetch student by DB id {}: {}", id, e.getMessage());
+            return null;
+        }
+    }
+
+    // ── Create student -> returns DB id ───────────────────────────────────────
     public Long createStudent(EnrollmentWithStudentRequestDto request) {
         try {
             Map<String, Object> body = new HashMap<>();
@@ -117,7 +146,6 @@ public class StudentServiceClient {
                         + response.body());
             }
 
-            // Response shape: {"success": true, "id": 123}
             Map<?, ?> result = objectMapper.readValue(response.body(), Map.class);
             Object idVal = result.get("id");
             if (idVal == null) {
@@ -145,7 +173,7 @@ public class StudentServiceClient {
             String filename   = image.getOriginalFilename() != null
                     ? image.getOriginalFilename() : "photo.jpg";
 
-            String boundary    = "----Boundary" + UUID.randomUUID().toString().replace("-", "");
+            String boundary      = "----Boundary" + UUID.randomUUID().toString().replace("-", "");
             byte[] multipartBody = buildMultipartBody(boundary, filename, imageBytes);
 
             HttpRequest httpRequest = HttpRequest.newBuilder()
@@ -158,7 +186,7 @@ public class StudentServiceClient {
                     httpRequest, HttpResponse.BodyHandlers.ofString());
 
             if (response.statusCode() != 200 && response.statusCode() != 201) {
-                log.error("Image upload failed for student {}: {} — {}",
+                log.error("Image upload failed for student {}: {} -- {}",
                         studentDbId, response.statusCode(), response.body());
                 throw new RuntimeException("Image upload failed: " + response.body());
             }
@@ -212,17 +240,13 @@ public class StudentServiceClient {
                 return Collections.emptyMap();
             }
 
-            // Response shape: ApiResponse { message, data: [...], success }
             Object parsed = objectMapper.readValue(response.body(), Object.class);
             List<StudentDto> students;
 
             if (parsed instanceof List) {
-                // plain list (defensive — unlikely given current controller)
                 students = objectMapper.convertValue(parsed, new TypeReference<>() {});
             } else {
                 Map<?, ?> map = (Map<?, ?>) parsed;
-
-                // try "data" first (ApiResponse shape), then "content" (Page shape)
                 Object list = map.get("data");
                 if (list == null) list = map.get("content");
                 if (list == null) {
