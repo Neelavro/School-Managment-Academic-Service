@@ -137,6 +137,22 @@ public class EnrollmentServiceImpl implements EnrollmentService {
         return new PageImpl<>(result, pageable, enrollmentPage.getTotalElements());
     }
 
+    @Override
+    public EnrollmentResponseDto updateClassRoll(Long id, Integer classRoll) {
+        Enrollment enrollment = enrollmentRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Enrollment not found: " + id));
+        enrollment.setClassRoll(classRoll);
+        Enrollment saved = enrollmentRepository.save(enrollment);
+        StudentDto student = fetchStudent(saved.getStudentSystemId());
+        return EnrollmentResponseDto.from(saved, student);
+    }
+    private StudentDto fetchStudent(String systemId) {
+        Map<String, StudentDto> map = studentServiceClient.fetchAllStudentsAsMap();
+        StudentDto student = map.get(systemId);
+        if (student == null) throw new RuntimeException("Student not found: " + systemId);
+        return student;
+    }
+
     // ── Get single enrollment by id ───────────────────────────────────────────
     @Override
     public EnrollmentResponseDto getEnrollmentById(Long id) {

@@ -23,6 +23,7 @@ public interface EnrollmentService {
             String search,
             Pageable pageable
     );
+    EnrollmentResponseDto updateClassRoll(Long id, Integer classRoll);
 
     // Get inactive enrollments for the current active academic year
     Page<EnrollmentResponseDto> getInactiveEnrollmentsForCurrentYear(

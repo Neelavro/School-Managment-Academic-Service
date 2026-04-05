@@ -105,6 +105,13 @@ public class EnrollmentController {
     public ResponseEntity<EnrollmentResponseDto> activateEnrollment(@PathVariable Long id) {
         return ResponseEntity.ok(enrollmentService.activateEnrollment(id));
     }
+    @PatchMapping("/{id}/class-roll")
+    public ResponseEntity<EnrollmentResponseDto> updateClassRoll(
+            @PathVariable Long id,
+            @RequestParam Integer classRoll
+    ) {
+        return ResponseEntity.ok(enrollmentService.updateClassRoll(id, classRoll));
+    }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<String> deleteEnrollment(@PathVariable Long id) {
