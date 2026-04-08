@@ -35,6 +35,12 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     private final ShiftRepository shiftRepository;
     private final GenderSectionRepository genderSectionRepository;
     private final StudentGroupRepository studentGroupRepository;
+    private final StudentStatusRepository studentStatusRepository;
+
+    @Override
+    public List<StudentStatus> getStudentStatus(){
+        return studentStatusRepository.findAll();
+    }
 
     // ── Get paginated + filtered enrollments ──────────────────────────────────
     @Override

@@ -3,6 +3,7 @@ package com.example.academic_service.service;
 import com.example.academic_service.dto.EnrollmentResponseDto;
 import com.example.academic_service.dto.EnrollmentWithStudentRequestDto;
 import com.example.academic_service.entity.Enrollment;
+import com.example.academic_service.entity.StudentStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.web.multipart.MultipartFile;
@@ -10,6 +11,9 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.List;
 
 public interface EnrollmentService {
+
+    List<StudentStatus> getStudentStatus();
+
 
     // Get paginated + filtered list
     Page<EnrollmentResponseDto> getEnrollments(

@@ -21,19 +21,22 @@ public class StudentManagementController {
     private final ShiftService shiftService;
     private final StudentGroupService studentGroupService;
     private final GenderService genderService;
+    private final EnrollmentService enrollmentService;
 
     public StudentManagementController(
             GenderSectionService genderSectionService,
             AcademicYearService academicYearService,
             ShiftService shiftService,
             StudentGroupService studentGroupService,
-            GenderService genderService
+            GenderService genderService,
+            EnrollmentService enrollmentService
     ) {
         this.genderSectionService = genderSectionService;
         this.academicYearService = academicYearService;
         this.shiftService = shiftService;
         this.studentGroupService = studentGroupService;
         this.genderService = genderService;
+        this.enrollmentService = enrollmentService;
     }
 
     @GetMapping("/init")
@@ -43,13 +46,15 @@ public class StudentManagementController {
         List<Shift> shifts = shiftService.getAllActiveShifts();
         List<StudentGroup> studentGroups = studentGroupService.getAllActiveGroups();
         List<Gender> genders = genderService.getAllGenders();
+        List<StudentStatus> statuses = enrollmentService.getStudentStatus();
 
         StudentManagementInitResponse response = new StudentManagementInitResponse(
                 sections,
                 academicYears,
                 shifts,
                 studentGroups,
-                genders
+                genders,
+                statuses
         );
 
         return ResponseEntity.ok(response);
@@ -66,5 +71,6 @@ public class StudentManagementController {
         private List<Shift> shifts;
         private List<StudentGroup> studentGroups;
         private List<Gender> genders;
+        private List<StudentStatus> statuses;
     }
 }
