@@ -12,6 +12,7 @@ public class AdmitCardSessionDto {
     private String  startTime;
     private String  endTime;
     private String  className;
+    private Integer groupId;       // ← add
     private List<AdmitCardAllocationDto> allocations;
-    private List<AdmitCardSessionDto>    fullSchedule; // ← add
+    private List<AdmitCardSessionDto>    fullSchedule;
 }

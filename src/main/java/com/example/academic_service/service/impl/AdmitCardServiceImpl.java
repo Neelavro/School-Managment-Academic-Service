@@ -47,6 +47,7 @@ public class AdmitCardServiceImpl {
                             s.getStartTime().toString(),
                             s.getEndTime().toString(),
                             s.getExamClass().getName(),
+                            s.getGroup() != null ? s.getGroup().getId() : null,  // ← add
                             new ArrayList<>(),
                             null
                     ));
@@ -150,10 +151,10 @@ public class AdmitCardServiceImpl {
                     session.getDate().toString(),
                     session.getStartTime().toString(),
                     session.getEndTime().toString(),
-                    session.getExamClass() != null
-                            ? session.getExamClass().getName() : null,
-                    allocationDtos,
-                    fullSchedule
+                    session.getExamClass().getName(),
+                    session.getGroup() != null ? session.getGroup().getId() : null,  // ← add
+                    new ArrayList<>(),
+                    null
             ));
         }
 
@@ -166,6 +167,128 @@ public class AdmitCardServiceImpl {
                         ? routine.getAcademicYear().getYearName() : null,
                 routine.getStatus() != null
                         ? routine.getStatus().name() : null,
+                routine.getIsActive(),
+                routine.getCreatedAt(),
+                routine.getLastModifiedAt(),
+                sessionDtos
+        );
+    }
+    public AdmitCardRoutineResponseDto getAdmitCardDataBySection(
+            Integer routineId,
+            Integer sessionId,
+            Integer classId,
+            Integer genderSectionId,
+            Long sectionId,
+            Integer groupId            // ← add
+    ) {
+        ExamRoutine routine = examRoutineRepository.findById(routineId)
+                .orElseThrow(() -> new RuntimeException("Routine not found"));
+
+        List<ExamSession> allSessions =
+                examSessionRepository.findByExamRoutineIdAndIsActiveTrue(routineId);
+
+        // Build full schedule per classId
+        Map<Integer, List<AdmitCardSessionDto>> fullScheduleByClassId = new HashMap<>();
+        for (ExamSession s : allSessions) {
+            if (s.getExamClass() == null) continue;
+            fullScheduleByClassId
+                    .computeIfAbsent(s.getExamClass().getId(), k -> new ArrayList<>())
+                    .add(new AdmitCardSessionDto(
+                            s.getId(),
+                            s.getSubject() != null ? s.getSubject().getName() : null,
+                            s.getDate().toString(),
+                            s.getStartTime().toString(),
+                            s.getEndTime().toString(),
+                            s.getExamClass().getName(),
+                            s.getGroup() != null ? s.getGroup().getId() : null,
+                            new ArrayList<>(),
+                            null
+                    ));
+        }
+
+        // Filter sessions by sessionId and classId
+        List<ExamSession> filteredSessions = new ArrayList<>(allSessions);
+
+        if (sessionId != null)
+            filteredSessions = filteredSessions.stream()
+                    .filter(s -> s.getId().equals(sessionId))
+                    .toList();
+
+        if (classId != null)
+            filteredSessions = filteredSessions.stream()
+                    .filter(s -> s.getExamClass() != null &&
+                            s.getExamClass().getId().equals(classId))
+                    .toList();
+
+        List<AdmitCardSessionDto> sessionDtos = new ArrayList<>();
+
+        for (ExamSession session : filteredSessions) {
+
+            Specification<Enrollment> spec = EnrollmentSpecification.filter(
+                    null,
+                    session.getExamClass() != null ? session.getExamClass().getId() : null,
+                    sectionId,
+                    null,
+                    genderSectionId,
+                    groupId,        // ← pass groupId
+                    true,
+                    null,
+                    null,
+                    null
+            );
+
+            List<Enrollment> enrollments = enrollmentRepository.findAll(spec);
+
+            // Pull section/genderSection names from first enrollment
+            String resolvedSectionName = enrollments.stream()
+                    .filter(e -> e.getSection() != null)
+                    .map(e -> e.getSection().getSectionName())
+                    .findFirst().orElse(null);
+
+            String resolvedGenderSectionName = enrollments.stream()
+                    .filter(e -> e.getGenderSection() != null)
+                    .map(e -> e.getGenderSection().getGenderName())
+                    .findFirst().orElse(null);
+
+            List<AdmitCardStudentDto> students = enrollments.stream()
+                    .sorted(Comparator.comparingInt(e ->
+                            e.getClassRoll() != null ? e.getClassRoll() : 0))
+                    .map(e -> new AdmitCardStudentDto(
+                            e.getStudentSystemId(),
+                            e.getClassRoll()
+                    ))
+                    .toList();
+
+            AdmitCardAllocationDto allocationDto = new AdmitCardAllocationDto(
+                    null, null, null, null, null,
+                    resolvedSectionName,         // ← from enrollments
+                    resolvedGenderSectionName,   // ← from enrollments
+                    students
+            );
+
+            List<AdmitCardSessionDto> fullSchedule = session.getExamClass() != null
+                    ? fullScheduleByClassId.get(session.getExamClass().getId())
+                    : new ArrayList<>();
+
+            sessionDtos.add(new AdmitCardSessionDto(
+                    session.getId(),
+                    session.getSubject() != null ? session.getSubject().getName() : null,
+                    session.getDate().toString(),
+                    session.getStartTime().toString(),
+                    session.getEndTime().toString(),
+                    session.getExamClass() != null ? session.getExamClass().getName() : null,
+                    session.getGroup() != null ? session.getGroup().getId() : null,
+                    List.of(allocationDto),  // ← was new ArrayList<>()
+                    fullSchedule             // ← was null
+            ));
+        }
+
+        return new AdmitCardRoutineResponseDto(
+                routine.getId(),
+                routine.getTitle(),
+                routine.getExamType() != null ? routine.getExamType().getName() : null,
+                routine.getAcademicYear() != null ? routine.getAcademicYear().getYearName() : null,
+                routine.getStatus() != null ? routine.getStatus().name() : null,
                 routine.getIsActive(),
                 routine.getCreatedAt(),
                 routine.getLastModifiedAt(),

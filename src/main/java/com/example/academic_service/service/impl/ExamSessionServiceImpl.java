@@ -25,63 +25,81 @@ public class ExamSessionServiceImpl implements ExamSessionService {
     private final ExamRoutineRepository examRoutineRepository;
     private final ClassRepository classRepository;
     private final SubjectRepository subjectRepository;
+    private final StudentGroupRepository studentGroupRepository;
 
     // ── create ───────────────────────────────────────────────────────────────
 
-    @Override
-    public ApiResponse<ExamSessionResponseDto> create(ExamSessionRequestDto dto) {
-        ExamRoutine routine = examRoutineRepository.findById(dto.getExamRoutineId()).orElse(null);
-        if (routine == null) return ApiResponse.error("Exam routine not found");
-        if (!routine.getIsActive()) return ApiResponse.error("Cannot add sessions to an inactive routine");
+        @Override
+        public ApiResponse<ExamSessionResponseDto> create(ExamSessionRequestDto dto) {
+            ExamRoutine routine = examRoutineRepository.findById(dto.getExamRoutineId()).orElse(null);
+            if (routine == null) return ApiResponse.error("Exam routine not found");
+            if (!routine.getIsActive()) return ApiResponse.error("Cannot add sessions to an inactive routine");
 
-        Class examClass = classRepository.findById(dto.getClassId()).orElse(null);
-        if (examClass == null) return ApiResponse.error("Class not found");
+            Class examClass = classRepository.findById(dto.getClassId()).orElse(null);
+            if (examClass == null) return ApiResponse.error("Class not found");
 
-        Subject subject = subjectRepository.findById(dto.getSubjectId()).orElse(null);
-        if (subject == null) return ApiResponse.error("Subject not found");
+            Subject subject = subjectRepository.findById(dto.getSubjectId()).orElse(null);
+            if (subject == null) return ApiResponse.error("Subject not found");
 
-        if (!dto.getStartTime().isBefore(dto.getEndTime()))
-            return ApiResponse.error("Start time must be before end time");
+            if (!dto.getStartTime().isBefore(dto.getEndTime()))
+                return ApiResponse.error("Start time must be before end time");
 
-        ExamSession session = new ExamSession();
-        session.setExamRoutine(routine);
-        session.setExamClass(examClass);
-        session.setSubject(subject);
-        session.setDate(dto.getDate());
-        session.setStartTime(dto.getStartTime());
-        session.setEndTime(dto.getEndTime());
+            // Optional group
+            StudentGroup group = null;
+            if (dto.getGroupId() != null) {
+                group = studentGroupRepository.findById(dto.getGroupId()).orElse(null);
+                if (group == null) return ApiResponse.error("Group not found");
+            }
 
-        return ApiResponse.success("Exam session created successfully",
-                ExamSessionResponseDto.from(examSessionRepository.save(session)));
-    }
+            ExamSession session = new ExamSession();
+            session.setExamRoutine(routine);
+            session.setExamClass(examClass);
+            session.setSubject(subject);
+            session.setGroup(group);           // ← add
+            session.setDate(dto.getDate());
+            session.setStartTime(dto.getStartTime());
+            session.setEndTime(dto.getEndTime());
 
-    // ── update ───────────────────────────────────────────────────────────────
+            return ApiResponse.success("Exam session created successfully",
+                    ExamSessionResponseDto.from(examSessionRepository.save(session)));
+        }
 
-    @Override
-    public ApiResponse<ExamSessionResponseDto> update(Integer id, ExamSessionRequestDto dto) {
-        ExamSession session = examSessionRepository.findById(id).orElse(null);
-        if (session == null) return ApiResponse.error("Exam session not found");
-        if (!session.getIsActive()) return ApiResponse.error("Cannot update an inactive exam session");
+        @Override
+        public ApiResponse<ExamSessionResponseDto> update(Integer id, ExamSessionRequestDto dto) {
+            ExamSession session = examSessionRepository.findById(id).orElse(null);
+            if (session == null) return ApiResponse.error("Exam session not found");
+            if (!session.getIsActive()) return ApiResponse.error("Cannot update an inactive exam session");
 
-        Class examClass = classRepository.findById(dto.getClassId()).orElse(null);
-        if (examClass == null) return ApiResponse.error("Class not found");
+            Class examClass = classRepository.findById(dto.getClassId()).orElse(null);
+            if (examClass == null) return ApiResponse.error("Class not found");
 
-        Subject subject = subjectRepository.findById(dto.getSubjectId()).orElse(null);
-        if (subject == null) return ApiResponse.error("Subject not found");
+            Subject subject = subjectRepository.findById(dto.getSubjectId()).orElse(null);
+            if (subject == null) return ApiResponse.error("Subject not found");
 
-        if (!dto.getStartTime().isBefore(dto.getEndTime()))
-            return ApiResponse.error("Start time must be before end time");
+            if (!dto.getStartTime().isBefore(dto.getEndTime()))
+                return ApiResponse.error("Start time must be before end time");
 
-        session.setExamClass(examClass);
-        session.setSubject(subject);
-        session.setDate(dto.getDate());
-        session.setStartTime(dto.getStartTime());
-        session.setEndTime(dto.getEndTime());
-        session.setLastModifiedAt(LocalDateTime.now());
+            // Optional group — null means shared/all groups
+            StudentGroup group = null;
+            if (dto.getGroupId() != null) {
+                group = studentGroupRepository.findById(dto.getGroupId()).orElse(null);
+                if (group == null) return ApiResponse.error("Group not found");
+            }
 
-        return ApiResponse.success("Exam session updated successfully",
-                ExamSessionResponseDto.from(examSessionRepository.save(session)));
-    }
+            session.setExamClass(examClass);
+            session.setSubject(subject);
+            session.setGroup(group);           // ← add
+            session.setDate(dto.getDate());
+            session.setStartTime(dto.getStartTime());
+            session.setEndTime(dto.getEndTime());
+            session.setLastModifiedAt(LocalDateTime.now());
+
+            return ApiResponse.success("Exam session updated successfully",
+                    ExamSessionResponseDto.from(examSessionRepository.save(session)));
+        }
+
+        // getByRoutine, reactivate, delete unchanged...
+
 
     // ── getByRoutine ─────────────────────────────────────────────────────────
 

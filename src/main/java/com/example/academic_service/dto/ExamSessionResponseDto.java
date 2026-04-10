@@ -19,6 +19,7 @@ public class ExamSessionResponseDto {
     private ExamRoutine examRoutine;
     private Class examClass;
     private Subject subject;
+    private StudentGroup group;        // ← add
     private LocalDate date;
     private LocalTime startTime;
     private LocalTime endTime;
@@ -31,6 +32,7 @@ public class ExamSessionResponseDto {
         dto.setExamRoutine(session.getExamRoutine());
         dto.setExamClass(session.getExamClass());
         dto.setSubject(session.getSubject());
+        dto.setGroup(session.getGroup());              // ← add
         dto.setDate(session.getDate());
         dto.setStartTime(session.getStartTime());
         dto.setEndTime(session.getEndTime());

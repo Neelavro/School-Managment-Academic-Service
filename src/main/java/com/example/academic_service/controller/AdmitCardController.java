@@ -26,4 +26,18 @@ public class AdmitCardController {
                         routineId, sessionId, classId, genderSectionId, sectionId)
         );
     }
+    @GetMapping("/by-section")
+    public ResponseEntity<AdmitCardRoutineResponseDto> getAdmitCardDataBySection(
+            @RequestParam Integer routineId,
+            @RequestParam(required = false) Integer sessionId,
+            @RequestParam(required = false) Integer classId,
+            @RequestParam(required = false) Integer genderSectionId,
+            @RequestParam(required = false) Long sectionId,
+            @RequestParam(required = false) Integer groupId        // ← add
+    ) {
+        return ResponseEntity.ok(
+                admitCardService.getAdmitCardDataBySection(
+                        routineId, sessionId, classId, genderSectionId, sectionId, groupId)  // ← pass
+        );
+    }
 }

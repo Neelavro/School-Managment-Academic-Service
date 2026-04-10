@@ -36,6 +36,11 @@ public class ExamSession {
     @Column(nullable = false)
     private LocalDate date;
 
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "group_id")
+    @NotFound(action = NotFoundAction.IGNORE)
+    private StudentGroup group;
+
     @Column(name = "start_time", nullable = false)
     private LocalTime startTime;
 
