@@ -35,6 +35,8 @@ public class EnrollmentController {
             @RequestParam(required = false) Integer studentGroupId,
             @RequestParam(required = false, defaultValue = "true") Boolean isActive,
             @RequestParam(required = false) String search,
+            @RequestParam(required = false) Integer startRoll,  // ← add
+            @RequestParam(required = false) Integer endRoll,    // ← add
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "classRoll") String sort,
@@ -47,7 +49,7 @@ public class EnrollmentController {
         return ResponseEntity.ok(enrollmentService.getEnrollments(
                 academicYearId, classId, sectionId,
                 shiftId, genderSectionId, studentGroupId,
-                isActive, search, pageable
+                isActive, search, startRoll, endRoll, pageable  // ← add
         ));
     }
 
@@ -93,14 +95,14 @@ public class EnrollmentController {
                 .body(enrollmentService.createEnrollment(request, image));
     }
 
+
     @PutMapping("/{id}")
     public ResponseEntity<EnrollmentResponseDto> updateEnrollment(
             @PathVariable Long id,
-            @RequestBody Enrollment enrollment
+            @RequestBody EnrollmentWithStudentRequestDto request
     ) {
-        return ResponseEntity.ok(enrollmentService.updateEnrollment(id, enrollment));
+        return ResponseEntity.ok(enrollmentService.updateEnrollment(id, request));
     }
-
     @PatchMapping("/{id}/activate")
     public ResponseEntity<EnrollmentResponseDto> activateEnrollment(@PathVariable Long id) {
         return ResponseEntity.ok(enrollmentService.activateEnrollment(id));

@@ -38,6 +38,7 @@ public class EnrollmentWithStudentRequestDto {
     private String nationality;
     private Integer genderId;
     private Integer studentStatusId;
+    private Boolean isActive;
 
     // ── Enrollment fields (IDs only — service loads entities) ─────────────────
     private Integer academicYearId;

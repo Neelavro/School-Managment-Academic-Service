@@ -25,6 +25,7 @@ import java.util.stream.Collectors;
 @Slf4j
 public class StudentServiceClient {
 
+//    @Value("${student.service.url:http://192.168.0.187:8083}")
     @Value("${student.service.url:http://167.172.86.59:8083}")
     private String studentServiceUrl;
 
@@ -161,6 +162,72 @@ public class StudentServiceClient {
         }
     }
 
+    public void updateStudent(String studentSystemId, EnrollmentWithStudentRequestDto request) {
+        try {
+            // First get the student's DB id
+            StudentDto existing = findBySystemId(studentSystemId);
+            if (existing == null) {
+                throw new RuntimeException("Student not found for systemId: " + studentSystemId);
+            }
+
+            Map<String, Object> body = new HashMap<>();
+            body.put("studentSystemId",        studentSystemId);
+            if (request.getNameEnglish()            != null) body.put("nameEnglish",            request.getNameEnglish());
+            if (request.getNameBangla()             != null) body.put("nameBangla",             request.getNameBangla());
+            if (request.getFatherNameEnglish()      != null) body.put("fatherNameEnglish",      request.getFatherNameEnglish());
+            if (request.getFatherNameBangla()       != null) body.put("fatherNameBangla",       request.getFatherNameBangla());
+            if (request.getFatherOccupation()       != null) body.put("fatherOccupation",       request.getFatherOccupation());
+            if (request.getFatherPhone()            != null) body.put("fatherPhone",            request.getFatherPhone());
+            if (request.getFatherMonthlySalary()    != null) body.put("fatherMonthlySalary",    request.getFatherMonthlySalary());
+            if (request.getMotherNameEnglish()      != null) body.put("motherNameEnglish",      request.getMotherNameEnglish());
+            if (request.getMotherNameBangla()       != null) body.put("motherNameBangla",       request.getMotherNameBangla());
+            if (request.getMotherOccupation()       != null) body.put("motherOccupation",       request.getMotherOccupation());
+            if (request.getMotherPhone()            != null) body.put("motherPhone",            request.getMotherPhone());
+            if (request.getMotherMonthlySalary()    != null) body.put("motherMonthlySalary",    request.getMotherMonthlySalary());
+            if (request.getGuardianNameEnglish()    != null) body.put("guardianNameEnglish",    request.getGuardianNameEnglish());
+            if (request.getGuardianNameBangla()     != null) body.put("guardianNameBangla",     request.getGuardianNameBangla());
+            if (request.getGuardianOccupation()     != null) body.put("guardianOccupation",     request.getGuardianOccupation());
+            if (request.getGuardianPhone()          != null) body.put("guardianPhone",          request.getGuardianPhone());
+            if (request.getGuardianRelation()       != null) body.put("guardianRelation",       request.getGuardianRelation());
+            if (request.getCurrentHoldingNo()       != null) body.put("currentHoldingNo",       request.getCurrentHoldingNo());
+            if (request.getCurrentRoadOrVillage()   != null) body.put("currentRoadOrVillage",   request.getCurrentRoadOrVillage());
+            if (request.getCurrentDistrict()        != null) body.put("currentDistrict",        request.getCurrentDistrict());
+            if (request.getCurrentThana()           != null) body.put("currentThana",           request.getCurrentThana());
+            if (request.getPermanentHoldingNo()     != null) body.put("permanentHoldingNo",     request.getPermanentHoldingNo());
+            if (request.getPermanentRoadOrVillage() != null) body.put("permanentRoadOrVillage", request.getPermanentRoadOrVillage());
+            if (request.getPermanentDistrict()      != null) body.put("permanentDistrict",      request.getPermanentDistrict());
+            if (request.getPermanentThana()         != null) body.put("permanentThana",         request.getPermanentThana());
+            if (request.getDob()                    != null) body.put("dob",                    request.getDob());
+            if (request.getNationality()            != null) body.put("nationality",            request.getNationality());
+            if (request.getGenderId()               != null) body.put("gender",                 Map.of("id", request.getGenderId()));
+            if (request.getStudentStatusId()        != null) body.put("studentStatus",          Map.of("id", request.getStudentStatusId()));
+
+            String json = objectMapper.writeValueAsString(body);
+
+            HttpRequest httpRequest = HttpRequest.newBuilder()
+                    .uri(URI.create(studentServiceUrl + "/api/students/" + existing.getId()))
+                    .header("Content-Type", "application/json")
+                    .PUT(HttpRequest.BodyPublishers.ofString(json))
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(
+                    httpRequest, HttpResponse.BodyHandlers.ofString());
+
+            if (response.statusCode() != 200) {
+                log.error("student-service update returned {}: {}",
+                        response.statusCode(), response.body());
+                throw new RuntimeException("Could not update student: " + response.body());
+            }
+
+            log.info("Student updated successfully: {}", studentSystemId);
+
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Failed to update student {}: {}", studentSystemId, e.getMessage());
+            throw new RuntimeException("Could not update student in student-service", e);
+        }
+    }
     // ── Upload image using student DB id ──────────────────────────────────────
     public void uploadStudentImage(Long studentDbId, MultipartFile image) {
         if (image == null || image.isEmpty()) {

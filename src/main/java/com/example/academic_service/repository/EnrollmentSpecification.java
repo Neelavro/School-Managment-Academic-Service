@@ -17,7 +17,9 @@ public class EnrollmentSpecification {
             Integer genderSectionId,
             Integer studentGroupId,
             Boolean isActive,
-            String search
+            String search,
+            Integer startRoll,
+            Integer endRoll
     ) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -36,8 +38,11 @@ public class EnrollmentSpecification {
                 predicates.add(cb.equal(root.get("studentGroup").get("id"), studentGroupId));
             if (isActive != null)
                 predicates.add(cb.equal(root.get("isActive"), isActive));
+            if (startRoll != null)
+                predicates.add(cb.greaterThanOrEqualTo(root.get("classRoll"), startRoll));
+            if (endRoll != null)
+                predicates.add(cb.lessThanOrEqualTo(root.get("classRoll"), endRoll));
 
-            // Search on studentSystemId (DB column) or classRoll
             if (search != null && !search.isBlank()) {
                 String like = "%" + search.toLowerCase() + "%";
                 predicates.add(cb.or(

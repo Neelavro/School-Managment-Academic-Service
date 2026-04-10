@@ -53,11 +53,14 @@ public class EnrollmentServiceImpl implements EnrollmentService {
             Integer studentGroupId,
             Boolean isActive,
             String search,
+            Integer startRoll,  // ← add
+            Integer endRoll,    // ← add
             Pageable pageable
     ) {
         Specification<Enrollment> spec = EnrollmentSpecification.filter(
                 academicYearId, classId, sectionId,
-                shiftId, genderSectionId, studentGroupId, isActive, search
+                shiftId, genderSectionId, studentGroupId, isActive, search,
+                startRoll, endRoll  // ← add
         );
 
         Page<Enrollment> enrollmentPage = enrollmentRepository.findAll(spec, pageable);
@@ -112,7 +115,8 @@ public class EnrollmentServiceImpl implements EnrollmentService {
 
         Specification<Enrollment> spec = EnrollmentSpecification.filter(
                 activeYear.getId(), classId, sectionId,
-                shiftId, genderSectionId, studentGroupId, false, null
+                shiftId, genderSectionId, studentGroupId, false, null,
+                null, null  // ← add
         );
 
         Page<Enrollment> enrollmentPage = enrollmentRepository.findAll(spec, pageable);
@@ -255,20 +259,35 @@ public class EnrollmentServiceImpl implements EnrollmentService {
 
     // ── Update enrollment ─────────────────────────────────────────────────────
     @Override
-    public EnrollmentResponseDto updateEnrollment(Long id, Enrollment updated) {
+    public EnrollmentResponseDto updateEnrollment(Long id, EnrollmentWithStudentRequestDto request) {
         Enrollment existing = enrollmentRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Enrollment not found: " + id));
 
-        if (updated.getAcademicYear() != null) existing.setAcademicYear(updated.getAcademicYear());
-        if (updated.getStudentClass() != null) existing.setStudentClass(updated.getStudentClass());
-        if (updated.getSection() != null) existing.setSection(updated.getSection());
-        if (updated.getShift() != null) existing.setShift(updated.getShift());
-        if (updated.getGenderSection() != null) existing.setGenderSection(updated.getGenderSection());
-        if (updated.getStudentGroup() != null) existing.setStudentGroup(updated.getStudentGroup());
-        if (updated.getClassRoll() != null) existing.setClassRoll(updated.getClassRoll());
-        if (updated.getIsActive() != null) existing.setIsActive(updated.getIsActive());
+        // Update enrollment fields
+        if (request.getAcademicYearId() != null)
+            existing.setAcademicYear(academicYearRepository.findById(request.getAcademicYearId()).orElse(null));
+        if (request.getClassId() != null)
+            existing.setStudentClass(classRepository.findById(request.getClassId()).orElse(null));
+        if (request.getSectionId() != null)
+            existing.setSection(sectionRepository.findById(Math.toIntExact(request.getSectionId())).orElse(null));
+        if (request.getShiftId() != null)
+            existing.setShift(shiftRepository.findById(request.getShiftId()).orElse(null));
+        if (request.getGenderSectionId() != null)
+            existing.setGenderSection(genderSectionRepository.findById(request.getGenderSectionId()).orElse(null));
+        if (request.getStudentGroupId() != null)
+            existing.setStudentGroup(studentGroupRepository.findById(request.getStudentGroupId()).orElse(null));
+        if (request.getClassRoll() != null)
+            existing.setClassRoll(request.getClassRoll());
+        if (request.getIsActive() != null) {
+            existing.setIsActive(request.getIsActive());
+        } else if (existing.getIsActive() == null) {
+            existing.setIsActive(true); // safe default
+        }
 
         Enrollment saved = enrollmentRepository.save(existing);
+
+        // Update student personal info in student-service
+        studentServiceClient.updateStudent(saved.getStudentSystemId(), request);
 
         StudentDto student = studentServiceClient.findBySystemId(saved.getStudentSystemId());
         if (student == null) {

@@ -25,6 +25,8 @@ public interface EnrollmentService {
             Integer studentGroupId,
             Boolean isActive,
             String search,
+            Integer startRoll,  // ← add
+            Integer endRoll,    // ← add
             Pageable pageable
     );
     EnrollmentResponseDto updateClassRoll(Long id, Integer classRoll);
@@ -47,8 +49,7 @@ public interface EnrollmentService {
 
     EnrollmentResponseDto createEnrollment(EnrollmentWithStudentRequestDto request, MultipartFile image);
 
-    EnrollmentResponseDto updateEnrollment(Long id, Enrollment enrollment);
-
+    public EnrollmentResponseDto updateEnrollment(Long id, EnrollmentWithStudentRequestDto request);
     // Soft delete
     void deleteEnrollment(Long id);
 
