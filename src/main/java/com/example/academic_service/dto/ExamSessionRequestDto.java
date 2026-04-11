@@ -22,7 +22,7 @@ public class ExamSessionRequestDto {
     @NotNull(message = "Subject is required")
     private Integer subjectId;
 
-    private Integer groupId;   // nullable
+    private Integer group;   // nullable
     private Integer genderSectionId;  // nullable
     private Integer sectionId;        // nullable
 
