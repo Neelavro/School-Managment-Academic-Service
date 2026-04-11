@@ -46,8 +46,8 @@ public class ExamSessionServiceImpl implements ExamSessionService {
 
             // Optional group
             StudentGroup group = null;
-            if (dto.getGroupId() != null) {
-                group = studentGroupRepository.findById(dto.getGroupId()).orElse(null);
+            if (dto.getGroup() != null) {
+                group = studentGroupRepository.findById(dto.getGroup()).orElse(null);
                 if (group == null) return ApiResponse.error("Group not found");
             }
 
@@ -81,8 +81,8 @@ public class ExamSessionServiceImpl implements ExamSessionService {
 
             // Optional group — null means shared/all groups
             StudentGroup group = null;
-            if (dto.getGroupId() != null) {
-                group = studentGroupRepository.findById(dto.getGroupId()).orElse(null);
+            if (dto.getGroup() != null) {
+                group = studentGroupRepository.findById(dto.getGroup()).orElse(null);
                 if (group == null) return ApiResponse.error("Group not found");
             }
 
