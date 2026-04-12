@@ -239,16 +239,20 @@ public class AdmitCardServiceImpl {
 
             List<Enrollment> enrollments = enrollmentRepository.findAll(spec);
 
-            // Pull section/genderSection names from first enrollment
-            String resolvedSectionName = enrollments.stream()
+            // Pull section/genderSection names only if the param was explicitly passed
+            String resolvedSectionName = (sectionId != null)
+                    ? enrollments.stream()
                     .filter(e -> e.getSection() != null)
                     .map(e -> e.getSection().getSectionName())
-                    .findFirst().orElse(null);
+                    .findFirst().orElse(null)
+                    : null;
 
-            String resolvedGenderSectionName = enrollments.stream()
+            String resolvedGenderSectionName = (genderSectionId != null)
+                    ? enrollments.stream()
                     .filter(e -> e.getGenderSection() != null)
                     .map(e -> e.getGenderSection().getGenderName())
-                    .findFirst().orElse(null);
+                    .findFirst().orElse(null)
+                    : null;
 
             List<AdmitCardStudentDto> students = enrollments.stream()
                     .sorted(Comparator.comparingInt(e ->
