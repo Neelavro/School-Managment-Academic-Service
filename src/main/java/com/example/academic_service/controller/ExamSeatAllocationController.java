@@ -2,8 +2,8 @@ package com.example.academic_service.controller;
 
 import com.example.academic_service.dto.ApiResponse;
 import com.example.academic_service.dto.AvailableRoomResponseDto;
-import com.example.academic_service.dto.ExamSeatAllocationRequestDto;
-import com.example.academic_service.dto.ExamSeatAllocationResponseDto;
+import com.example.academic_service.dto.exam_dtos.ExamSeatAllocationRequestDto;
+import com.example.academic_service.dto.exam_dtos.ExamSeatAllocationResponseDto;
 import com.example.academic_service.service.impl.ExamSeatAllocationServiceImpl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;

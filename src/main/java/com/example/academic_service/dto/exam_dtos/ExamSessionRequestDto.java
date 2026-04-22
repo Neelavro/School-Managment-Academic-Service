@@ -1,13 +1,10 @@
-package com.example.academic_service.dto;
-import com.example.academic_service.entity.Room;
+package com.example.academic_service.dto.exam_dtos;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
-import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Getter
 @Setter

@@ -1,6 +1,9 @@
 package com.example.academic_service.service.impl;
 
-import com.example.academic_service.dto.*;
+import com.example.academic_service.dto.admit_card_dtos.AdmitCardAllocationDto;
+import com.example.academic_service.dto.admit_card_dtos.AdmitCardRoutineResponseDto;
+import com.example.academic_service.dto.admit_card_dtos.AdmitCardSessionDto;
+import com.example.academic_service.dto.admit_card_dtos.AdmitCardStudentDto;
 import com.example.academic_service.entity.*;
 import com.example.academic_service.repository.*;
 import lombok.RequiredArgsConstructor;

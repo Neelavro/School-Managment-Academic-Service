@@ -1,4 +1,4 @@
-package com.example.academic_service.dto;
+package com.example.academic_service.dto.exam_dtos;
 
 import com.example.academic_service.entity.ExamSeatAllocation;
 import com.example.academic_service.entity.GenderSection;

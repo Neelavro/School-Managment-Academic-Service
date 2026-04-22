@@ -1,7 +1,7 @@
 package com.example.academic_service.controller;
 
 import com.example.academic_service.dto.ApiResponse;
-import com.example.academic_service.dto.ExamRoutineRequestDto;
+import com.example.academic_service.dto.exam_dtos.ExamRoutineRequestDto;
 import com.example.academic_service.entity.ExamRoutine;
 import com.example.academic_service.service.ExamRoutineService;
 import jakarta.validation.Valid;

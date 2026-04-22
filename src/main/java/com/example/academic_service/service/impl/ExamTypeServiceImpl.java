@@ -1,7 +1,7 @@
 package com.example.academic_service.service.impl;
 
 import com.example.academic_service.dto.ApiResponse;
-import com.example.academic_service.dto.ExamTypeRequestDto;
+import com.example.academic_service.dto.exam_dtos.ExamTypeRequestDto;
 import com.example.academic_service.entity.ExamType;
 import com.example.academic_service.repository.ExamTypeRepository;
 import com.example.academic_service.service.ExamTypeService;

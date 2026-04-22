@@ -1,9 +1,8 @@
 package com.example.academic_service.service.impl;
 
 import com.example.academic_service.dto.ApiResponse;
-import com.example.academic_service.dto.AvailableRoomResponseDto;
-import com.example.academic_service.dto.ExamSessionRequestDto;
-import com.example.academic_service.dto.ExamSessionResponseDto;
+import com.example.academic_service.dto.exam_dtos.ExamSessionRequestDto;
+import com.example.academic_service.dto.exam_dtos.ExamSessionResponseDto;
 import com.example.academic_service.entity.*;
 import com.example.academic_service.entity.Class;
 import com.example.academic_service.repository.*;
@@ -11,9 +10,7 @@ import com.example.academic_service.service.ExamSessionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.util.*;
 import java.util.stream.Collectors;
 

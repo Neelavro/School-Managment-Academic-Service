@@ -1,9 +1,8 @@
 package com.example.academic_service.service;
 
 import com.example.academic_service.dto.ApiResponse;
-import com.example.academic_service.dto.ExamSessionRequestDto;
-import com.example.academic_service.dto.ExamSessionResponseDto;
-import com.example.academic_service.entity.ExamSession;
+import com.example.academic_service.dto.exam_dtos.ExamSessionRequestDto;
+import com.example.academic_service.dto.exam_dtos.ExamSessionResponseDto;
 
 import java.util.List;
 

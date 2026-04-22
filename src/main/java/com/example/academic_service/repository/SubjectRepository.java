@@ -7,6 +7,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface SubjectRepository extends JpaRepository<Subject, Integer> {
@@ -18,4 +19,5 @@ public interface SubjectRepository extends JpaRepository<Subject, Integer> {
     boolean existsByCodeIgnoreCaseAndIdNot(String code, Integer id);
     boolean existsByNameIgnoreCaseAndIsActiveTrueAndIdNot(String name, Integer id);
     boolean existsByCodeIgnoreCaseAndIsActiveTrueAndIdNot(String code, Integer id);
+    Optional<Subject> findByIdAndIsActiveTrue(Integer id);
 }

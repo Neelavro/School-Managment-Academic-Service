@@ -1,4 +1,4 @@
-package com.example.academic_service.dto;
+package com.example.academic_service.dto.admit_card_dtos;
 
 import lombok.*;
 import java.util.List;

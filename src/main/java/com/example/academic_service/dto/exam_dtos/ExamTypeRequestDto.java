@@ -1,4 +1,4 @@
-package com.example.academic_service.dto;
+package com.example.academic_service.dto.exam_dtos;
 import jakarta.validation.constraints.NotBlank;
 import lombok.*;
 

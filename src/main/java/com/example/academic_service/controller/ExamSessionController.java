@@ -1,20 +1,15 @@
 package com.example.academic_service.controller;
 
 import com.example.academic_service.dto.ApiResponse;
-import com.example.academic_service.dto.AvailableRoomResponseDto;
-import com.example.academic_service.dto.ExamSessionRequestDto;
-import com.example.academic_service.dto.ExamSessionResponseDto;
-import com.example.academic_service.entity.ExamSession;
+import com.example.academic_service.dto.exam_dtos.ExamSessionRequestDto;
+import com.example.academic_service.dto.exam_dtos.ExamSessionResponseDto;
 import com.example.academic_service.service.ExamSessionService;
 import com.example.academic_service.service.RoomService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDate;
-import java.time.LocalTime;
 import java.util.List;
 
 @RestController

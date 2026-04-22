@@ -1,6 +1,6 @@
 package com.example.academic_service.controller;
 
-import com.example.academic_service.dto.AdmitCardRoutineResponseDto;
+import com.example.academic_service.dto.admit_card_dtos.AdmitCardRoutineResponseDto;
 import com.example.academic_service.service.impl.AdmitCardServiceImpl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;

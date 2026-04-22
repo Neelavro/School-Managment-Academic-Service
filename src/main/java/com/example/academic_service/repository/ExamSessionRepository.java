@@ -9,6 +9,7 @@ import org.springframework.stereotype.Repository;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface ExamSessionRepository extends JpaRepository<ExamSession, Integer> {
@@ -26,4 +27,9 @@ public interface ExamSessionRepository extends JpaRepository<ExamSession, Intege
             @Param("date") LocalDate date,
             @Param("startTime") LocalTime startTime,
             @Param("endTime") LocalTime endTime);
+
+    Optional<ExamSession> findByIdAndIsActiveTrue(Integer id);
+
+    List<ExamSession> findAllByExamRoutineIdAndExamClassIdAndIsActiveTrue(
+            Integer examRoutineId, Integer classId);
 }
