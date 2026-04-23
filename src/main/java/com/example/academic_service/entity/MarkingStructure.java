@@ -43,6 +43,9 @@ public class MarkingStructure {
     @Column(name = "total_marks", nullable = false)
     private Integer totalMarks;
 
+    @Column(name = "pass_marks")
+    private Integer passMarks;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt = LocalDateTime.now();
 

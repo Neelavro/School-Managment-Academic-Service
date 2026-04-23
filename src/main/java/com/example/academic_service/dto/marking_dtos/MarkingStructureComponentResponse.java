@@ -10,4 +10,5 @@ public class MarkingStructureComponentResponse {
     private Integer examComponentId;
     private String examComponentName;
     private Integer maxMarks;
+    private Integer passMarks;
 }

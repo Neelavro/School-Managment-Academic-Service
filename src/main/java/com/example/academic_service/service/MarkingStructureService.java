@@ -58,6 +58,7 @@ public class MarkingStructureService {
         structure.setSubject(subject);
         structure.setGroup(group);
         structure.setTotalMarks(request.getTotalMarks());
+        structure.setPassMarks(request.getPassMarks());
         markingStructureRepository.save(structure);
 
         saveComponents(structure, request.getComponents());
@@ -81,6 +82,7 @@ public class MarkingStructureService {
         validateComponents(request.getComponents(), request.getTotalMarks());
 
         structure.setTotalMarks(request.getTotalMarks());
+        structure.setPassMarks(request.getPassMarks());
         structure.setLastModifiedAt(LocalDateTime.now());
         markingStructureRepository.save(structure);
 
@@ -138,6 +140,7 @@ public class MarkingStructureService {
             msc.setMarkingStructure(structure);
             msc.setExamComponent(examComponent);
             msc.setMaxMarks(req.getMaxMarks());
+            msc.setPassMarks(req.getPassMarks());
             return msc;
         }).toList();
         markingStructureComponentRepository.saveAll(toSave);
@@ -155,6 +158,7 @@ public class MarkingStructureService {
         res.setGroupId(s.getGroup() != null ? s.getGroup().getId() : null);
         res.setGroupName(s.getGroup() != null ? s.getGroup().getGroupName() : null);
         res.setTotalMarks(s.getTotalMarks());
+        res.setPassMarks(s.getPassMarks());
         res.setIsActive(s.getIsActive());
 
         List<MarkingStructureComponent> components =
@@ -165,6 +169,7 @@ public class MarkingStructureService {
             cr.setExamComponentId(c.getExamComponent().getId());
             cr.setExamComponentName(c.getExamComponent().getName());
             cr.setMaxMarks(c.getMaxMarks());
+            cr.setPassMarks(c.getPassMarks());
             return cr;
         }).toList());
 
@@ -215,6 +220,7 @@ public class MarkingStructureService {
             structure.setSubject(subject);
             structure.setGroup(group);
             structure.setTotalMarks(request.getTotalMarks());
+            structure.setPassMarks(request.getPassMarks());
             markingStructureRepository.save(structure);
 
             saveComponents(structure, request.getComponents());

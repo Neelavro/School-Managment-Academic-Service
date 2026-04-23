@@ -32,6 +32,9 @@ public class MarkingStructureComponent {
     @Column(name = "max_marks", nullable = false)
     private Integer maxMarks; // must not exceed markingStructure.totalMarks (validated in service)
 
+    @Column(name = "pass_marks")
+    private Integer passMarks;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt = LocalDateTime.now();
 

@@ -8,4 +8,5 @@ import lombok.Setter;
 public class MarkingStructureComponentRequest {
     private Integer examComponentId;
     private Integer maxMarks;
+    private Integer passMarks; // nullable — per-component pass mark
 }

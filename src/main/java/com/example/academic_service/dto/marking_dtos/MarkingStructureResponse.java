@@ -18,6 +18,7 @@ public class MarkingStructureResponse {
     private Integer groupId;
     private String groupName;
     private Integer totalMarks;
+    private Integer passMarks;
     private Boolean isActive;
     private List<MarkingStructureComponentResponse> components;
 }

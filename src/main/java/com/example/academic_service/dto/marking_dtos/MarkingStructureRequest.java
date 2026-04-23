@@ -13,5 +13,6 @@ public class MarkingStructureRequest {
     private Integer subjectId;
     private Integer groupId; // nullable
     private Integer totalMarks;
+    private Integer passMarks; // nullable — overall pass mark
     private List<MarkingStructureComponentRequest> components;
 }
