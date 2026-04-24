@@ -30,4 +30,16 @@ public interface MarkingStructureRepository extends JpaRepository<MarkingStructu
             @Param("classId") Integer classId,
             @Param("subjectId") Integer subjectId,
             @Param("groupId") Integer groupId);
+
+    @Query(value = "SELECT * FROM marking_structure m WHERE " +
+            "m.exam_type_id = :examTypeId AND " +
+            "m.class_id = :classId AND " +
+            "m.subject_id = :subjectId AND " +
+            "m.group_id IS NULL AND " +
+            "m.deleted_at IS NULL",
+            nativeQuery = true)
+    List<MarkingStructure> findClassWideAndDeletedAtIsNull(
+            @Param("examTypeId") Integer examTypeId,
+            @Param("classId") Integer classId,
+            @Param("subjectId") Integer subjectId);
 }

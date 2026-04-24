@@ -41,9 +41,14 @@ public class StudentMarkService {
         // resolve group
         Integer resolvedGroupId = groupId != null ? groupId : sessionGroupId;
 
-        // fetch marking structure
+        // fetch marking structure — group-specific first, fall back to common (null group)
         List<MarkingStructure> structures = markingStructureRepository
                 .findAllByFiltersAndDeletedAtIsNull(examTypeId, classId, subjectId, resolvedGroupId);
+
+        if (structures.isEmpty() && resolvedGroupId != null) {
+            structures = markingStructureRepository
+                    .findClassWideAndDeletedAtIsNull(examTypeId, classId, subjectId);
+        }
 
         if (structures.isEmpty()) {
             throw new RuntimeException("No marking structure found for this exam session. Please set up marking structure first.");
