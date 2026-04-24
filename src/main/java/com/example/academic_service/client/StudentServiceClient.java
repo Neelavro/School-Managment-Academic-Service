@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
 @Slf4j
 public class StudentServiceClient {
 
-//    @Value("${student.service.url:http://192.168.0.143:8083}")
+//    @Value("${student.service.url:http://192.168.0.210:8083}")
     @Value("${student.service.url:http://167.172.86.59:8083}")
     private String studentServiceUrl;
 
