@@ -4,6 +4,7 @@ import com.example.academic_service.dto.admit_card_dtos.AdmitCardRoutineResponse
 import com.example.academic_service.service.AdmitCardPdfService;
 import com.example.academic_service.service.impl.AdmitCardServiceImpl;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -12,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/admit-card")
 @RequiredArgsConstructor
+@Slf4j
 public class AdmitCardController {
 
     private final AdmitCardServiceImpl admitCardService;
@@ -62,6 +64,7 @@ public class AdmitCardController {
                     .contentType(MediaType.APPLICATION_PDF)
                     .body(pdf);
         } catch (Exception e) {
+            log.error("Failed to generate admit cards", e);
             return ResponseEntity.internalServerError().build();
         }
     }
@@ -87,6 +90,7 @@ public class AdmitCardController {
                     .contentType(MediaType.APPLICATION_PDF)
                     .body(pdf);
         } catch (Exception e) {
+            log.error("Failed to generate admit cards by section", e);
             return ResponseEntity.internalServerError().build();
         }
     }

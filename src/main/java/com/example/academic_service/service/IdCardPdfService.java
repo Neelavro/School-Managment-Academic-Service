@@ -246,7 +246,7 @@ public class IdCardPdfService {
                     : "<img src=\"" + signatureBase64 + "\" class=\"signature-img\">";
 
             String studentName = s.getNameEnglish();
-            String nameFontSize = studentName.length() > 28 ? "7.5px" : studentName.length() > 22 ? "8.5px" : studentName.length() > 16 ? "10px" : "12px";
+            String nameFontSize = studentName.length() > 28 ? "7.5px" : studentName.length() > 22 ? "8.5px" : studentName.length() > 16 ? "10px" : "11.5px";
 
             StringBuilder infoRows = new StringBuilder();
             infoRows.append("<tr>")
@@ -435,7 +435,7 @@ public class IdCardPdfService {
                 + ".photo-placeholder { font-size: 10px; color: #4a7a9a; text-align: center; line-height: 1.4; }"
                 + ".student-name {"
                 + "  position: absolute;"
-                + "  top: 134px;"
+                + "  top: 136px;"
                 + "  left: 0;"
                 + "  right: 0;"
                 + "  text-align: center;"
