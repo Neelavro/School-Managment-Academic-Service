@@ -34,7 +34,7 @@ public class StudentImageServiceImpl implements StudentImageService {
     private final StudentRepository studentRepository;
 
     private static final String IMAGE_FOLDER = "/var/www/student-service-images/";
-    private static final String BASE_URL      = "http://192.168.0.143:8084";
+    private static final String BASE_URL      = "http://167.172.86.59:8084";
     private static final int    MAX_BYTES     = 20 * 1024; // 20 KB
 
     @Override
