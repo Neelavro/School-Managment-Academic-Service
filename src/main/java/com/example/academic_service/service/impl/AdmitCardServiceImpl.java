@@ -143,7 +143,6 @@ public class AdmitCardServiceImpl {
                 ));
             }
 
-            // Attach full class schedule to this session
             List<AdmitCardSessionDto> fullSchedule = session.getExamClass() != null
                     ? fullScheduleByClassId.get(session.getExamClass().getId())
                     : new ArrayList<>();
@@ -155,9 +154,9 @@ public class AdmitCardServiceImpl {
                     session.getStartTime().toString(),
                     session.getEndTime().toString(),
                     session.getExamClass().getName(),
-                    session.getGroup() != null ? session.getGroup().getId() : null,  // ← add
-                    new ArrayList<>(),
-                    null
+                    session.getGroup() != null ? session.getGroup().getId() : null,
+                    allocationDtos,
+                    fullSchedule
             ));
         }
 
