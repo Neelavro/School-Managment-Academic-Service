@@ -12,5 +12,6 @@ public interface ClassSubjectGroupService {
     ApiResponse<ClassSubjectGroup> assign(ClassSubjectGroupRequestDto dto);
     ApiResponse<List<ClassSubjectGroup>> getByClass(Integer classId);
     ApiResponse<List<ClassSubjectGroup>> getByClassAndGroup(Integer classId, Integer studentGroupId);
+    ApiResponse<ClassSubjectGroup> update(Integer id, ClassSubjectGroupRequestDto dto);
     ApiResponse<Void> remove(Integer id);
 }

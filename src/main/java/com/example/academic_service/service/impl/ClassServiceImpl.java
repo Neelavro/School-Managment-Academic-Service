@@ -73,7 +73,9 @@ public class ClassServiceImpl implements ClassService {
             existing.setName(clazz.getName());
             existing.setShift(clazz.getShift());
             existing.setIsActive(clazz.getIsActive());
-            existing.setStudentGroups(clazz.getStudentGroups()); // ✅ was setStudentGroup()
+            existing.setStudentGroups(clazz.getStudentGroups());
+            existing.setGradingPolicy(clazz.getGradingPolicy());
+            existing.setUseGpaForResult(clazz.getUseGpaForResult());
             return classRepository.save(existing);
         }
         return null;

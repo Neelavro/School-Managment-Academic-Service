@@ -9,3 +9,8 @@ services:
       SPRING_DATASOURCE_PASSWORD: Technonix@123
 #      SPRING_DATASOURCE_USERNAME: root
 #      SPRING_DATASOURCE_PASSWORD: NSQ123nsq
+      PLAYWRIGHT_BROWSERS_PATH: /opt/pw-browsers
+    volumes:
+      - /var/www/student-service-images:/var/www/student-service-images
+      - /opt/pw-browsers:/opt/pw-browsers
+    restart: unless-stopped

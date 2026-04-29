@@ -1,8 +1,11 @@
 package com.example.academic_service.controller;
 
 import com.example.academic_service.dto.admit_card_dtos.AdmitCardRoutineResponseDto;
+import com.example.academic_service.service.AdmitCardPdfService;
 import com.example.academic_service.service.impl.AdmitCardServiceImpl;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -12,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 public class AdmitCardController {
 
     private final AdmitCardServiceImpl admitCardService;
+    private final AdmitCardPdfService admitCardPdfService;
 
     @GetMapping
     public ResponseEntity<AdmitCardRoutineResponseDto> getAdmitCardData(
@@ -37,7 +41,53 @@ public class AdmitCardController {
     ) {
         return ResponseEntity.ok(
                 admitCardService.getAdmitCardDataBySection(
-                        routineId, sessionId, classId, genderSectionId, sectionId, groupId)  // ← pass
+                        routineId, sessionId, classId, genderSectionId, sectionId, groupId)
         );
+    }
+
+    @GetMapping(value = "/download", produces = "application/pdf")
+    public ResponseEntity<byte[]> downloadAdmitCards(
+            @RequestParam Integer routineId,
+            @RequestParam(required = false) Integer sessionId,
+            @RequestParam(required = false) Integer classId,
+            @RequestParam(required = false) Integer genderSectionId,
+            @RequestParam(required = false) Long sectionId
+    ) {
+        try {
+            byte[] pdf = admitCardPdfService.generateAdmitCards(
+                    routineId, sessionId, classId, genderSectionId, sectionId);
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION,
+                            "attachment; filename=\"admit-cards.pdf\"")
+                    .contentType(MediaType.APPLICATION_PDF)
+                    .body(pdf);
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @GetMapping(value = "/download/by-section", produces = "application/pdf")
+    public ResponseEntity<byte[]> downloadAdmitCardsBySection(
+            @RequestParam Integer routineId,
+            @RequestParam(required = false) Integer sessionId,
+            @RequestParam(required = false) Integer classId,
+            @RequestParam(required = false) Integer genderSectionId,
+            @RequestParam(required = false) Long sectionId,
+            @RequestParam(required = false) Integer groupId,
+            @RequestParam(required = false) Integer startRoll,
+            @RequestParam(required = false) Integer endRoll
+    ) {
+        try {
+            byte[] pdf = admitCardPdfService.generateAdmitCardsBySection(
+                    routineId, sessionId, classId, genderSectionId, sectionId,
+                    groupId, startRoll, endRoll);
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION,
+                            "attachment; filename=\"admit-cards-by-section.pdf\"")
+                    .contentType(MediaType.APPLICATION_PDF)
+                    .body(pdf);
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
     }
 }

@@ -14,4 +14,6 @@ public class ClassSubjectGroupRequestDto {
     private Integer subjectId;
 
     private Integer studentGroupId; // null = common subject
+
+    private Boolean isFourthSubject = false;
 }

@@ -2,6 +2,7 @@ package com.example.academic_service.dto;
 
 import com.example.academic_service.entity.*;
 import com.example.academic_service.entity.Class;
+import com.example.academic_service.entity.Student;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -164,7 +165,7 @@ public class EnrollmentResponseDto {
 
     // ── Static factory ────────────────────────────────────────────────────────
 
-    public static EnrollmentResponseDto from(Enrollment enrollment, StudentDto student) {
+    public static EnrollmentResponseDto from(Enrollment enrollment, Student student) {
         EnrollmentResponseDto dto = new EnrollmentResponseDto();
 
         // Academic fields from enrollment
@@ -177,7 +178,7 @@ public class EnrollmentResponseDto {
         dto.setGenderSection(GenderSectionDto.from(enrollment.getGenderSection()));
         dto.setStudentGroup(StudentGroupDto.from(enrollment.getStudentGroup()));
 
-        // Student fields from student-service
+        // Student personal fields
         dto.setId(student.getId());
         dto.setStudentSystemId(student.getStudentSystemId());
         dto.setNameEnglish(student.getNameEnglish());
@@ -208,9 +209,28 @@ public class EnrollmentResponseDto {
         dto.setDob(student.getDob() != null ? student.getDob().toString() : null);
         dto.setNationality(student.getNationality());
         dto.setIsActive(student.getIsActive());
-        dto.setGender(student.getGender());
-        dto.setStudentStatus(student.getStudentStatus());
-        dto.setImage(student.getImage());
+
+        // Nested DTOs mapped from entity relations
+        if (student.getGender() != null) {
+            StudentDto.GenderDto g = new StudentDto.GenderDto();
+            g.setId(student.getGender().getId());
+            g.setGender(student.getGender().getGender());
+            g.setIsActive(student.getGender().getIsActive());
+            dto.setGender(g);
+        }
+        if (student.getStudentStatus() != null) {
+            StudentDto.StudentStatusDto s = new StudentDto.StudentStatusDto();
+            s.setId(student.getStudentStatus().getId());
+            s.setStatusName(student.getStudentStatus().getStatusName());
+            dto.setStudentStatus(s);
+        }
+        if (student.getImage() != null) {
+            StudentDto.StudentImageDto img = new StudentDto.StudentImageDto();
+            img.setId((long) student.getImage().getId());
+            img.setImageUrl(student.getImage().getImageUrl());
+            img.setIsActive(student.getImage().getIsActive());
+            dto.setImage(img);
+        }
 
         return dto;
     }

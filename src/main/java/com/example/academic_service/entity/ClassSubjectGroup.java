@@ -35,4 +35,7 @@ public class ClassSubjectGroup {
 
     @Column(name = "is_active")
     private Boolean isActive = true;
+
+    @Column(name = "is_fourth_subject")
+    private Boolean isFourthSubject = false;
 }

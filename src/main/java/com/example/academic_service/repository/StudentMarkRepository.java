@@ -19,4 +19,9 @@ public interface StudentMarkRepository extends JpaRepository<StudentMark, Long> 
 
     List<StudentMark> findAllByEnrollmentIdInAndExamSessionIdAndDeletedAtIsNull(
             List<Long> enrollmentIds, Integer examSessionId);
+
+    @Query("SELECT sm FROM StudentMark sm WHERE sm.enrollmentId IN :enrollmentIds AND sm.examSession.id IN :sessionIds AND sm.deletedAt IS NULL")
+    List<StudentMark> findAllByEnrollmentIdsAndSessionIds(
+            @Param("enrollmentIds") List<Long> enrollmentIds,
+            @Param("sessionIds") List<Integer> sessionIds);
 }

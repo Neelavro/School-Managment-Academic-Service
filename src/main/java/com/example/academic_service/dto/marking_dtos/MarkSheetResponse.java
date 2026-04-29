@@ -30,6 +30,7 @@ public class MarkSheetResponse {
     public static class StudentMarkRow {
         private Long enrollmentId;
         private String studentSystemId;
+        private String nameEnglish;
         private Integer classRoll;
         private List<MarkEntry> marks;
         private BigDecimal total;

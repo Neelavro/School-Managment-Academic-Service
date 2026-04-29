@@ -64,7 +64,7 @@ public class StudentMarkService {
 
         // fetch enrollments
         List<Enrollment> enrollments = enrollmentRepository
-                .findAllByClassIdAndFilters(classId, genderSectionId, sectionId, resolvedGroupId);
+                .findAllByClassIdAndFilters(classId, null, genderSectionId, sectionId, resolvedGroupId, null, null);
 
         // build component info list
         List<MarkSheetResponse.ComponentInfo> componentInfos = components.stream().map(c -> {
@@ -116,6 +116,7 @@ public class StudentMarkService {
             MarkSheetResponse.StudentMarkRow row = new MarkSheetResponse.StudentMarkRow();
             row.setEnrollmentId(enrollment.getId());
             row.setStudentSystemId(enrollment.getStudentSystemId());
+            row.setNameEnglish(enrollment.getStudent() != null ? enrollment.getStudent().getNameEnglish() : null);
             row.setClassRoll(enrollment.getClassRoll());
 
             Map<Integer, BigDecimal> studentMarks = markMap.getOrDefault(enrollment.getId(), new HashMap<>());

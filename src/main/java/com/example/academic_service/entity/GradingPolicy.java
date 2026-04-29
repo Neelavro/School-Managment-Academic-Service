@@ -24,6 +24,6 @@ public class GradingPolicy {
     @Column(nullable = false)
     private Boolean isActive;
 
-    @OneToMany(mappedBy = "gradingPolicy", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "gradingPolicy", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     private List<Grade> grades = new ArrayList<>();
 }

@@ -29,18 +29,21 @@ public interface EnrollmentRepository extends JpaRepository<Enrollment, Long>,
 SELECT e FROM Enrollment e
 WHERE e.studentClass.id = :classId
 AND e.isActive = true
+AND (:shiftId IS NULL OR e.shift.id = :shiftId)
 AND (:genderSectionId IS NULL OR e.genderSection.id = :genderSectionId)
 AND (:sectionId IS NULL OR e.section.id = :sectionId)
-AND (
-    :groupId IS NULL
-    OR (e.studentGroup IS NOT NULL AND e.studentGroup.id = :groupId)
-)
+AND (:groupId IS NULL OR (e.studentGroup IS NOT NULL AND e.studentGroup.id = :groupId))
+AND (:startRoll IS NULL OR e.classRoll >= :startRoll)
+AND (:endRoll IS NULL OR e.classRoll <= :endRoll)
 """)
     List<Enrollment> findAllByClassIdAndFilters(
             @Param("classId") Integer classId,
+            @Param("shiftId") Integer shiftId,
             @Param("genderSectionId") Integer genderSectionId,
             @Param("sectionId") Long sectionId,
-            @Param("groupId") Integer groupId
+            @Param("groupId") Integer groupId,
+            @Param("startRoll") Integer startRoll,
+            @Param("endRoll") Integer endRoll
     );
 
 

@@ -48,6 +48,13 @@ public class ClassSubjectGroupController {
         return ResponseEntity.ok(service.getByClassAndGroup(classId, null));
     }
 
+    @PutMapping("/{id}")
+    public ResponseEntity<ApiResponse<ClassSubjectGroup>> update(
+            @PathVariable Integer id,
+            @RequestBody ClassSubjectGroupRequestDto dto) {
+        return ResponseEntity.ok(service.update(id, dto));
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> remove(@PathVariable Integer id) {
         return ResponseEntity.ok(service.remove(id));

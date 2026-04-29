@@ -72,6 +72,7 @@ public class ClassSubjectGroupServiceImpl implements ClassSubjectGroupService {
         assignment.setStudentClass(studentClass);
         assignment.setSubject(subject);
         assignment.setStudentGroup(studentGroup);
+        assignment.setIsFourthSubject(dto.getIsFourthSubject() != null && dto.getIsFourthSubject());
 
         return ApiResponse.success("Subject assigned successfully", repository.save(assignment));
     }
@@ -105,6 +106,15 @@ public class ClassSubjectGroupServiceImpl implements ClassSubjectGroupService {
         if (subject == null) return ApiResponse.error("Subject not found");
         return ApiResponse.success("Assignments fetched successfully",
                 repository.findBySubjectIdAndIsActiveTrue(subjectId));
+    }
+
+    @Override
+    public ApiResponse<ClassSubjectGroup> update(Integer id, ClassSubjectGroupRequestDto dto) {
+        ClassSubjectGroup assignment = repository.findById(id).orElse(null);
+        if (assignment == null) return ApiResponse.error("Assignment not found");
+        if (dto.getIsFourthSubject() != null)
+            assignment.setIsFourthSubject(dto.getIsFourthSubject());
+        return ApiResponse.success("Assignment updated successfully", repository.save(assignment));
     }
 
     @Override

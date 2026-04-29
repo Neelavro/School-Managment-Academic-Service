@@ -3,6 +3,8 @@ package com.example.academic_service.entity;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.NotFound;
+import org.hibernate.annotations.NotFoundAction;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -22,6 +24,14 @@ public class Class {
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "shift_id", nullable = true)
     private Shift shift;
+
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "grading_policy_id")
+    @NotFound(action = NotFoundAction.IGNORE)
+    private GradingPolicy gradingPolicy;
+
+    @Column(name = "use_gpa_for_result")
+    private Boolean useGpaForResult = false;
 
     // ✅ Replace single studentGroup with a collection
     @ManyToMany(fetch = FetchType.EAGER)

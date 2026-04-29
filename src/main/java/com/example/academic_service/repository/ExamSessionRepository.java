@@ -32,4 +32,16 @@ public interface ExamSessionRepository extends JpaRepository<ExamSession, Intege
 
     List<ExamSession> findAllByExamRoutineIdAndExamClassIdAndIsActiveTrue(
             Integer examRoutineId, Integer classId);
+
+    @Query(value = "SELECT * FROM exam_session es WHERE es.exam_routine_id = :routineId AND es.class_id = :classId AND es.is_active = true AND (:groupId IS NULL OR es.group_id IS NULL OR es.group_id = :groupId)", nativeQuery = true)
+    List<ExamSession> findForRoutineAndClassWithGroupFilter(
+            @Param("routineId") Integer routineId,
+            @Param("classId") Integer classId,
+            @Param("groupId") Integer groupId);
+
+    @Query(value = "SELECT es.* FROM exam_session es JOIN exam_routine er ON es.exam_routine_id = er.id WHERE er.academic_year_id = :academicYearId AND es.class_id = :classId AND es.is_active = true AND (:groupId IS NULL OR es.group_id IS NULL OR es.group_id = :groupId)", nativeQuery = true)
+    List<ExamSession> findForAnnualByClassWithGroupFilter(
+            @Param("academicYearId") Integer academicYearId,
+            @Param("classId") Integer classId,
+            @Param("groupId") Integer groupId);
 }

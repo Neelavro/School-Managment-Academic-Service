@@ -18,6 +18,10 @@ public class Enrollment {
     private String studentSystemId;
 
     @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "student_system_id", referencedColumnName = "student_system_id", insertable = false, updatable = false)
+    private Student student;
+
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "academic_year_id", nullable = true)
     private AcademicYear academicYear;
 
