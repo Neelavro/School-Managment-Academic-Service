@@ -435,7 +435,7 @@ public class IdCardPdfService {
                 + ".photo-placeholder { font-size: 10px; color: #4a7a9a; text-align: center; line-height: 1.4; }"
                 + ".student-name {"
                 + "  position: absolute;"
-                + "  top: 136px;"
+                + "  top: 137.5px;"
                 + "  left: 0;"
                 + "  right: 0;"
                 + "  text-align: center;"
