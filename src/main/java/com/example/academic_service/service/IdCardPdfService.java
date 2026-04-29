@@ -20,6 +20,8 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.Base64;
 import java.util.List;
 
@@ -63,11 +65,22 @@ public class IdCardPdfService {
         }
     }
 
+    private static final String IMAGE_FOLDER = "/var/www/student-service-images/";
+
+    private byte[] readImageBytes(String imageUrl) throws Exception {
+        String filename = imageUrl.substring(imageUrl.lastIndexOf("/images/") + "/images/".length());
+        java.nio.file.Path filePath = Paths.get(IMAGE_FOLDER + filename);
+        if (Files.exists(filePath)) {
+            return Files.readAllBytes(filePath);
+        }
+        return new URL(imageUrl).openStream().readAllBytes();
+    }
+
     public String fetchAndCompressToBase64(String imageUrl) {
         int MAX_BYTES = 250 * 1024;
 
         try {
-            byte[] rawBytes = new URL(imageUrl).openStream().readAllBytes();
+            byte[] rawBytes = readImageBytes(imageUrl);
 
             BufferedImage original = ImageIO.read(new java.io.ByteArrayInputStream(rawBytes));
             if (original == null) return "";
@@ -214,7 +227,10 @@ public class IdCardPdfService {
     private String resolveLogoBase64(String logoUrl) {
         if (logoUrl != null && !logoUrl.isBlank()) {
             try {
-                byte[] bytes = new java.net.URL(logoUrl).openStream().readAllBytes();
+                java.net.HttpURLConnection conn = (java.net.HttpURLConnection) new java.net.URL(logoUrl).openConnection();
+                conn.setConnectTimeout(3000);
+                conn.setReadTimeout(3000);
+                byte[] bytes = conn.getInputStream().readAllBytes();
                 return "data:image/jpeg;base64," + Base64.getEncoder().encodeToString(bytes);
             } catch (Exception e) {
                 System.err.println("Warning: Could not fetch logo from URL, using fallback. " + e.getMessage());
