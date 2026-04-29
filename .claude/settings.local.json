@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs cat *)",
+      "Bash(git -C /Users/neelavroshafin/StudioProjects/academic_service diff --name-only)",
+      "Bash(git -C /Users/neelavroshafin/StudioProjects/academic_service ls-files --others --exclude-standard)"
+    ]
+  }
+}
