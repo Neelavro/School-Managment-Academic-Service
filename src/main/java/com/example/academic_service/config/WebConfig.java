@@ -10,6 +10,6 @@ public class WebConfig implements WebMvcConfigurer {
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
         // Maps /images/** URLs to the local folder
         registry.addResourceHandler("/images/**")
-                .addResourceLocations("file:/var/www/student_service/images/");
+                .addResourceLocations("file:/var/www/student-service-images/");
     }
 }
