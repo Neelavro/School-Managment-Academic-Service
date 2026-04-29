@@ -174,7 +174,6 @@ public class IdCardPdfService {
         SystemSettings settings = systemSettingsService.getSettings();
         String name    = settings.getInstitutionName() != null ? settings.getInstitutionName() : "";
         String address = settings.getAddress()         != null ? settings.getAddress()         : "";
-        String logo    = resolveLogoBase64(settings.getLogoUrl());
 
         try (Playwright playwright = Playwright.create()) {
             Browser browser = playwright.chromium().launch(
@@ -182,7 +181,7 @@ public class IdCardPdfService {
             );
             Page page = browser.newPage();
 
-            page.setContent(buildHtml(enrollments, name, address, logo), new Page.SetContentOptions()
+            page.setContent(buildHtml(enrollments, name, address), new Page.SetContentOptions()
                     .setWaitUntil(WaitUntilState.NETWORKIDLE));
 
             byte[] pdf = page.pdf(new Page.PdfOptions()
@@ -224,22 +223,7 @@ public class IdCardPdfService {
         }
     }
 
-    private String resolveLogoBase64(String logoUrl) {
-        if (logoUrl != null && !logoUrl.isBlank()) {
-            try {
-                java.net.HttpURLConnection conn = (java.net.HttpURLConnection) new java.net.URL(logoUrl).openConnection();
-                conn.setConnectTimeout(3000);
-                conn.setReadTimeout(3000);
-                byte[] bytes = conn.getInputStream().readAllBytes();
-                return "data:image/jpeg;base64," + Base64.getEncoder().encodeToString(bytes);
-            } catch (Exception e) {
-                System.err.println("Warning: Could not fetch logo from URL, using fallback. " + e.getMessage());
-            }
-        }
-        return logoBase64;
-    }
-
-    private String buildHtml(List<EnrollmentResponseDto> enrollments, String institutionName, String address, String logoBase64Card) {
+    private String buildHtml(List<EnrollmentResponseDto> enrollments, String institutionName, String address) {
         StringBuilder cards = new StringBuilder();
 
         for (int i = 0; i < enrollments.size(); i++) {
@@ -341,6 +325,18 @@ public class IdCardPdfService {
                 + "</style></head><body>"
                 + "<div class=\"grid\">" + cards + "</div>"
                 + "</body></html>";
+    }
+
+    private String resolveLogoBase64(String logoUrl) {
+        if (logoUrl != null && !logoUrl.isBlank()) {
+            try {
+                byte[] bytes = readImageBytes(logoUrl);
+                return "data:image/png;base64," + Base64.getEncoder().encodeToString(bytes);
+            } catch (Exception e) {
+                System.err.println("Warning: Could not fetch logo, using fallback. " + e.getMessage());
+            }
+        }
+        return logoBase64;
     }
 
     private String buildBackHtml(String institutionName, String address, String logoBase64Card) {

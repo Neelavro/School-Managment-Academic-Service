@@ -22,7 +22,7 @@ public class SystemSettingsServiceImpl implements SystemSettingsService {
     private final SystemSettingsRepository repository;
 
     private static final String IMAGE_FOLDER = "/var/www/student-service-images/";
-    private static final String BASE_URL = "http://192.168.0.143:8084";
+    private static final String BASE_URL = "http://167.172.86.59:8084";
     @Override
     public SystemSettings getSettings() {
         return repository.findAll().stream().findFirst()
