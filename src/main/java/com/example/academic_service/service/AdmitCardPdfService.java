@@ -12,12 +12,13 @@ import com.example.academic_service.service.impl.AdmitCardServiceImpl;
 import com.microsoft.playwright.*;
 import com.microsoft.playwright.options.Margin;
 import com.microsoft.playwright.options.WaitUntilState;
-import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
-import java.io.InputStream;
+import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -31,27 +32,21 @@ public class AdmitCardPdfService {
     private final AdmitCardServiceImpl admitCardService;
     private final EnrollmentRepository enrollmentRepository;
     private final IdCardPdfService idCardPdfService;
+    private final SystemSettingsService systemSettingsService;
 
-    private String logoBase64;
-    private String signatureBase64;
+    private static final String IMAGE_FOLDER = "/var/www/student-service-images/";
 
-    @PostConstruct
-    public void init() {
+    private String resolveBase64(String url) {
+        if (url == null || url.isBlank()) return "";
         try {
-            InputStream is = getClass().getResourceAsStream("/static/logo.png");
-            logoBase64 = "data:image/png;base64,"
-                    + Base64.getEncoder().encodeToString(is.readAllBytes());
+            String filename = url.substring(url.lastIndexOf("/images/") + "/images/".length());
+            java.nio.file.Path path = Paths.get(IMAGE_FOLDER + filename);
+            byte[] bytes = Files.exists(path) ? Files.readAllBytes(path)
+                    : new URL(url).openStream().readAllBytes();
+            return "data:image/png;base64," + Base64.getEncoder().encodeToString(bytes);
         } catch (Exception e) {
-            logoBase64 = "";
-            System.err.println("Warning: Could not load logo. " + e.getMessage());
-        }
-        try {
-            InputStream is = getClass().getResourceAsStream("/static/signature.png");
-            signatureBase64 = "data:image/jpeg;base64,"
-                    + Base64.getEncoder().encodeToString(is.readAllBytes());
-        } catch (Exception e) {
-            signatureBase64 = "";
-            System.err.println("Warning: Could not load signature. " + e.getMessage());
+            System.err.println("Warning: Could not load image from " + url + ": " + e.getMessage());
+            return "";
         }
     }
 
@@ -117,7 +112,11 @@ public class AdmitCardPdfService {
             }
         }
 
-        String html = buildHtml(routine, studentDataMap, enrollmentMap);
+        var settings  = systemSettingsService.getSettings();
+        String heading        = settings.getHeading();
+        String logoBase64     = resolveBase64(settings.getLogoUrl());
+        String signatureBase64 = resolveBase64(settings.getSignatureUrl());
+        String html = buildHtml(routine, studentDataMap, enrollmentMap, heading, logoBase64, signatureBase64);
 
         try (Playwright playwright = Playwright.create()) {
             Browser browser = playwright.chromium().launch(
@@ -219,7 +218,11 @@ public class AdmitCardPdfService {
             });
         }
 
-        String html = buildHtmlBySection(routine, studentDataMap, enrollmentMap);
+        var settings   = systemSettingsService.getSettings();
+        String heading         = settings.getHeading();
+        String logoBase64      = resolveBase64(settings.getLogoUrl());
+        String signatureBase64 = resolveBase64(settings.getSignatureUrl());
+        String html = buildHtmlBySection(routine, studentDataMap, enrollmentMap, heading, logoBase64, signatureBase64);
 
         try (Playwright playwright = Playwright.create()) {
             Browser browser = playwright.chromium().launch(
@@ -317,7 +320,10 @@ public class AdmitCardPdfService {
     private String buildHtml(
             AdmitCardRoutineResponseDto routine,
             Map<String, StudentAdmitData> studentDataMap,
-            Map<String, EnrollmentResponseDto> enrollmentMap
+            Map<String, EnrollmentResponseDto> enrollmentMap,
+            String heading,
+            String logoBase64,
+            String signatureBase64
     ) {
         List<StudentAdmitData> students = new ArrayList<>(studentDataMap.values());
         StringBuilder pages = new StringBuilder();
@@ -330,9 +336,9 @@ public class AdmitCardPdfService {
             EnrollmentResponseDto e2 = s2 != null ? enrollmentMap.get(s2.studentSystemId) : null;
 
             pages.append("<div class=\"page\">");
-            pages.append(buildCard(routine, s1, e1));
+            pages.append(buildCard(routine, s1, e1, heading, logoBase64, signatureBase64));
             pages.append("<div class=\"card-divider\"></div>");
-            if (s2 != null) pages.append(buildCard(routine, s2, e2));
+            if (s2 != null) pages.append(buildCard(routine, s2, e2, heading, logoBase64, signatureBase64));
             pages.append("</div>");
         }
 
@@ -346,7 +352,10 @@ public class AdmitCardPdfService {
     private String buildCard(
             AdmitCardRoutineResponseDto routine,
             StudentAdmitData data,
-            EnrollmentResponseDto enrollment
+            EnrollmentResponseDto enrollment,
+            String heading,
+            String logoBase64,
+            String signatureBase64
     ) {
         String name      = enrollment != null ? nvl(enrollment.getNameEnglish(), "N/A") : "N/A";
         String phone     = enrollment != null ? nvl(enrollment.getMotherPhone(), "N/A") : "N/A";
@@ -393,7 +402,7 @@ public class AdmitCardPdfService {
                 + "<div class=\"ac-header\">"
                 + "<div class=\"ac-logo\">" + logoTag + "</div>"
                 + "<div class=\"ac-header-center\">"
-                + "<div class=\"ac-arabic\">بسم الله الرحمن الرحيم</div>"
+                + (heading != null && !heading.isBlank() ? "<div class=\"ac-arabic\">" + heading + "</div>" : "")
                 + "<div class=\"ac-school\">LUTFUR RAHMAN ALIM MADRASAH</div>"
                 + "<div class=\"ac-address\">LUTFUR RAHMAN ROAD, NATULLABAD, BARISHAL</div>"
                 + "</div>"
@@ -464,7 +473,10 @@ public class AdmitCardPdfService {
     private String buildHtmlBySection(
             AdmitCardRoutineResponseDto routine,
             Map<String, StudentAdmitDataBySection> studentDataMap,
-            Map<String, EnrollmentResponseDto> enrollmentMap
+            Map<String, EnrollmentResponseDto> enrollmentMap,
+            String heading,
+            String logoBase64,
+            String signatureBase64
     ) {
         List<StudentAdmitDataBySection> students = new ArrayList<>(studentDataMap.values());
         StringBuilder pages = new StringBuilder();
@@ -477,9 +489,9 @@ public class AdmitCardPdfService {
             EnrollmentResponseDto e2 = s2 != null ? enrollmentMap.get(s2.studentSystemId) : null;
 
             pages.append("<div class=\"page\">");
-            pages.append(buildCardBySection(routine, s1, e1));
+            pages.append(buildCardBySection(routine, s1, e1, heading, logoBase64, signatureBase64));
             pages.append("<div class=\"card-divider\"></div>");
-            if (s2 != null) pages.append(buildCardBySection(routine, s2, e2));
+            if (s2 != null) pages.append(buildCardBySection(routine, s2, e2, heading, logoBase64, signatureBase64));
             pages.append("</div>");
         }
 
@@ -493,7 +505,10 @@ public class AdmitCardPdfService {
     private String buildCardBySection(
             AdmitCardRoutineResponseDto routine,
             StudentAdmitDataBySection data,
-            EnrollmentResponseDto enrollment
+            EnrollmentResponseDto enrollment,
+            String heading,
+            String logoBase64,
+            String signatureBase64
     ) {
         String name      = enrollment != null ? nvl(enrollment.getNameEnglish(), "N/A") : "N/A";
         String phone     = enrollment != null ? nvl(enrollment.getMotherPhone(), "N/A") : "N/A";
@@ -538,7 +553,7 @@ public class AdmitCardPdfService {
                 + "<div class=\"ac-header\">"
                 + "<div class=\"ac-logo\">" + logoTag + "</div>"
                 + "<div class=\"ac-header-center\">"
-                + "<div class=\"ac-arabic\">بسم الله الرحمن الرحيم</div>"
+                + (heading != null && !heading.isBlank() ? "<div class=\"ac-arabic\">" + heading + "</div>" : "")
                 + "<div class=\"ac-school\">LUTFUR RAHMAN ALIM MADRASAH</div>"
                 + "<div class=\"ac-address\">LUTFUR RAHMAN ROAD, NATULLABAD, BARISHAL</div>"
                 + "</div>"

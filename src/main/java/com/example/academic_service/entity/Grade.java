@@ -39,4 +39,7 @@ public class Grade {
 
     @Column(nullable = false)
     private Double maxMark;
+
+    @Column
+    private String comment;
 }

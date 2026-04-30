@@ -885,6 +885,201 @@ public class ResultService {
         return response;
     }
 
+    // ─── PROGRESS REPORT DATA ────────────────────────────────────────────────────
+
+    public ProgressReportData getProgressReportData(Integer examRoutineId, Integer classId, Integer shiftId,
+                                                    Integer genderSectionId, Long sectionId, Integer groupId,
+                                                    Integer startRoll, Integer endRoll) {
+        ExamRoutine routine = examRoutineRepository.findById(examRoutineId)
+                .orElseThrow(() -> new RuntimeException("Exam routine not found: " + examRoutineId));
+
+        List<ExamSession> sessions = examSessionRepository
+                .findForRoutineAndClassWithGroupFilter(examRoutineId, classId, groupId);
+        if (sessions.isEmpty()) throw new RuntimeException("No exam sessions found for this routine and class");
+
+        Class examClass = sessions.get(0).getExamClass();
+        List<Grade> sortedGrades = loadSortedGrades(examClass);
+        Set<Integer> fourthSubjectIds = loadFourthSubjectIds(classId, groupId);
+
+        List<Enrollment> allEnrollments = enrollmentRepository
+                .findAllByClassIdAndFilters(classId, shiftId, null, null, groupId, null, null);
+        SessionDataBundle bundle = loadSessionData(sessions, classId, allEnrollments);
+
+        // collect unique components ordered by orderIndex
+        Map<Integer, ProgressReportData.ComponentInfo> componentMap = new LinkedHashMap<>();
+        for (ExamSession s : sessions) {
+            for (MarkingStructureComponent msc : bundle.sessionComponentsMap.getOrDefault(s.getId(), Collections.emptyList())) {
+                ExamComponent ec = msc.getExamComponent();
+                componentMap.computeIfAbsent(ec.getId(), id -> {
+                    ProgressReportData.ComponentInfo ci = new ProgressReportData.ComponentInfo();
+                    ci.setComponentId(ec.getId());
+                    ci.setComponentName(ec.getName());
+                    ci.setOrderIndex(ec.getOrderIndex() != null ? ec.getOrderIndex() : 999);
+                    return ci;
+                });
+            }
+        }
+        List<ProgressReportData.ComponentInfo> components = componentMap.values().stream()
+                .sorted(Comparator.comparingInt(ProgressReportData.ComponentInfo::getOrderIndex))
+                .collect(Collectors.toList());
+
+        // compute total marks for rank computation (mandatory subjects only)
+        Map<Long, BigDecimal> totalMarksMap = new HashMap<>();
+        for (Enrollment enrollment : allEnrollments) {
+            BigDecimal grandTotal = BigDecimal.ZERO;
+            for (ExamSession s : sessions) {
+                if (!bundle.sessionStructureMap.containsKey(s.getId())) continue;
+                if (fourthSubjectIds.contains(s.getSubject().getId())) continue;
+                List<MarkingStructureComponent> comps = bundle.sessionComponentsMap.get(s.getId());
+                Map<Integer, BigDecimal> compMarks = bundle.markMap
+                        .getOrDefault(enrollment.getId(), Collections.emptyMap())
+                        .getOrDefault(s.getId(), Collections.emptyMap());
+                if (!compMarks.isEmpty()) grandTotal = grandTotal.add(sumComponentMarks(comps, compMarks));
+            }
+            totalMarksMap.put(enrollment.getId(), grandTotal);
+        }
+        RankMaps rankMaps = computeRankMaps(allEnrollments, totalMarksMap);
+
+        // compute highest marks per session across all students
+        Map<Integer, BigDecimal> highestBySession = new HashMap<>();
+        for (ExamSession s : sessions) {
+            if (!bundle.sessionStructureMap.containsKey(s.getId())) continue;
+            List<MarkingStructureComponent> comps = bundle.sessionComponentsMap.get(s.getId());
+            BigDecimal highest = BigDecimal.ZERO;
+            for (Enrollment e : allEnrollments) {
+                Map<Integer, BigDecimal> compMarks = bundle.markMap
+                        .getOrDefault(e.getId(), Collections.emptyMap())
+                        .getOrDefault(s.getId(), Collections.emptyMap());
+                if (!compMarks.isEmpty()) {
+                    BigDecimal total = sumComponentMarks(comps, compMarks);
+                    if (total.compareTo(highest) > 0) highest = total;
+                }
+            }
+            highestBySession.put(s.getId(), highest);
+        }
+
+        // build subject infos
+        List<ProgressReportData.SubjectInfo> subjectInfos = new ArrayList<>();
+        for (ExamSession s : sessions) {
+            if (!bundle.sessionStructureMap.containsKey(s.getId())) continue;
+            MarkingStructure ms = bundle.sessionStructureMap.get(s.getId());
+            List<MarkingStructureComponent> comps = bundle.sessionComponentsMap.getOrDefault(s.getId(), Collections.emptyList());
+
+            Map<Integer, Integer> compMaxMarks = new HashMap<>();
+            for (MarkingStructureComponent msc : comps) {
+                compMaxMarks.put(msc.getExamComponent().getId(), msc.getMaxMarks());
+            }
+
+            ProgressReportData.SubjectInfo si = new ProgressReportData.SubjectInfo();
+            si.setSubjectId(s.getSubject().getId());
+            si.setSubjectName(s.getSubject().getName());
+            si.setFourthSubject(fourthSubjectIds.contains(s.getSubject().getId()));
+            si.setTotalMarks(ms.getTotalMarks());
+            si.setHighestMarks(highestBySession.getOrDefault(s.getId(), BigDecimal.ZERO));
+            si.setComponentMaxMarks(compMaxMarks);
+            subjectInfos.add(si);
+        }
+
+        // filter enrollments for display
+        List<Enrollment> filteredEnrollments = allEnrollments.stream()
+                .filter(e -> matchesFilter(e, genderSectionId, sectionId, groupId, startRoll, endRoll))
+                .collect(Collectors.toList());
+
+        // build student reports
+        List<ProgressReportData.StudentReport> studentReports = filteredEnrollments.stream().map(enrollment -> {
+            ProgressReportData.StudentReport report = new ProgressReportData.StudentReport();
+            report.setEnrollmentId(enrollment.getId());
+            report.setStudentSystemId(enrollment.getStudentSystemId());
+            report.setClassRoll(enrollment.getClassRoll());
+
+            if (enrollment.getStudent() != null) {
+                report.setStudentName(enrollment.getStudent().getNameEnglish());
+                report.setFatherName(enrollment.getStudent().getFatherNameEnglish());
+                report.setMotherName(enrollment.getStudent().getMotherNameEnglish());
+                if (enrollment.getStudent().getImage() != null)
+                    report.setImageUrl(enrollment.getStudent().getImage().getImageUrl());
+            }
+            if (enrollment.getGenderSection() != null) report.setGenderSectionName(enrollment.getGenderSection().getGenderName());
+            if (enrollment.getSection() != null) report.setSectionName(enrollment.getSection().getSectionName());
+            if (enrollment.getStudentGroup() != null) report.setGroupName(enrollment.getStudentGroup().getGroupName());
+
+            report.setClassRank(rankMaps.classRankMap.get(enrollment.getId()));
+            report.setGenderSectionRank(rankMaps.genderSectionRankMap.get(enrollment.getId()));
+            report.setSectionRank(rankMaps.sectionRankMap.get(enrollment.getId()));
+            report.setGroupRank(rankMaps.groupRankMap.get(enrollment.getId()));
+
+            List<ProgressReportData.SubjectResult> subjectResults = new ArrayList<>();
+            List<Double> mandatoryGpas = new ArrayList<>();
+            Double fourthGpa = null;
+            BigDecimal grandTotal = BigDecimal.ZERO;
+            boolean overallPassed = true;
+            int failedCount = 0;
+
+            for (ExamSession s : sessions) {
+                if (!bundle.sessionStructureMap.containsKey(s.getId())) continue;
+                MarkingStructure structure = bundle.sessionStructureMap.get(s.getId());
+                List<MarkingStructureComponent> comps = bundle.sessionComponentsMap.get(s.getId());
+                boolean isFourth = fourthSubjectIds.contains(s.getSubject().getId());
+
+                Map<Integer, BigDecimal> compMarks = bundle.markMap
+                        .getOrDefault(enrollment.getId(), Collections.emptyMap())
+                        .getOrDefault(s.getId(), Collections.emptyMap());
+                boolean appeared = !compMarks.isEmpty();
+                BigDecimal total = sumComponentMarks(comps, compMarks);
+
+                ProgressReportData.SubjectResult sr = new ProgressReportData.SubjectResult();
+                sr.setSubjectId(s.getSubject().getId());
+                sr.setFourthSubject(isFourth);
+                sr.setAppeared(appeared);
+                sr.setComponentMarks(new HashMap<>(compMarks));
+
+                if (appeared) {
+                    sr.setTotalMarks(total);
+                    Grade grade = resolveGrade(total.doubleValue(), sortedGrades);
+                    if (grade != null) { sr.setGradeName(grade.getName()); sr.setGpaValue(grade.getGpaValue()); }
+                    sr.setPassed(isSubjectPassed(total, structure.getPassMarks(), grade));
+                    if (!isFourth) {
+                        grandTotal = grandTotal.add(total);
+                        if (grade != null) mandatoryGpas.add(grade.getGpaValue());
+                        if (!sr.isPassed()) { overallPassed = false; failedCount++; }
+                    } else if (grade != null) {
+                        fourthGpa = grade.getGpaValue();
+                    }
+                } else if (!isFourth) {
+                    overallPassed = false;
+                    failedCount++;
+                }
+                subjectResults.add(sr);
+            }
+
+            report.setSubjectResults(subjectResults);
+            report.setTotalMarks(grandTotal);
+            report.setPassed(overallPassed);
+            report.setFailedSubjectCount(failedCount);
+
+            if (!mandatoryGpas.isEmpty()) {
+                double sum = mandatoryGpas.stream().mapToDouble(Double::doubleValue).sum();
+                report.setGpaWithout4th(round2(Math.min(5.0, sum / mandatoryGpas.size())));
+                report.setOverallGpa(round2(computeOverallGpa(mandatoryGpas, fourthGpa)));
+            }
+            return report;
+        }).collect(Collectors.toList());
+
+        studentReports.sort(Comparator.comparingInt(r -> r.getClassRoll() != null ? r.getClassRoll() : Integer.MAX_VALUE));
+
+        ProgressReportData result = new ProgressReportData();
+        result.setExamRoutineId(examRoutineId);
+        result.setRoutineTitle(routine.getTitle());
+        result.setExamTypeName(routine.getExamType().getName());
+        result.setClassName(examClass.getName());
+        result.setAcademicYearName(routine.getAcademicYear() != null ? routine.getAcademicYear().getYearName() : "");
+        result.setUseGpaForResult(Boolean.TRUE.equals(examClass.getUseGpaForResult()));
+        result.setComponents(components);
+        result.setSubjects(subjectInfos);
+        result.setStudents(studentReports);
+        return result;
+    }
+
     // ─── STATS – ROUTINE ─────────────────────────────────────────────────────────
 
     public RoutineStatsResponse getRoutineStats(Integer examRoutineId, Integer classId, Integer shiftId, Integer genderSectionId, Long sectionId, Integer groupId, Integer startRoll, Integer endRoll) {

@@ -24,20 +24,28 @@ public class SystemSettingsController {
     public ResponseEntity<SystemSettings> createSettings(
             @RequestParam String institutionName,
             @RequestParam(required = false) String address,
+            @RequestParam(required = false) String heading,
             @RequestParam(value = "file", required = false) MultipartFile logo) {
-        return ResponseEntity.ok(service.createSettings(institutionName, address, logo));
+        return ResponseEntity.ok(service.createSettings(institutionName, address, heading, logo));
     }
 
     @PatchMapping
     public ResponseEntity<SystemSettings> updateSettings(
             @RequestParam(required = false) String institutionName,
-            @RequestParam(required = false) String address) {
-        return ResponseEntity.ok(service.updateSettings(institutionName, address));
+            @RequestParam(required = false) String address,
+            @RequestParam(required = false) String heading) {
+        return ResponseEntity.ok(service.updateSettings(institutionName, address, heading));
     }
 
     @PatchMapping(value = "/logo", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<SystemSettings> updateLogo(
             @RequestParam("file") MultipartFile file) {
         return ResponseEntity.ok(service.updateLogo(file));
+    }
+
+    @PatchMapping(value = "/signature", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<SystemSettings> updateSignature(
+            @RequestParam("file") MultipartFile file) {
+        return ResponseEntity.ok(service.updateSignature(file));
     }
 }

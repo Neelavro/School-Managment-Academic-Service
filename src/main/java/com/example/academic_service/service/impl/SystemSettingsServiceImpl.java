@@ -30,12 +30,13 @@ public class SystemSettingsServiceImpl implements SystemSettingsService {
     }
 
     @Override
-    public SystemSettings createSettings(String institutionName, String address, MultipartFile logo) {
+    public SystemSettings createSettings(String institutionName, String address, String heading, MultipartFile logo) {
         if (repository.count() > 0) throw new RuntimeException("Settings already exist. Use PATCH to update.");
 
         SystemSettings settings = new SystemSettings();
         settings.setInstitutionName(institutionName);
         settings.setAddress(address);
+        settings.setHeading(heading);
         settings = repository.save(settings);
 
         if (logo != null && !logo.isEmpty()) {
@@ -55,10 +56,11 @@ public class SystemSettingsServiceImpl implements SystemSettingsService {
     }
 
     @Override
-    public SystemSettings updateSettings(String institutionName, String address) {
+    public SystemSettings updateSettings(String institutionName, String address, String heading) {
         SystemSettings settings = getSettings();
         if (institutionName != null) settings.setInstitutionName(institutionName);
         if (address != null) settings.setAddress(address);
+        if (heading != null) settings.setHeading(heading);
         return repository.save(settings);
     }
 
@@ -83,6 +85,28 @@ public class SystemSettingsServiceImpl implements SystemSettingsService {
             return repository.save(settings);
         } catch (IOException e) {
             throw new RuntimeException("Failed to save logo: " + e.getMessage());
+        }
+    }
+
+    @Override
+    public SystemSettings updateSignature(MultipartFile signature) {
+        SystemSettings settings = getSettings();
+
+        try {
+            String filename = "signature_" + UUID.randomUUID() + "." + getExtension(signature.getOriginalFilename());
+            Path path = Paths.get(IMAGE_FOLDER + filename);
+            Files.createDirectories(path.getParent());
+            Files.write(path, signature.getBytes());
+
+            if (settings.getSignatureUrl() != null) {
+                String oldFilename = settings.getSignatureUrl().substring(settings.getSignatureUrl().lastIndexOf('/') + 1);
+                Files.deleteIfExists(Paths.get(IMAGE_FOLDER + oldFilename));
+            }
+
+            settings.setSignatureUrl(BASE_URL + "/images/" + filename);
+            return repository.save(settings);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to save signature: " + e.getMessage());
         }
     }
 

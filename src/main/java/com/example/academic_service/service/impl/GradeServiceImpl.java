@@ -41,6 +41,7 @@ public class GradeServiceImpl implements GradeService {
                 .gpaValue(dto.getGpaValue())
                 .minMark(dto.getMinMark())
                 .maxMark(dto.getMaxMark())
+                .comment(dto.getComment())
                 .build();
         return mapToDto(gradeRepository.save(grade));
     }
@@ -85,6 +86,7 @@ public class GradeServiceImpl implements GradeService {
         if (dto.getGpaValue() != null) grade.setGpaValue(dto.getGpaValue());
         if (dto.getMinMark() != null) grade.setMinMark(dto.getMinMark());
         if (dto.getMaxMark() != null) grade.setMaxMark(dto.getMaxMark());
+        if (dto.getComment() != null) grade.setComment(dto.getComment());
 
         return mapToDto(gradeRepository.save(grade));
     }
@@ -107,6 +109,7 @@ public class GradeServiceImpl implements GradeService {
                 .gpaValue(grade.getGpaValue())
                 .minMark(grade.getMinMark())
                 .maxMark(grade.getMaxMark())
+                .comment(grade.getComment())
                 .build();
     }
 }

@@ -41,20 +41,10 @@ public class IdCardPdfService {
     private static final int PAGE_W         = COLS * CARD_W + (COLS - 1) * GAP + PAGE_PAD * 2;
     private static final int PAGE_H         = ROWS * CARD_H + (ROWS - 1) * GAP + PAGE_PAD * 2;
 
-    private String signatureBase64;
     private String logoBase64;
 
     @PostConstruct
     public void init() {
-        try {
-            InputStream is = getClass().getResourceAsStream("/static/signature.png");
-            signatureBase64 = "data:image/jpeg;base64,"
-                    + Base64.getEncoder().encodeToString(is.readAllBytes());
-        } catch (Exception e) {
-            signatureBase64 = "";
-            System.err.println("Warning: Could not load signature image. " + e.getMessage());
-        }
-
         try {
             InputStream is = getClass().getResourceAsStream("/static/logo-2.png");
             logoBase64 = "data:image/png;base64,"
@@ -63,6 +53,18 @@ public class IdCardPdfService {
             logoBase64 = "";
             System.err.println("Warning: Could not load logo image. " + e.getMessage());
         }
+    }
+
+    private String resolveSignatureBase64(String signatureUrl) {
+        if (signatureUrl != null && !signatureUrl.isBlank()) {
+            try {
+                byte[] bytes = readImageBytes(signatureUrl);
+                return "data:image/png;base64," + Base64.getEncoder().encodeToString(bytes);
+            } catch (Exception e) {
+                System.err.println("Warning: Could not load signature. " + e.getMessage());
+            }
+        }
+        return "";
     }
 
     private static final String IMAGE_FOLDER = "/var/www/student-service-images/";
@@ -172,8 +174,9 @@ public class IdCardPdfService {
 
     public byte[] generatePdf(List<EnrollmentResponseDto> enrollments) {
         SystemSettings settings = systemSettingsService.getSettings();
-        String name    = settings.getInstitutionName() != null ? settings.getInstitutionName() : "";
-        String address = settings.getAddress()         != null ? settings.getAddress()         : "";
+        String name      = settings.getInstitutionName() != null ? settings.getInstitutionName() : "";
+        String address   = settings.getAddress()         != null ? settings.getAddress()         : "";
+        String signature = resolveSignatureBase64(settings.getSignatureUrl());
 
         try (Playwright playwright = Playwright.create()) {
             Browser browser = playwright.chromium().launch(
@@ -181,7 +184,7 @@ public class IdCardPdfService {
             );
             Page page = browser.newPage();
 
-            page.setContent(buildHtml(enrollments, name, address), new Page.SetContentOptions()
+            page.setContent(buildHtml(enrollments, name, address, signature), new Page.SetContentOptions()
                     .setWaitUntil(WaitUntilState.NETWORKIDLE));
 
             byte[] pdf = page.pdf(new Page.PdfOptions()
@@ -223,7 +226,7 @@ public class IdCardPdfService {
         }
     }
 
-    private String buildHtml(List<EnrollmentResponseDto> enrollments, String institutionName, String address) {
+    private String buildHtml(List<EnrollmentResponseDto> enrollments, String institutionName, String address, String signatureBase64) {
         StringBuilder cards = new StringBuilder();
 
         for (int i = 0; i < enrollments.size(); i++) {

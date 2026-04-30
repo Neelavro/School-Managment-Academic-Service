@@ -22,4 +22,10 @@ public class SystemSettings {
 
     @Column(name = "logo_url")
     private String logoUrl;
+
+    @Column(name = "heading")
+    private String heading;
+
+    @Column(name = "signature_url")
+    private String signatureUrl;
 }

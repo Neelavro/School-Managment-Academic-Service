@@ -9,4 +9,5 @@ public class GradeRequestDto {
     private Double gpaValue;
     private Double minMark;
     private Double maxMark;
+    private String comment;
 }

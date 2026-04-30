@@ -5,7 +5,8 @@ import org.springframework.web.multipart.MultipartFile;
 
 public interface SystemSettingsService {
     SystemSettings getSettings();
-    SystemSettings createSettings(String institutionName, String address, MultipartFile logo);
-    SystemSettings updateSettings(String institutionName, String address);
+    SystemSettings createSettings(String institutionName, String address, String heading, MultipartFile logo);
+    SystemSettings updateSettings(String institutionName, String address, String heading);
     SystemSettings updateLogo(MultipartFile logo);
+    SystemSettings updateSignature(MultipartFile signature);
 }
