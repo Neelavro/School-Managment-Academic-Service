@@ -136,7 +136,7 @@ public class ProgressReportPdfService {
         String resultHtml = buildResultSummary(student);
 
         // Behavior/co-curricular
-        String checksHtml = buildChecksHtml();
+        String checksHtml = buildChecksHtml(student.getOverallGpa(), gradingTable);
 
         // Signatures
         String sigHtml = "<div class=\"signatures\">"
@@ -306,7 +306,16 @@ public class ProgressReportPdfService {
                 + "</div>";
     }
 
-    private String buildChecksHtml() {
+    private String buildChecksHtml(Double overallGpa, List<Grade> gradingTable) {
+        String comment = "";
+        if (overallGpa != null && !gradingTable.isEmpty()) {
+            // gradingTable is sorted by minMark desc (A+ first), gpaValue also descending
+            comment = gradingTable.stream()
+                    .filter(g -> g.getGpaValue() != null && overallGpa >= g.getGpaValue() - 0.001)
+                    .findFirst()
+                    .map(g -> g.getComment() != null ? g.getComment() : "")
+                    .orElse("");
+        }
         return "<table class=\"checks\">"
                 + "<tr class=\"th-tan\">"
                 + "<th colspan=\"4\" style=\"text-align:left;\">Moral &amp; Behavior Evaluation</th>"
@@ -324,7 +333,7 @@ public class ProgressReportPdfService {
                 + "</tr>"
                 + "<tr>"
                 + "<td style=\"vertical-align:top;color:#6B7280;width:22mm;\">Comments:</td>"
-                + "<td colspan=\"7\"></td>"
+                + "<td colspan=\"7\">" + comment + "</td>"
                 + "</tr>"
                 + "</table>";
     }
