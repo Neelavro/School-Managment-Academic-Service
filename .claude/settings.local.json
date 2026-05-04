@@ -5,7 +5,10 @@
       "Bash(git -C /Users/neelavroshafin/StudioProjects/academic_service diff --name-only)",
       "Bash(git -C /Users/neelavroshafin/StudioProjects/academic_service ls-files --others --exclude-standard)",
       "Bash(grep -rn \"\\\\${\\\\|\\\\.toString\\(\\)\\\\|Text\\(\" /Users/neelavroshafin/StudioProjects/school_management_system_front_end/lib/modules/exam/ --include=\"*.dart\")",
-      "Bash(grep \"\\\\.java$\")"
+      "Bash(grep \"\\\\.java$\")",
+      "Bash(awk -F: '{print $1}')",
+      "Bash(grep -c \"^\\\\.env$\" /Users/neelavroshafin/StudioProjects/school-management-auth-service/.gitignore)",
+      "Bash(grep -c \"^\\\\.env$\" /Users/neelavroshafin/StudioProjects/academic_service/.gitignore)"
     ]
   }
 }
