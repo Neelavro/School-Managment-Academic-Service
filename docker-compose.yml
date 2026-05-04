@@ -1,4 +1,4 @@
-whatno services:
+services:
   academic-service:
     build: .
     ports:
