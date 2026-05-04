@@ -49,7 +49,6 @@ public class SectionController {
             @PathVariable Integer classId,
             @PathVariable Integer genderSectionId) {
         List<Section> sections = sectionService.getSectionsByClassIdAndGenderSectionId(classId, genderSectionId);
-        System.out.println(sections);
         return ResponseEntity.ok(sections);
     }
 

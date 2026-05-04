@@ -33,7 +33,7 @@ public class ExamSession {
     @JoinColumn(name = "subject_id", nullable = false)
     private Subject subject;
 
-    @Column(nullable = false)
+    @Column(nullable = true)
     private LocalDate date;
 
     @ManyToOne(fetch = FetchType.EAGER)
@@ -41,11 +41,14 @@ public class ExamSession {
     @NotFound(action = NotFoundAction.IGNORE)
     private StudentGroup group;
 
-    @Column(name = "start_time", nullable = false)
+    @Column(name = "start_time", nullable = true)
     private LocalTime startTime;
 
-    @Column(name = "end_time", nullable = false)
+    @Column(name = "end_time", nullable = true)
     private LocalTime endTime;
+
+    @Column(name = "show_on_admit_card")
+    private Boolean showOnAdmitCard = true;
 
     @Column(name = "last_modified_at")
     private LocalDateTime lastModifiedAt = LocalDateTime.now();

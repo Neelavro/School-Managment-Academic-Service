@@ -55,4 +55,15 @@ public interface EnrollmentService {
 
     // Reactivate
     EnrollmentResponseDto activateEnrollment(Long id);
+
+    List<EnrollmentResponseDto> fetchForPdf(
+            Integer academicYearId,
+            Integer classId,
+            Long sectionId,
+            Integer shiftId,
+            Integer genderSectionId,
+            Integer studentGroupId,
+            Integer startRoll,
+            Integer endRoll
+    );
 }

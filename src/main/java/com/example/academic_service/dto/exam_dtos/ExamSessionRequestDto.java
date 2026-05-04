@@ -4,7 +4,6 @@ import lombok.*;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
-import java.util.List;
 
 @Getter
 @Setter
@@ -19,21 +18,11 @@ public class ExamSessionRequestDto {
     @NotNull(message = "Subject is required")
     private Integer subjectId;
 
-    private Integer group;   // nullable
-    private Integer genderSectionId;  // nullable
-    private Integer sectionId;        // nullable
+    private Integer group;
 
-    private List<Integer> roomIds;    // nullable — frontend sends [1, 2, 3]
-
-    private Integer startRoll;        // nullable
-    private Integer endRoll;          // nullable
-
-    @NotNull(message = "Date is required")
     private LocalDate date;
-
-    @NotNull(message = "Start time is required")
     private LocalTime startTime;
-
-    @NotNull(message = "End time is required")
     private LocalTime endTime;
+
+    private Boolean showOnAdmitCard = true;
 }

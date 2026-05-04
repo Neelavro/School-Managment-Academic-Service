@@ -3,7 +3,9 @@
     "allow": [
       "Bash(xargs cat *)",
       "Bash(git -C /Users/neelavroshafin/StudioProjects/academic_service diff --name-only)",
-      "Bash(git -C /Users/neelavroshafin/StudioProjects/academic_service ls-files --others --exclude-standard)"
+      "Bash(git -C /Users/neelavroshafin/StudioProjects/academic_service ls-files --others --exclude-standard)",
+      "Bash(grep -rn \"\\\\${\\\\|\\\\.toString\\(\\)\\\\|Text\\(\" /Users/neelavroshafin/StudioProjects/school_management_system_front_end/lib/modules/exam/ --include=\"*.dart\")",
+      "Bash(grep \"\\\\.java$\")"
     ]
   }
 }

@@ -1,15 +1,14 @@
 package com.example.academic_service.controller;
 
 import com.example.academic_service.dto.EnrollmentResponseDto;
+import com.example.academic_service.service.EnrollmentService;
 import com.example.academic_service.service.IdCardPdfService;
-import com.example.academic_service.service.SeatPlanPdfService;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Comparator;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/id-card")
@@ -17,7 +16,7 @@ import java.util.stream.Collectors;
 public class IdCardController {
 
     private final IdCardPdfService idCardPdfService;
-    private final SeatPlanPdfService seatPlanPdfService;
+    private final EnrollmentService enrollmentService;
 
     @GetMapping("/download")
     public void downloadIdCards(
@@ -32,7 +31,7 @@ public class IdCardController {
             HttpServletResponse response
     ) throws Exception {
 
-        List<EnrollmentResponseDto> enrollments = seatPlanPdfService.fetchEnrollments(
+        List<EnrollmentResponseDto> enrollments = enrollmentService.fetchForPdf(
                 academicYearId, classId, sectionId, shiftId, genderSectionId,
                 groupId, startRoll, endRoll);
 

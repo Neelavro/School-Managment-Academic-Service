@@ -1,13 +1,12 @@
 package com.example.academic_service.service.impl;
 
 import com.example.academic_service.dto.ApiResponse;
+import com.example.academic_service.dto.exam_dtos.CloneRoutineRequestDto;
 import com.example.academic_service.dto.exam_dtos.ExamRoutineRequestDto;
-import com.example.academic_service.entity.AcademicYear;
-import com.example.academic_service.entity.ExamRoutine;
-import com.example.academic_service.entity.ExamType;
-import com.example.academic_service.entity.RoutineStatus;
+import com.example.academic_service.entity.*;
 import com.example.academic_service.repository.AcademicYearRepository;
 import com.example.academic_service.repository.ExamRoutineRepository;
+import com.example.academic_service.repository.ExamSessionRepository;
 import com.example.academic_service.repository.ExamTypeRepository;
 import com.example.academic_service.service.ExamRoutineService;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +22,7 @@ public class ExamRoutineServiceImpl implements ExamRoutineService {
     private final ExamRoutineRepository examRoutineRepository;
     private final ExamTypeRepository examTypeRepository;
     private final AcademicYearRepository academicYearRepository;
+    private final ExamSessionRepository examSessionRepository;
 
     @Override
     public ApiResponse<ExamRoutine> create(ExamRoutineRequestDto dto) {
@@ -163,5 +163,39 @@ public class ExamRoutineServiceImpl implements ExamRoutineService {
         routine.setIsActive(false);
         examRoutineRepository.save(routine);
         return ApiResponse.success("Exam routine deleted successfully", null);
+    }
+
+    @Override
+    public ApiResponse<ExamRoutine> clone(Integer sourceId, CloneRoutineRequestDto dto) {
+        ExamRoutine source = examRoutineRepository.findById(sourceId).orElse(null);
+        if (source == null) return ApiResponse.error("Source routine not found");
+
+        AcademicYear academicYear = academicYearRepository.findById(dto.getAcademicYearId()).orElse(null);
+        if (academicYear == null) return ApiResponse.error("Academic year not found");
+
+        if (examRoutineRepository.existsByExamTypeIdAndAcademicYearIdAndIsActiveTrue(
+                source.getExamType().getId(), dto.getAcademicYearId())) {
+            return ApiResponse.error("An active routine for this exam type and academic year already exists");
+        }
+
+        ExamRoutine newRoutine = new ExamRoutine();
+        newRoutine.setTitle(dto.getTitle());
+        newRoutine.setExamType(source.getExamType());
+        newRoutine.setAcademicYear(academicYear);
+        examRoutineRepository.save(newRoutine);
+
+        List<ExamSession> sourceSessions = examSessionRepository.findByExamRoutineIdAndIsActiveTrue(sourceId);
+        for (ExamSession s : sourceSessions) {
+            ExamSession copy = new ExamSession();
+            copy.setExamRoutine(newRoutine);
+            copy.setExamClass(s.getExamClass());
+            copy.setSubject(s.getSubject());
+            copy.setGroup(s.getGroup());
+            copy.setShowOnAdmitCard(s.getShowOnAdmitCard());
+            // date and times are intentionally left null — admin assigns them for the new period
+            examSessionRepository.save(copy);
+        }
+
+        return ApiResponse.success("Routine cloned successfully", newRoutine);
     }
 }

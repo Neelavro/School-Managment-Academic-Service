@@ -1,6 +1,7 @@
 package com.example.academic_service.service;
 
 import com.example.academic_service.dto.ApiResponse;
+import com.example.academic_service.dto.exam_dtos.CloneRoutineRequestDto;
 import com.example.academic_service.dto.exam_dtos.ExamRoutineRequestDto;
 import com.example.academic_service.entity.ExamRoutine;
 
@@ -14,7 +15,8 @@ public interface ExamRoutineService {
     ApiResponse<List<ExamRoutine>> getByAcademicYear(Integer academicYearId);
     ApiResponse<List<ExamRoutine>> getByExamType(Integer examTypeId);
     ApiResponse<ExamRoutine> publish(Integer id);
-    ApiResponse<ExamRoutine> unpublish(Integer id);  // missing
+    ApiResponse<ExamRoutine> unpublish(Integer id);
     ApiResponse<ExamRoutine> reactivate(Integer id);
     ApiResponse<Void> delete(Integer id);
+    ApiResponse<ExamRoutine> clone(Integer sourceId, CloneRoutineRequestDto dto);
 }

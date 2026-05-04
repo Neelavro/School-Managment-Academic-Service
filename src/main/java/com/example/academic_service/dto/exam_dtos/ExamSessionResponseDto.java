@@ -21,6 +21,7 @@ public class ExamSessionResponseDto {
     private LocalTime endTime;
     private LocalDateTime lastModifiedAt;
     private Boolean isActive;
+    private Boolean showOnAdmitCard;
 
     public static ExamSessionResponseDto from(ExamSession session) {
         ExamSessionResponseDto dto = new ExamSessionResponseDto();
@@ -28,12 +29,13 @@ public class ExamSessionResponseDto {
         dto.setExamRoutine(session.getExamRoutine());
         dto.setExamClass(session.getExamClass());
         dto.setSubject(session.getSubject());
-        dto.setGroup(session.getGroup());              // ← add
+        dto.setGroup(session.getGroup());
         dto.setDate(session.getDate());
         dto.setStartTime(session.getStartTime());
         dto.setEndTime(session.getEndTime());
         dto.setLastModifiedAt(session.getLastModifiedAt());
         dto.setIsActive(session.getIsActive());
+        dto.setShowOnAdmitCard(session.getShowOnAdmitCard());
         return dto;
     }
 }

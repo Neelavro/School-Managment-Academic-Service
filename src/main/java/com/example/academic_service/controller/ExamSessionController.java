@@ -1,6 +1,7 @@
 package com.example.academic_service.controller;
 
 import com.example.academic_service.dto.ApiResponse;
+import com.example.academic_service.dto.exam_dtos.BulkSessionUpdateItemDto;
 import com.example.academic_service.dto.exam_dtos.ExamSessionRequestDto;
 import com.example.academic_service.dto.exam_dtos.ExamSessionResponseDto;
 import com.example.academic_service.service.ExamSessionService;
@@ -43,9 +44,20 @@ public class ExamSessionController {
         return ResponseEntity.ok(examSessionService.reactivate(id));
     }
 
-
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Integer id) {
         return ResponseEntity.ok(examSessionService.delete(id));
+    }
+
+    @PostMapping("/bulk")
+    public ResponseEntity<ApiResponse<List<ExamSessionResponseDto>>> bulkCreate(
+            @RequestBody List<@Valid ExamSessionRequestDto> dtos) {
+        return ResponseEntity.ok(examSessionService.bulkCreate(dtos));
+    }
+
+    @PutMapping("/bulk")
+    public ResponseEntity<ApiResponse<List<ExamSessionResponseDto>>> bulkUpdate(
+            @RequestBody List<@Valid BulkSessionUpdateItemDto> dtos) {
+        return ResponseEntity.ok(examSessionService.bulkUpdate(dtos));
     }
 }

@@ -1,6 +1,7 @@
 package com.example.academic_service.service;
 
 import com.example.academic_service.dto.ApiResponse;
+import com.example.academic_service.dto.exam_dtos.BulkSessionUpdateItemDto;
 import com.example.academic_service.dto.exam_dtos.ExamSessionRequestDto;
 import com.example.academic_service.dto.exam_dtos.ExamSessionResponseDto;
 
@@ -12,4 +13,6 @@ public interface ExamSessionService {
     ApiResponse<List<ExamSessionResponseDto>> getByRoutine(Integer routineId, Boolean active);
     ApiResponse<ExamSessionResponseDto> reactivate(Integer id);
     ApiResponse<Void> delete(Integer id);
+    ApiResponse<List<ExamSessionResponseDto>> bulkCreate(List<ExamSessionRequestDto> dtos);
+    ApiResponse<List<ExamSessionResponseDto>> bulkUpdate(List<BulkSessionUpdateItemDto> dtos);
 }

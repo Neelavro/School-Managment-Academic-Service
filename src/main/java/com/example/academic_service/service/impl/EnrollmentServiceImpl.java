@@ -334,7 +334,8 @@ public class EnrollmentServiceImpl implements EnrollmentService {
         student.setIsActive(request.getIsActive());
 
         if (request.getDob() != null && !request.getDob().isBlank()) {
-            student.setDob(LocalDate.parse(request.getDob()));
+            String dobStr = request.getDob().length() > 10 ? request.getDob().substring(0, 10) : request.getDob();
+            student.setDob(LocalDate.parse(dobStr));
         }
         if (request.getGenderId() != null) {
             Gender g = new Gender();
@@ -348,5 +349,27 @@ public class EnrollmentServiceImpl implements EnrollmentService {
         }
 
         return student;
+    }
+
+    @Override
+    public List<EnrollmentResponseDto> fetchForPdf(
+            Integer academicYearId,
+            Integer classId,
+            Long sectionId,
+            Integer shiftId,
+            Integer genderSectionId,
+            Integer studentGroupId,
+            Integer startRoll,
+            Integer endRoll
+    ) {
+        Specification<Enrollment> spec = EnrollmentSpecification.filter(
+                academicYearId, classId, sectionId,
+                shiftId, genderSectionId, studentGroupId,
+                true, null, startRoll, endRoll
+        );
+        return enrollmentRepository.findAll(spec).stream()
+                .filter(e -> e.getStudent() != null)
+                .map(e -> EnrollmentResponseDto.from(e, e.getStudent()))
+                .collect(Collectors.toList());
     }
 }

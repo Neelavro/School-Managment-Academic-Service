@@ -16,11 +16,9 @@ import java.util.*;
 @RequiredArgsConstructor
 public class AdmitCardServiceImpl {
 
-    private final ExamRoutineRepository        examRoutineRepository;
-    private final ExamSessionRepository        examSessionRepository;
-    private final ExamSeatAllocationRepository examSeatAllocationRepository;
-    private final EnrollmentRepository         enrollmentRepository;
-    private final RoomRepository               roomRepository;
+    private final ExamRoutineRepository examRoutineRepository;
+    private final ExamSessionRepository examSessionRepository;
+    private final EnrollmentRepository  enrollmentRepository;
 
     public AdmitCardRoutineResponseDto getAdmitCardData(
             Integer routineId,
@@ -37,27 +35,30 @@ public class AdmitCardServiceImpl {
         List<ExamSession> allSessions =
                 examSessionRepository.findByExamRoutineIdAndIsActiveTrue(routineId);
 
-        // ── Build full schedule per classId ──
+        // ── Build full schedule per classId (only scheduled admit-card sessions) ──
         Map<Integer, List<AdmitCardSessionDto>> fullScheduleByClassId = new HashMap<>();
         for (ExamSession s : allSessions) {
             if (s.getExamClass() == null) continue;
+            if (Boolean.FALSE.equals(s.getShowOnAdmitCard())) continue;
             fullScheduleByClassId
                     .computeIfAbsent(s.getExamClass().getId(), k -> new ArrayList<>())
                     .add(new AdmitCardSessionDto(
                             s.getId(),
                             s.getSubject() != null ? s.getSubject().getName() : null,
-                            s.getDate().toString(),
-                            s.getStartTime().toString(),
-                            s.getEndTime().toString(),
+                            s.getDate() != null ? s.getDate().toString() : null,
+                            s.getStartTime() != null ? s.getStartTime().toString() : null,
+                            s.getEndTime() != null ? s.getEndTime().toString() : null,
                             s.getExamClass().getName(),
-                            s.getGroup() != null ? s.getGroup().getId() : null,  // ← add
+                            s.getGroup() != null ? s.getGroup().getId() : null,
                             new ArrayList<>(),
                             null
                     ));
         }
 
         // ── Filtered sessions (determines which students get a card) ──
-        List<ExamSession> filteredSessions = new ArrayList<>(allSessions);
+        List<ExamSession> filteredSessions = allSessions.stream()
+                .filter(s -> !Boolean.FALSE.equals(s.getShowOnAdmitCard()))
+                .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
 
         if (sessionId != null)
             filteredSessions = filteredSessions.stream()
@@ -70,78 +71,10 @@ public class AdmitCardServiceImpl {
                             s.getExamClass().getId().equals(classId))
                     .toList();
 
-        // ── Room cache ──
-        Map<Integer, Room> roomCache = new HashMap<>();
-        roomRepository.findAll().forEach(r -> roomCache.put(r.getId(), r));
-
         // ── Build session DTOs from filtered sessions ──
         List<AdmitCardSessionDto> sessionDtos = new ArrayList<>();
 
         for (ExamSession session : filteredSessions) {
-
-            List<ExamSeatAllocation> allocations =
-                    examSeatAllocationRepository.findByExamSessionId(session.getId());
-
-            if (genderSectionId != null)
-                allocations = allocations.stream()
-                        .filter(a -> a.getGenderSection() != null &&
-                                a.getGenderSection().getId().equals(genderSectionId))
-                        .toList();
-
-            if (sectionId != null)
-                allocations = allocations.stream()
-                        .filter(a -> a.getSection() != null &&
-                                a.getSection().getId().equals(sectionId))
-                        .toList();
-
-            List<AdmitCardAllocationDto> allocationDtos = new ArrayList<>();
-
-            for (ExamSeatAllocation alloc : allocations) {
-
-                Room room = alloc.getRoomId() != null
-                        ? roomCache.get(alloc.getRoomId())
-                        : null;
-
-                Specification<Enrollment> spec = EnrollmentSpecification.filter(
-                        null,
-                        session.getExamClass() != null
-                                ? session.getExamClass().getId() : null,
-                        alloc.getSection() != null
-                                ? alloc.getSection().getId() : null,
-                        null,
-                        alloc.getGenderSection() != null
-                                ? alloc.getGenderSection().getId() : null,
-                        null,
-                        true,
-                        null,
-                        alloc.getStartRoll(),
-                        alloc.getEndRoll()
-                );
-
-                List<Enrollment> enrollments = enrollmentRepository.findAll(spec);
-
-                List<AdmitCardStudentDto> students = enrollments.stream()
-                        .sorted(Comparator.comparingInt(e ->
-                                e.getClassRoll() != null ? e.getClassRoll() : 0))
-                        .map(e -> new AdmitCardStudentDto(
-                                e.getStudentSystemId(),
-                                e.getClassRoll()
-                        ))
-                        .toList();
-
-                allocationDtos.add(new AdmitCardAllocationDto(
-                        alloc.getId(),
-                        alloc.getRoomId(),
-                        room != null ? room.getName() : null,
-                        alloc.getStartRoll(),
-                        alloc.getEndRoll(),
-                        alloc.getSection() != null
-                                ? alloc.getSection().getSectionName() : null,
-                        alloc.getGenderSection() != null
-                                ? alloc.getGenderSection().getGenderName() : null,
-                        students
-                ));
-            }
 
             List<AdmitCardSessionDto> fullSchedule = session.getExamClass() != null
                     ? fullScheduleByClassId.get(session.getExamClass().getId())
@@ -150,12 +83,12 @@ public class AdmitCardServiceImpl {
             sessionDtos.add(new AdmitCardSessionDto(
                     session.getId(),
                     session.getSubject() != null ? session.getSubject().getName() : null,
-                    session.getDate().toString(),
-                    session.getStartTime().toString(),
-                    session.getEndTime().toString(),
-                    session.getExamClass().getName(),
+                    session.getDate() != null ? session.getDate().toString() : null,
+                    session.getStartTime() != null ? session.getStartTime().toString() : null,
+                    session.getEndTime() != null ? session.getEndTime().toString() : null,
+                    session.getExamClass() != null ? session.getExamClass().getName() : null,
                     session.getGroup() != null ? session.getGroup().getId() : null,
-                    allocationDtos,
+                    new ArrayList<>(),
                     fullSchedule
             ));
         }
@@ -189,18 +122,19 @@ public class AdmitCardServiceImpl {
         List<ExamSession> allSessions =
                 examSessionRepository.findByExamRoutineIdAndIsActiveTrue(routineId);
 
-        // Build full schedule per classId
+        // Build full schedule per classId (only scheduled admit-card sessions)
         Map<Integer, List<AdmitCardSessionDto>> fullScheduleByClassId = new HashMap<>();
         for (ExamSession s : allSessions) {
             if (s.getExamClass() == null) continue;
+            if (Boolean.FALSE.equals(s.getShowOnAdmitCard())) continue;
             fullScheduleByClassId
                     .computeIfAbsent(s.getExamClass().getId(), k -> new ArrayList<>())
                     .add(new AdmitCardSessionDto(
                             s.getId(),
                             s.getSubject() != null ? s.getSubject().getName() : null,
-                            s.getDate().toString(),
-                            s.getStartTime().toString(),
-                            s.getEndTime().toString(),
+                            s.getDate() != null ? s.getDate().toString() : null,
+                            s.getStartTime() != null ? s.getStartTime().toString() : null,
+                            s.getEndTime() != null ? s.getEndTime().toString() : null,
                             s.getExamClass().getName(),
                             s.getGroup() != null ? s.getGroup().getId() : null,
                             new ArrayList<>(),
@@ -208,8 +142,10 @@ public class AdmitCardServiceImpl {
                     ));
         }
 
-        // Filter sessions by sessionId and classId
-        List<ExamSession> filteredSessions = new ArrayList<>(allSessions);
+        // Filter sessions by sessionId and classId (only admit-card sessions)
+        List<ExamSession> filteredSessions = allSessions.stream()
+                .filter(s -> !Boolean.FALSE.equals(s.getShowOnAdmitCard()))
+                .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
 
         if (sessionId != null)
             filteredSessions = filteredSessions.stream()
@@ -279,13 +215,13 @@ public class AdmitCardServiceImpl {
             sessionDtos.add(new AdmitCardSessionDto(
                     session.getId(),
                     session.getSubject() != null ? session.getSubject().getName() : null,
-                    session.getDate().toString(),
-                    session.getStartTime().toString(),
-                    session.getEndTime().toString(),
+                    session.getDate() != null ? session.getDate().toString() : null,
+                    session.getStartTime() != null ? session.getStartTime().toString() : null,
+                    session.getEndTime() != null ? session.getEndTime().toString() : null,
                     session.getExamClass() != null ? session.getExamClass().getName() : null,
                     session.getGroup() != null ? session.getGroup().getId() : null,
-                    List.of(allocationDto),  // ← was new ArrayList<>()
-                    fullSchedule             // ← was null
+                    List.of(allocationDto),
+                    fullSchedule
             ));
         }
 

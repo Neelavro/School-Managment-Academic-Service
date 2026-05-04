@@ -250,6 +250,7 @@ public class IdCardPdfService {
 
             String studentName = s.getNameEnglish();
             String nameFontSize = studentName.length() > 28 ? "7.5px" : studentName.length() > 22 ? "8.5px" : studentName.length() > 16 ? "10px" : "11.5px";
+            String schoolNameFontSize = institutionName.length() > 35 ? "9px" : institutionName.length() > 28 ? "10.5px" : institutionName.length() > 20 ? "11.5px" : "13px";
 
             StringBuilder infoRows = new StringBuilder();
             infoRows.append("<tr>")
@@ -303,7 +304,7 @@ public class IdCardPdfService {
                     .append("<div class=\"card-header\"></div>")
                     .append("<div class=\"card-body\">")
                     .append("<div class=\"school-info\">")
-                    .append("<div class=\"school-name\">").append(institutionName).append("</div>")
+                    .append("<div class=\"school-name\" style=\"font-size:").append(schoolNameFontSize).append(";\">").append(institutionName).append("</div>")
                     .append("<div class=\"school-address\">").append(address).append("</div>")
                     .append("</div>")
                     .append("<div class=\"photo-row\">")

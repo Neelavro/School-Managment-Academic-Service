@@ -1,6 +1,7 @@
 package com.example.academic_service.controller;
 
 import com.example.academic_service.dto.ApiResponse;
+import com.example.academic_service.dto.exam_dtos.CloneRoutineRequestDto;
 import com.example.academic_service.dto.exam_dtos.ExamRoutineRequestDto;
 import com.example.academic_service.entity.ExamRoutine;
 import com.example.academic_service.service.ExamRoutineService;
@@ -70,5 +71,11 @@ public class ExamRoutineController {
     @PatchMapping("/{id}/unpublish")
     public ResponseEntity<ApiResponse<ExamRoutine>> unpublish(@PathVariable Integer id) {
         return ResponseEntity.ok(examRoutineService.unpublish(id));
+    }
+
+    @PostMapping("/{id}/clone")
+    public ResponseEntity<ApiResponse<ExamRoutine>> clone(@PathVariable Integer id,
+                                                          @Valid @RequestBody CloneRoutineRequestDto dto) {
+        return ResponseEntity.ok(examRoutineService.clone(id, dto));
     }
 }
