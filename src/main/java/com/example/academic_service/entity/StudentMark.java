@@ -36,6 +36,9 @@ public class StudentMark {
     @Column(name = "marks_obtained")
     private BigDecimal marksObtained;
 
+    @Column(name = "status")
+    private String status; // null / "PRESENT" / "ABSENT" / "EXPELLED"
+
     @Column(name = "created_at")
     private LocalDateTime createdAt = LocalDateTime.now();
 

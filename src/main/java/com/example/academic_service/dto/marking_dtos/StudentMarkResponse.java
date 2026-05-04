@@ -13,4 +13,5 @@ public class StudentMarkResponse {
     private Integer examComponentId;
     private String examComponentName;
     private BigDecimal marksObtained;
+    private String status;
 }

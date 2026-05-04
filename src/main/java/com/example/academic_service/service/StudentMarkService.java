@@ -99,10 +99,14 @@ public class StudentMarkService {
 
         // group marks: enrollmentId -> componentId -> marksObtained
         Map<Long, Map<Integer, BigDecimal>> markMap = new HashMap<>();
+        Map<Long, String> statusMap = new HashMap<>();
         for (StudentMark mark : existingMarks) {
             markMap
                     .computeIfAbsent(mark.getEnrollmentId(), k -> new HashMap<>())
                     .put(mark.getExamComponent().getId(), mark.getMarksObtained());
+            if (mark.getStatus() != null) {
+                statusMap.put(mark.getEnrollmentId(), mark.getStatus());
+            }
         }
 
         // build max marks lookup once — outside the student loop
@@ -142,8 +146,11 @@ public class StudentMarkService {
 
             row.setMarks(markEntries);
 
-            // compute total from valid entries only
-            BigDecimal total = markEntries.stream()
+            String studentStatus = statusMap.get(enrollment.getId());
+            row.setStatus(studentStatus);
+
+            boolean isAbsent = "ABSENT".equals(studentStatus) || "EXPELLED".equals(studentStatus);
+            BigDecimal total = isAbsent ? BigDecimal.ZERO : markEntries.stream()
                     .map(e -> e.getMarksObtained() != null ? e.getMarksObtained() : BigDecimal.ZERO)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
             row.setTotal(total);
@@ -214,27 +221,30 @@ public class StudentMarkService {
                 throw new RuntimeException("Exam component id is required for each mark entry");
             }
 
-            // skip null marks — partial save
-            if (entry.getMarksObtained() == null) continue;
+            boolean isAbsentOrExpelled = "ABSENT".equals(entry.getStatus()) || "EXPELLED".equals(entry.getStatus());
 
-            // validate max marks
-            Integer maxMarks = maxMarksMap.get(entry.getExamComponentId());
-            if (maxMarks != null && entry.getMarksObtained().compareTo(BigDecimal.valueOf(maxMarks)) > 0) {
-                throw new RuntimeException(
-                        "Marks for enrollment " + entry.getEnrollmentId() +
-                                " component " + entry.getExamComponentId() +
-                                " cannot exceed max marks of " + maxMarks);
+            // skip null marks for present students — partial save
+            if (!isAbsentOrExpelled && entry.getMarksObtained() == null) continue;
+
+            // validate max marks only for present students
+            if (!isAbsentOrExpelled) {
+                Integer maxMarks = maxMarksMap.get(entry.getExamComponentId());
+                if (maxMarks != null && entry.getMarksObtained().compareTo(BigDecimal.valueOf(maxMarks)) > 0) {
+                    throw new RuntimeException(
+                            "Marks for enrollment " + entry.getEnrollmentId() +
+                                    " component " + entry.getExamComponentId() +
+                                    " cannot exceed max marks of " + maxMarks);
+                }
             }
 
             String key = entry.getEnrollmentId() + "_" + entry.getExamComponentId();
             StudentMark mark = existingMap.get(key);
 
             if (mark != null) {
-                // update existing
-                mark.setMarksObtained(entry.getMarksObtained());
+                mark.setMarksObtained(isAbsentOrExpelled ? null : entry.getMarksObtained());
+                mark.setStatus(entry.getStatus());
                 mark.setLastModifiedAt(LocalDateTime.now());
             } else {
-                // insert new
                 ExamComponent component = examComponentRepository
                         .findByIdAndDeletedAtIsNull(entry.getExamComponentId())
                         .orElseThrow(() -> new RuntimeException(
@@ -243,7 +253,8 @@ public class StudentMarkService {
                 mark.setEnrollmentId(entry.getEnrollmentId());
                 mark.setExamSession(session);
                 mark.setExamComponent(component);
-                mark.setMarksObtained(entry.getMarksObtained());
+                mark.setMarksObtained(isAbsentOrExpelled ? null : entry.getMarksObtained());
+                mark.setStatus(entry.getStatus());
             }
 
             toSave.add(mark);
@@ -286,6 +297,7 @@ public class StudentMarkService {
         res.setExamComponentId(m.getExamComponent().getId());
         res.setExamComponentName(m.getExamComponent().getName());
         res.setMarksObtained(m.getMarksObtained());
+        res.setStatus(m.getStatus());
         return res;
     }
 }

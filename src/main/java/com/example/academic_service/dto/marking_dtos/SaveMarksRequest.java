@@ -17,6 +17,7 @@ public class SaveMarksRequest {
     public static class StudentMarkEntry {
         private Long enrollmentId;
         private Integer examComponentId;
-        private BigDecimal marksObtained; // nullable for partial save
+        private BigDecimal marksObtained; // nullable for partial save or absent/expelled
+        private String status; // null / "PRESENT" / "ABSENT" / "EXPELLED"
     }
 }

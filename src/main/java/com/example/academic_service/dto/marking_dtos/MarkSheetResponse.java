@@ -34,6 +34,7 @@ public class MarkSheetResponse {
         private Integer classRoll;
         private List<MarkEntry> marks;
         private BigDecimal total;
+        private String status; // null / "PRESENT" / "ABSENT" / "EXPELLED"
 
         @Getter
         @Setter
