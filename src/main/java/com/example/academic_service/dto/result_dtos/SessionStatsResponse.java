@@ -7,7 +7,8 @@ import java.util.Map;
 @Getter
 @Setter
 public class SessionStatsResponse {
-    private Integer examSessionId;
+    private Integer routineId;
+    private Integer subjectId;
     private String className;
     private String subjectName;
     private String examTypeName;

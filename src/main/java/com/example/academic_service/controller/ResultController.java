@@ -17,12 +17,14 @@ public class ResultController {
 
     @GetMapping("/session")
     public ResponseEntity<?> getSessionResult(
-            @RequestParam Integer examSessionId,
+            @RequestParam Integer routineId,
+            @RequestParam Integer subjectId,
+            @RequestParam Integer classId,
             @RequestParam(required = false) Integer genderSectionId,
             @RequestParam(required = false) Long sectionId,
             @RequestParam(required = false) Integer groupId) {
         return ResponseEntity.ok(ApiResponse.success("Session result fetched",
-                resultService.getSessionResult(examSessionId, genderSectionId, sectionId, groupId)));
+                resultService.getSessionResult(routineId, subjectId, classId, genderSectionId, sectionId, groupId)));
     }
 
     @GetMapping("/routine")
@@ -87,12 +89,14 @@ public class ResultController {
 
     @GetMapping("/stats/session")
     public ResponseEntity<?> getSessionStats(
-            @RequestParam Integer examSessionId,
+            @RequestParam Integer routineId,
+            @RequestParam Integer subjectId,
+            @RequestParam Integer classId,
             @RequestParam(required = false) Integer genderSectionId,
             @RequestParam(required = false) Long sectionId,
             @RequestParam(required = false) Integer groupId) {
         return ResponseEntity.ok(ApiResponse.success("Session stats fetched",
-                resultService.getSessionStats(examSessionId, genderSectionId, sectionId, groupId)));
+                resultService.getSessionStats(routineId, subjectId, classId, genderSectionId, sectionId, groupId)));
     }
 
     @GetMapping("/overview/routine")

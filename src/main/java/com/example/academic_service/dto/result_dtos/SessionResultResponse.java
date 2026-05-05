@@ -8,7 +8,8 @@ import java.util.List;
 @Getter
 @Setter
 public class SessionResultResponse {
-    private Integer examSessionId;
+    private Integer routineId;
+    private Integer subjectId;
     private String className;
     private String subjectName;
     private String examTypeName;

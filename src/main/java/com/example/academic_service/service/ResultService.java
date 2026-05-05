@@ -30,25 +30,22 @@ public class ResultService {
 
     // ─── SESSION RESULT ──────────────────────────────────────────────────────────
 
-    public SessionResultResponse getSessionResult(Integer examSessionId, Integer genderSectionId, Long sectionId, Integer groupId) {
-        ExamSession session = examSessionRepository.findByIdAndIsActiveTrue(examSessionId)
-                .orElseThrow(() -> new RuntimeException("Exam session not found: " + examSessionId));
+    public SessionResultResponse getSessionResult(Integer routineId, Integer subjectId, Integer classId, Integer genderSectionId, Long sectionId, Integer groupId) {
+        ExamRoutine routine = examRoutineRepository.findById(routineId)
+                .orElseThrow(() -> new RuntimeException("Exam routine not found: " + routineId));
+        Integer examTypeId = routine.getExamType().getId();
 
-        Class examClass = session.getExamClass();
-        Integer classId = examClass.getId();
-        Integer examTypeId = session.getExamRoutine().getExamType().getId();
-        Integer resolvedGroupId = groupId != null ? groupId : (session.getGroup() != null ? session.getGroup().getId() : null);
-
-        MarkingStructure structure = resolveMarkingStructure(examTypeId, classId, session.getSubject().getId(), resolvedGroupId);
+        MarkingStructure structure = resolveMarkingStructure(examTypeId, classId, subjectId, groupId);
         List<MarkingStructureComponent> components =
                 markingStructureComponentRepository.findAllByMarkingStructureAndDeletedAtIsNull(structure);
 
+        Class examClass = structure.getExamClass();
+        List<Grade> sortedGrades = loadSortedGrades(examClass);
+
         List<Enrollment> enrollments = enrollmentRepository
-                .findAllByClassIdAndFilters(classId, null, genderSectionId, sectionId, resolvedGroupId, null, null);
+                .findAllByClassIdAndFilters(classId, null, genderSectionId, sectionId, groupId, null, null);
         List<Long> enrollmentIds = enrollments.stream().map(Enrollment::getId).collect(Collectors.toList());
 
-        Integer routineId = session.getExamRoutine().getId();
-        Integer subjectId = session.getSubject().getId();
         List<StudentMark> marks = studentMarkRepository
                 .findAllByEnrollmentIdInAndRoutineIdAndSubjectIdAndDeletedAtIsNull(enrollmentIds, routineId, subjectId);
 
@@ -57,8 +54,6 @@ public class ResultService {
             markMap.computeIfAbsent(m.getEnrollmentId(), k -> new HashMap<>())
                     .put(m.getExamComponent().getId(), m);
         }
-
-        List<Grade> sortedGrades = loadSortedGrades(examClass);
 
         List<SessionResultResponse.ComponentInfo> componentInfos = components.stream().map(c -> {
             SessionResultResponse.ComponentInfo ci = new SessionResultResponse.ComponentInfo();
@@ -120,11 +115,12 @@ public class ResultService {
         studentRows.sort(Comparator.comparingInt(r -> r.getClassRoll() != null ? r.getClassRoll() : Integer.MAX_VALUE));
 
         SessionResultResponse response = new SessionResultResponse();
-        response.setExamSessionId(examSessionId);
+        response.setRoutineId(routineId);
+        response.setSubjectId(subjectId);
         response.setClassName(examClass.getName());
-        response.setSubjectName(session.getSubject().getName());
-        response.setExamTypeName(session.getExamRoutine().getExamType().getName());
-        response.setExamRoutineTitle(session.getExamRoutine().getTitle());
+        response.setSubjectName(structure.getSubject().getName());
+        response.setExamTypeName(routine.getExamType().getName());
+        response.setExamRoutineTitle(routine.getTitle());
         response.setTotalMarks(structure.getTotalMarks());
         response.setPassMarks(structure.getPassMarks());
         response.setUseGpaForResult(Boolean.TRUE.equals(examClass.getUseGpaForResult()));
@@ -139,8 +135,8 @@ public class ResultService {
         ExamRoutine routine = examRoutineRepository.findById(examRoutineId)
                 .orElseThrow(() -> new RuntimeException("Exam routine not found: " + examRoutineId));
 
-        List<ExamSession> sessions = examSessionRepository
-                .findForRoutineAndClassWithGroupFilter(examRoutineId, classId, groupId);
+        List<ExamSession> sessions = deduplicateBySubject(examSessionRepository
+                .findForRoutineAndClassWithGroupFilter(examRoutineId, classId, groupId));
         if (sessions.isEmpty()) throw new RuntimeException("No exam sessions found for this routine and class");
 
         Class examClass = sessions.get(0).getExamClass();
@@ -308,8 +304,8 @@ public class ResultService {
         AcademicYear year = academicYearRepository.findById(academicYearId)
                 .orElseThrow(() -> new RuntimeException("Academic year not found: " + academicYearId));
 
-        List<ExamSession> sessions = examSessionRepository
-                .findForAnnualByClassWithGroupFilter(academicYearId, classId, groupId);
+        List<ExamSession> sessions = deduplicateByRoutineAndSubject(examSessionRepository
+                .findForAnnualByClassWithGroupFilter(academicYearId, classId, groupId));
         if (sessions.isEmpty()) throw new RuntimeException("No exam sessions found for this academic year and class");
 
         Class examClass = sessions.get(0).getExamClass();
@@ -477,8 +473,8 @@ public class ResultService {
         Integer classId = enrollment.getStudentClass().getId();
         Integer groupId = enrollment.getStudentGroup() != null ? enrollment.getStudentGroup().getId() : null;
 
-        List<ExamSession> sessions = examSessionRepository
-                .findForRoutineAndClassWithGroupFilter(examRoutineId, classId, groupId);
+        List<ExamSession> sessions = deduplicateBySubject(examSessionRepository
+                .findForRoutineAndClassWithGroupFilter(examRoutineId, classId, groupId));
 
         Class examClass = enrollment.getStudentClass();
         List<Grade> sortedGrades = loadSortedGrades(examClass);
@@ -561,8 +557,8 @@ public class ResultService {
         Integer classId = enrollment.getStudentClass().getId();
         Integer groupId = enrollment.getStudentGroup() != null ? enrollment.getStudentGroup().getId() : null;
 
-        List<ExamSession> sessions = examSessionRepository
-                .findForAnnualByClassWithGroupFilter(academicYearId, classId, groupId);
+        List<ExamSession> sessions = deduplicateByRoutineAndSubject(examSessionRepository
+                .findForAnnualByClassWithGroupFilter(academicYearId, classId, groupId));
 
         Class examClass = enrollment.getStudentClass();
         List<Grade> sortedGrades = loadSortedGrades(examClass);
@@ -640,8 +636,8 @@ public class ResultService {
         AcademicYear year = academicYearRepository.findById(academicYearId)
                 .orElseThrow(() -> new RuntimeException("Academic year not found: " + academicYearId));
 
-        List<ExamSession> sessions = examSessionRepository
-                .findForAnnualByClassWithGroupFilter(academicYearId, classId, groupId);
+        List<ExamSession> sessions = deduplicateByRoutineAndSubject(examSessionRepository
+                .findForAnnualByClassWithGroupFilter(academicYearId, classId, groupId));
         if (sessions.isEmpty()) throw new RuntimeException("No exam sessions found for this academic year and class");
 
         Class examClass = sessions.get(0).getExamClass();
@@ -716,8 +712,8 @@ public class ResultService {
         ExamRoutine routine = examRoutineRepository.findById(examRoutineId)
                 .orElseThrow(() -> new RuntimeException("Exam routine not found: " + examRoutineId));
 
-        List<ExamSession> sessions = examSessionRepository
-                .findForRoutineAndClassWithGroupFilter(examRoutineId, classId, groupId);
+        List<ExamSession> sessions = deduplicateBySubject(examSessionRepository
+                .findForRoutineAndClassWithGroupFilter(examRoutineId, classId, groupId));
         if (sessions.isEmpty()) throw new RuntimeException("No exam sessions found for this routine and class");
 
         Class examClass = sessions.get(0).getExamClass();
@@ -775,8 +771,8 @@ public class ResultService {
         AcademicYear year = academicYearRepository.findById(academicYearId)
                 .orElseThrow(() -> new RuntimeException("Academic year not found: " + academicYearId));
 
-        List<ExamSession> sessions = examSessionRepository
-                .findForAnnualByClassWithGroupFilter(academicYearId, classId, groupId);
+        List<ExamSession> sessions = deduplicateByRoutineAndSubject(examSessionRepository
+                .findForAnnualByClassWithGroupFilter(academicYearId, classId, groupId));
         if (sessions.isEmpty()) throw new RuntimeException("No sessions found for this academic year");
 
         Class examClass = sessions.get(0).getExamClass();
@@ -831,25 +827,18 @@ public class ResultService {
 
     // ─── STATS – SESSION ─────────────────────────────────────────────────────────
 
-    public SessionStatsResponse getSessionStats(Integer examSessionId, Integer genderSectionId, Long sectionId, Integer groupId) {
-        ExamSession session = examSessionRepository.findByIdAndIsActiveTrue(examSessionId)
-                .orElseThrow(() -> new RuntimeException("Exam session not found: " + examSessionId));
+    public SessionStatsResponse getSessionStats(Integer routineId, Integer subjectId, Integer classId, Integer genderSectionId, Long sectionId, Integer groupId) {
+        ExamRoutine routine = examRoutineRepository.findById(routineId)
+                .orElseThrow(() -> new RuntimeException("Exam routine not found: " + routineId));
+        Integer examTypeId = routine.getExamType().getId();
 
-        Class examClass = session.getExamClass();
-        Integer classId = examClass.getId();
-        Integer resolvedGroupId = groupId != null ? groupId : (session.getGroup() != null ? session.getGroup().getId() : null);
-        Integer examTypeId = session.getExamRoutine().getExamType().getId();
-
-        MarkingStructure structure = resolveMarkingStructure(examTypeId, classId, session.getSubject().getId(), resolvedGroupId);
-        List<MarkingStructureComponent> components =
-                markingStructureComponentRepository.findAllByMarkingStructureAndDeletedAtIsNull(structure);
+        MarkingStructure structure = resolveMarkingStructure(examTypeId, classId, subjectId, groupId);
+        Class examClass = structure.getExamClass();
 
         List<Enrollment> enrollments = enrollmentRepository
-                .findAllByClassIdAndFilters(classId, null, genderSectionId, sectionId, resolvedGroupId, null, null);
+                .findAllByClassIdAndFilters(classId, null, genderSectionId, sectionId, groupId, null, null);
         List<Long> enrollmentIds = enrollments.stream().map(Enrollment::getId).collect(Collectors.toList());
 
-        Integer routineId = session.getExamRoutine().getId();
-        Integer subjectId = session.getSubject().getId();
         List<StudentMark> marks = studentMarkRepository
                 .findAllByEnrollmentIdInAndRoutineIdAndSubjectIdAndDeletedAtIsNull(enrollmentIds, routineId, subjectId);
 
@@ -874,10 +863,11 @@ public class ResultService {
         }
 
         SessionStatsResponse response = new SessionStatsResponse();
-        response.setExamSessionId(examSessionId);
+        response.setRoutineId(routineId);
+        response.setSubjectId(subjectId);
         response.setClassName(examClass.getName());
-        response.setSubjectName(session.getSubject().getName());
-        response.setExamTypeName(session.getExamRoutine().getExamType().getName());
+        response.setSubjectName(structure.getSubject().getName());
+        response.setExamTypeName(routine.getExamType().getName());
         response.setTotalEnrolled(enrollments.size());
         response.setAppeared(agg.appeared);
         response.setPassed(agg.passed);
@@ -897,8 +887,8 @@ public class ResultService {
         ExamRoutine routine = examRoutineRepository.findById(examRoutineId)
                 .orElseThrow(() -> new RuntimeException("Exam routine not found: " + examRoutineId));
 
-        List<ExamSession> sessions = examSessionRepository
-                .findForRoutineAndClassWithGroupFilter(examRoutineId, classId, groupId);
+        List<ExamSession> sessions = deduplicateBySubject(examSessionRepository
+                .findForRoutineAndClassWithGroupFilter(examRoutineId, classId, groupId));
         if (sessions.isEmpty()) throw new RuntimeException("No exam sessions found for this routine and class");
 
         Class examClass = sessions.get(0).getExamClass();
@@ -1090,8 +1080,8 @@ public class ResultService {
         ExamRoutine routine = examRoutineRepository.findById(examRoutineId)
                 .orElseThrow(() -> new RuntimeException("Exam routine not found: " + examRoutineId));
 
-        List<ExamSession> sessions = examSessionRepository
-                .findForRoutineAndClassWithGroupFilter(examRoutineId, classId, groupId);
+        List<ExamSession> sessions = deduplicateBySubject(examSessionRepository
+                .findForRoutineAndClassWithGroupFilter(examRoutineId, classId, groupId));
         if (sessions.isEmpty()) throw new RuntimeException("No sessions found");
 
         Class examClass = sessions.get(0).getExamClass();
@@ -1150,8 +1140,8 @@ public class ResultService {
         AcademicYear year = academicYearRepository.findById(academicYearId)
                 .orElseThrow(() -> new RuntimeException("Academic year not found: " + academicYearId));
 
-        List<ExamSession> sessions = examSessionRepository
-                .findForAnnualByClassWithGroupFilter(academicYearId, classId, groupId);
+        List<ExamSession> sessions = deduplicateByRoutineAndSubject(examSessionRepository
+                .findForAnnualByClassWithGroupFilter(academicYearId, classId, groupId));
         if (sessions.isEmpty()) throw new RuntimeException("No sessions found for this academic year");
 
         Class examClass = sessions.get(0).getExamClass();
@@ -1203,6 +1193,24 @@ public class ResultService {
         response.setTotalEnrolled(enrollments.size());
         response.setSubjectStats(subjectStatsList);
         return response;
+    }
+
+    // ─── SESSION DEDUPLICATION ───────────────────────────────────────────────────
+
+    private List<ExamSession> deduplicateBySubject(List<ExamSession> sessions) {
+        Map<Integer, ExamSession> seen = new LinkedHashMap<>();
+        for (ExamSession s : sessions) {
+            seen.putIfAbsent(s.getSubject().getId(), s);
+        }
+        return new ArrayList<>(seen.values());
+    }
+
+    private List<ExamSession> deduplicateByRoutineAndSubject(List<ExamSession> sessions) {
+        Map<String, ExamSession> seen = new LinkedHashMap<>();
+        for (ExamSession s : sessions) {
+            seen.putIfAbsent(s.getExamRoutine().getId() + "_" + s.getSubject().getId(), s);
+        }
+        return new ArrayList<>(seen.values());
     }
 
     // ─── PRIVATE HELPERS ─────────────────────────────────────────────────────────
