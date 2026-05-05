@@ -2,6 +2,7 @@ package com.example.academic_service.service;
 
 import com.example.academic_service.dto.EnrollmentResponseDto;
 import com.example.academic_service.dto.EnrollmentWithStudentRequestDto;
+import com.example.academic_service.dto.TransferRequestDto;
 import com.example.academic_service.entity.Enrollment;
 import com.example.academic_service.entity.StudentStatus;
 import org.springframework.data.domain.Page;
@@ -66,4 +67,6 @@ public interface EnrollmentService {
             Integer startRoll,
             Integer endRoll
     );
+
+    List<EnrollmentResponseDto> transferEnrollments(TransferRequestDto request);
 }

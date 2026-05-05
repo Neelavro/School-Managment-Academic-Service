@@ -2,6 +2,7 @@ package com.example.academic_service.controller;
 
 import com.example.academic_service.dto.EnrollmentResponseDto;
 import com.example.academic_service.dto.EnrollmentWithStudentRequestDto;
+import com.example.academic_service.dto.TransferRequestDto;
 import com.example.academic_service.entity.Enrollment;
 import com.example.academic_service.service.EnrollmentService;
 import jakarta.validation.Valid;
@@ -119,5 +120,12 @@ public class EnrollmentController {
     public ResponseEntity<String> deleteEnrollment(@PathVariable Long id) {
         enrollmentService.deleteEnrollment(id);
         return ResponseEntity.ok("Enrollment deactivated successfully");
+    }
+
+    @PostMapping("/transfer")
+    public ResponseEntity<List<EnrollmentResponseDto>> transferEnrollments(
+            @RequestBody TransferRequestDto request
+    ) {
+        return ResponseEntity.ok(enrollmentService.transferEnrollments(request));
     }
 }

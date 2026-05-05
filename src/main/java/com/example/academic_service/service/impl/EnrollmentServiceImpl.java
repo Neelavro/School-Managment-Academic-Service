@@ -2,6 +2,7 @@ package com.example.academic_service.service.impl;
 
 import com.example.academic_service.dto.EnrollmentResponseDto;
 import com.example.academic_service.dto.EnrollmentWithStudentRequestDto;
+import com.example.academic_service.dto.TransferRequestDto;
 import com.example.academic_service.entity.*;
 import com.example.academic_service.entity.Class;
 import com.example.academic_service.repository.*;
@@ -111,7 +112,8 @@ public class EnrollmentServiceImpl implements EnrollmentService {
             Integer studentGroupId,
             Pageable pageable
     ) {
-        AcademicYear activeYear = (AcademicYear) academicYearRepository.findByIsActiveTrue();
+        AcademicYear activeYear = academicYearRepository.findFirstByIsActiveTrue()
+                .orElseThrow(() -> new RuntimeException("No active academic year set"));
 
         Specification<Enrollment> spec = EnrollmentSpecification.filter(
                 activeYear.getId(), classId, sectionId,
@@ -374,5 +376,47 @@ public class EnrollmentServiceImpl implements EnrollmentService {
                 .filter(e -> e.getStudent() != null)
                 .map(e -> EnrollmentResponseDto.from(e, e.getStudent()))
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public List<EnrollmentResponseDto> transferEnrollments(TransferRequestDto request) {
+        AcademicYear toYear = request.getToAcademicYearId() != null
+                ? academicYearRepository.findById(request.getToAcademicYearId()).orElse(null) : null;
+        Class toClass = classRepository.findById(request.getToClassId())
+                .orElseThrow(() -> new RuntimeException("Target class not found"));
+        Shift toShift = request.getToShiftId() != null
+                ? shiftRepository.findById(request.getToShiftId()).orElse(null) : null;
+        GenderSection toGenderSection = genderSectionRepository.findById(request.getToGenderSectionId())
+                .orElseThrow(() -> new RuntimeException("Target gender section not found"));
+        Section toSection = request.getToSectionId() != null
+                ? sectionRepository.findById(Math.toIntExact(request.getToSectionId())).orElse(null) : null;
+        StudentGroup toGroup = request.getToGroupId() != null
+                ? studentGroupRepository.findById(request.getToGroupId()).orElse(null) : null;
+
+        return request.getEnrollmentIds().stream().map(enrollmentId -> {
+            Enrollment existing = enrollmentRepository.findById(enrollmentId)
+                    .orElseThrow(() -> new RuntimeException("Enrollment not found: " + enrollmentId));
+
+            existing.setIsActive(false);
+            enrollmentRepository.save(existing);
+
+            Enrollment newEnrollment = new Enrollment();
+            newEnrollment.setStudentSystemId(existing.getStudentSystemId());
+            newEnrollment.setAcademicYear(toYear);
+            newEnrollment.setStudentClass(toClass);
+            newEnrollment.setShift(toShift);
+            newEnrollment.setGenderSection(toGenderSection);
+            newEnrollment.setSection(toSection);
+            newEnrollment.setStudentGroup(toGroup);
+            newEnrollment.setClassRoll(null);
+            newEnrollment.setIsActive(true);
+
+            Enrollment saved = enrollmentRepository.save(newEnrollment);
+            Student student = saved.getStudent() != null ? saved.getStudent()
+                    : studentRepository.findByStudentSystemId(saved.getStudentSystemId())
+                    .orElseThrow(() -> new RuntimeException("Student not found: " + saved.getStudentSystemId()));
+            return EnrollmentResponseDto.from(saved, student);
+        }).collect(Collectors.toList());
     }
 }
