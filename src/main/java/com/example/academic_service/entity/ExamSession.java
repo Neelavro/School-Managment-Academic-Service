@@ -12,7 +12,15 @@ import java.time.LocalTime;
 
 
 @Entity
-@Table(name = "exam_session")
+@Table(
+        name = "exam_session",
+        indexes = {
+                // covers: findByExamRoutineIdAndIsActiveTrue and all routine-based session loads
+                @Index(name = "idx_es_routine_active", columnList = "exam_routine_id, is_active"),
+                // covers: findAllByExamRoutineIdAndExamClassIdAndIsActiveTrue
+                @Index(name = "idx_es_routine_class_active", columnList = "exam_routine_id, class_id, is_active")
+        }
+)
 @Getter
 @Setter
 public class ExamSession {

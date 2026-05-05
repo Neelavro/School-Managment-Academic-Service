@@ -5,7 +5,17 @@ import lombok.Getter;
 import lombok.Setter;
 
 @Entity
-@Table(name = "enrollment")
+@Table(
+        name = "enrollment",
+        indexes = {
+                // covers: findAllByClassIdAndFilters — leading filter is always class_id + is_active
+                @Index(name = "idx_enrollment_class_active", columnList = "class_id, is_active"),
+                // covers: annual result queries that filter by year then class
+                @Index(name = "idx_enrollment_year_class_active", columnList = "academic_year_id, class_id, is_active"),
+                // covers: findByStudentSystemIdAndIsActive, findByStudentSystemId
+                @Index(name = "idx_enrollment_sysid_active", columnList = "student_system_id, is_active")
+        }
+)
 @Getter
 @Setter
 public class Enrollment {

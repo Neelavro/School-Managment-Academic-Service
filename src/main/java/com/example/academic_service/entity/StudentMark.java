@@ -11,8 +11,14 @@ import java.time.LocalDateTime;
 @Table(
         name = "student_mark",
         uniqueConstraints = @UniqueConstraint(
+                name = "uq_sm",
                 columnNames = {"enrollment_id", "routine_id", "subject_id", "exam_component_id"}
-        )
+        ),
+        indexes = {
+                // covers: findAllByRoutineIdAndSubjectId
+                // (unique constraint leads with enrollment_id, cannot serve routine+subject queries)
+                @Index(name = "idx_sm_routine_subject", columnList = "routine_id, subject_id")
+        }
 )
 @Getter
 @Setter

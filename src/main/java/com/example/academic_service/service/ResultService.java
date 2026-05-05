@@ -47,7 +47,7 @@ public class ResultService {
         List<Long> enrollmentIds = enrollments.stream().map(Enrollment::getId).collect(Collectors.toList());
 
         List<StudentMark> marks = studentMarkRepository
-                .findAllByEnrollmentIdInAndRoutineIdAndSubjectIdAndDeletedAtIsNull(enrollmentIds, routineId, subjectId);
+                .findAllByEnrollmentIdInAndRoutineIdAndSubjectId(enrollmentIds, routineId, subjectId);
 
         Map<Long, Map<Integer, StudentMark>> markMap = new HashMap<>();
         for (StudentMark m : marks) {
@@ -840,7 +840,7 @@ public class ResultService {
         List<Long> enrollmentIds = enrollments.stream().map(Enrollment::getId).collect(Collectors.toList());
 
         List<StudentMark> marks = studentMarkRepository
-                .findAllByEnrollmentIdInAndRoutineIdAndSubjectIdAndDeletedAtIsNull(enrollmentIds, routineId, subjectId);
+                .findAllByEnrollmentIdInAndRoutineIdAndSubjectId(enrollmentIds, routineId, subjectId);
 
         Map<Long, BigDecimal> totalByEnrollment = new HashMap<>();
         Set<Long> appearedSet = new HashSet<>();

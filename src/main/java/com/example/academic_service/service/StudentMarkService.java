@@ -79,7 +79,7 @@ public class StudentMarkService {
         List<Long> enrollmentIds = enrollments.stream().map(Enrollment::getId).collect(Collectors.toList());
 
         List<StudentMark> existingMarks = studentMarkRepository
-                .findAllByEnrollmentIdInAndRoutineIdAndSubjectIdAndDeletedAtIsNull(enrollmentIds, routineId, subjectId);
+                .findAllByEnrollmentIdInAndRoutineIdAndSubjectId(enrollmentIds, routineId, subjectId);
 
         Map<Long, Map<Integer, BigDecimal>> markMap = new HashMap<>();
         Map<Long, String> statusMap = new HashMap<>();
@@ -173,7 +173,7 @@ public class StudentMarkService {
                 .collect(Collectors.toList());
 
         List<StudentMark> existingMarks = studentMarkRepository
-                .findAllByEnrollmentIdInAndRoutineIdAndSubjectIdAndDeletedAtIsNull(enrollmentIds, routineId, subjectId);
+                .findAllByEnrollmentIdInAndRoutineIdAndSubjectId(enrollmentIds, routineId, subjectId);
 
         Map<String, StudentMark> existingMap = existingMarks.stream()
                 .collect(Collectors.toMap(
