@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
 @Table(
         name = "student_mark",
         uniqueConstraints = @UniqueConstraint(
-                columnNames = {"enrollment_id", "exam_session_id", "exam_component_id"}
+                columnNames = {"enrollment_id", "routine_id", "subject_id", "exam_component_id"}
         )
 )
 @Getter
@@ -25,9 +25,11 @@ public class StudentMark {
     @Column(name = "enrollment_id", nullable = false)
     private Long enrollmentId;
 
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "exam_session_id", nullable = false)
-    private ExamSession examSession;
+    @Column(name = "routine_id", nullable = false)
+    private Integer routineId;
+
+    @Column(name = "subject_id", nullable = false)
+    private Integer subjectId;
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "exam_component_id", nullable = false)

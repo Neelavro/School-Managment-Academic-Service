@@ -17,12 +17,14 @@ public class StudentMarkController {
 
     @GetMapping("/sheet")
     public ResponseEntity<Map<String, Object>> getMarkSheet(
-            @RequestParam Integer examSessionId,
+            @RequestParam Integer routineId,
+            @RequestParam Integer subjectId,
+            @RequestParam Integer classId,
             @RequestParam(required = false) Integer genderSectionId,
             @RequestParam(required = false) Long sectionId,
             @RequestParam(required = false) Integer groupId) {
         return ResponseEntity.ok(
-                studentMarkService.getMarkSheet(examSessionId, genderSectionId, sectionId, groupId));
+                studentMarkService.getMarkSheet(routineId, subjectId, classId, genderSectionId, sectionId, groupId));
     }
 
     @PostMapping("/save")

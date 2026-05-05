@@ -17,56 +17,40 @@ import java.util.stream.Collectors;
 public class StudentMarkService {
 
     private final StudentMarkRepository studentMarkRepository;
-    private final ExamSessionRepository examSessionRepository;
+    private final ExamRoutineRepository examRoutineRepository;
     private final EnrollmentRepository enrollmentRepository;
     private final MarkingStructureRepository markingStructureRepository;
     private final MarkingStructureComponentRepository markingStructureComponentRepository;
     private final ExamComponentRepository examComponentRepository;
 
     public Map<String, Object> getMarkSheet(
-            Integer examSessionId,
+            Integer routineId,
+            Integer subjectId,
+            Integer classId,
             Integer genderSectionId,
             Long sectionId,
             Integer groupId) {
 
-        // fetch exam session
-        ExamSession session = examSessionRepository.findByIdAndIsActiveTrue(examSessionId)
-                .orElseThrow(() -> new RuntimeException("Exam session not found with id: " + examSessionId));
+        ExamRoutine routine = examRoutineRepository.findById(routineId)
+                .orElseThrow(() -> new RuntimeException("Exam routine not found: " + routineId));
+        Integer examTypeId = routine.getExamType().getId();
 
-        Integer classId = session.getExamClass().getId();
-        Integer subjectId = session.getSubject().getId();
-        Integer examTypeId = session.getExamRoutine().getExamType().getId();
-        Integer sessionGroupId = session.getGroup() != null ? session.getGroup().getId() : null;
-
-        // resolve group
-        Integer resolvedGroupId = groupId != null ? groupId : sessionGroupId;
-
-        // fetch marking structure — group-specific first, fall back to common (null group)
         List<MarkingStructure> structures = markingStructureRepository
-                .findAllByFiltersAndDeletedAtIsNull(examTypeId, classId, subjectId, resolvedGroupId);
-
-        if (structures.isEmpty() && resolvedGroupId != null) {
-            structures = markingStructureRepository
-                    .findClassWideAndDeletedAtIsNull(examTypeId, classId, subjectId);
+                .findAllByFiltersAndDeletedAtIsNull(examTypeId, classId, subjectId, groupId);
+        if (structures.isEmpty() && groupId != null) {
+            structures = markingStructureRepository.findClassWideAndDeletedAtIsNull(examTypeId, classId, subjectId);
         }
-
         if (structures.isEmpty()) {
-            throw new RuntimeException("No marking structure found for this exam session. Please set up marking structure first.");
+            throw new RuntimeException("No marking structure found for this exam. Please set up marking structure first.");
         }
 
         MarkingStructure structure = structures.get(0);
         List<MarkingStructureComponent> components =
                 markingStructureComponentRepository.findAllByMarkingStructureAndDeletedAtIsNull(structure);
-
         if (components.isEmpty()) {
             throw new RuntimeException("Marking structure has no components defined.");
         }
 
-        // fetch enrollments
-        List<Enrollment> enrollments = enrollmentRepository
-                .findAllByClassIdAndFilters(classId, null, genderSectionId, sectionId, resolvedGroupId, null, null);
-
-        // build component info list
         List<MarkSheetResponse.ComponentInfo> componentInfos = components.stream().map(c -> {
             MarkSheetResponse.ComponentInfo info = new MarkSheetResponse.ComponentInfo();
             info.setExamComponentId(c.getExamComponent().getId());
@@ -75,47 +59,43 @@ public class StudentMarkService {
             return info;
         }).collect(Collectors.toList());
 
-        // build response shell
         MarkSheetResponse response = new MarkSheetResponse();
-        response.setExamSessionId(examSessionId);
-        response.setSubjectName(session.getSubject().getName());
-        response.setExamTypeName(session.getExamRoutine().getExamType().getName());
-        response.setClassName(session.getExamClass().getName());
+        response.setRoutineId(routineId);
+        response.setSubjectId(subjectId);
+        response.setSubjectName(structure.getSubject().getName());
+        response.setExamTypeName(routine.getExamType().getName());
+        response.setClassName(structure.getExamClass().getName());
         response.setTotalMarks(structure.getTotalMarks());
         response.setComponents(componentInfos);
+
+        List<Enrollment> enrollments = enrollmentRepository
+                .findAllByClassIdAndFilters(classId, null, genderSectionId, sectionId, groupId, null, null);
 
         if (enrollments.isEmpty()) {
             response.setStudents(new ArrayList<>());
             return Map.of("message", "No students found for the given filters", "data", response);
         }
 
-        List<Long> enrollmentIds = enrollments.stream()
-                .map(Enrollment::getId)
-                .collect(Collectors.toList());
+        List<Long> enrollmentIds = enrollments.stream().map(Enrollment::getId).collect(Collectors.toList());
 
-        // fetch existing marks in one query
         List<StudentMark> existingMarks = studentMarkRepository
-                .findAllByEnrollmentIdInAndExamSessionIdAndDeletedAtIsNull(enrollmentIds, examSessionId);
+                .findAllByEnrollmentIdInAndRoutineIdAndSubjectIdAndDeletedAtIsNull(enrollmentIds, routineId, subjectId);
 
-        // group marks: enrollmentId -> componentId -> marksObtained
         Map<Long, Map<Integer, BigDecimal>> markMap = new HashMap<>();
         Map<Long, String> statusMap = new HashMap<>();
         for (StudentMark mark : existingMarks) {
-            markMap
-                    .computeIfAbsent(mark.getEnrollmentId(), k -> new HashMap<>())
+            markMap.computeIfAbsent(mark.getEnrollmentId(), k -> new HashMap<>())
                     .put(mark.getExamComponent().getId(), mark.getMarksObtained());
             if (mark.getStatus() != null) {
                 statusMap.put(mark.getEnrollmentId(), mark.getStatus());
             }
         }
 
-        // build max marks lookup once — outside the student loop
         Map<Integer, Integer> maxMarksMap = components.stream()
                 .collect(Collectors.toMap(
                         c -> c.getExamComponent().getId(),
                         MarkingStructureComponent::getMaxMarks));
 
-        // build student rows
         List<MarkSheetResponse.StudentMarkRow> rows = enrollments.stream().map(enrollment -> {
             MarkSheetResponse.StudentMarkRow row = new MarkSheetResponse.StudentMarkRow();
             row.setEnrollmentId(enrollment.getId());
@@ -133,14 +113,11 @@ public class StudentMarkService {
                 BigDecimal saved = studentMarks.get(c.getExamComponent().getId());
                 Integer maxMarks = maxMarksMap.get(c.getExamComponent().getId());
 
-                // null out if saved mark exceeds current max
-                if (saved != null && maxMarks != null &&
-                        saved.compareTo(BigDecimal.valueOf(maxMarks)) > 0) {
+                if (saved != null && maxMarks != null && saved.compareTo(BigDecimal.valueOf(maxMarks)) > 0) {
                     entry.setMarksObtained(null);
                 } else {
                     entry.setMarksObtained(saved);
                 }
-
                 return entry;
             }).collect(Collectors.toList());
 
@@ -158,7 +135,6 @@ public class StudentMarkService {
             return row;
         }).collect(Collectors.toList());
 
-        // sort by class roll
         rows.sort(Comparator.comparingInt(r -> r.getClassRoll() != null ? r.getClassRoll() : Integer.MAX_VALUE));
         response.setStudents(rows);
 
@@ -167,34 +143,29 @@ public class StudentMarkService {
 
     @Transactional
     public Map<String, Object> saveMarks(SaveMarksRequest request) {
-        if (request.getExamSessionId() == null) {
-            throw new RuntimeException("Exam session id is required");
-        }
-        if (request.getMarks() == null || request.getMarks().isEmpty()) {
-            throw new RuntimeException("No marks provided");
-        }
+        if (request.getRoutineId() == null) throw new RuntimeException("Routine id is required");
+        if (request.getSubjectId() == null) throw new RuntimeException("Subject id is required");
+        if (request.getClassId() == null) throw new RuntimeException("Class id is required");
+        if (request.getMarks() == null || request.getMarks().isEmpty()) throw new RuntimeException("No marks provided");
 
-        ExamSession session = examSessionRepository.findByIdAndIsActiveTrue(request.getExamSessionId())
-                .orElseThrow(() -> new RuntimeException("Exam session not found with id: " + request.getExamSessionId()));
+        ExamRoutine routine = examRoutineRepository.findById(request.getRoutineId())
+                .orElseThrow(() -> new RuntimeException("Exam routine not found: " + request.getRoutineId()));
+        Integer examTypeId = routine.getExamType().getId();
+        Integer routineId = request.getRoutineId();
+        Integer subjectId = request.getSubjectId();
+        Integer classId = request.getClassId();
 
-        Integer classId = session.getExamClass().getId();
-        Integer subjectId = session.getSubject().getId();
-        Integer examTypeId = session.getExamRoutine().getExamType().getId();
-
-        // fetch marking structure once for validation
         List<MarkingStructure> structures = markingStructureRepository
                 .findAllByFiltersAndDeletedAtIsNull(examTypeId, classId, subjectId, null);
 
         Map<Integer, Integer> maxMarksMap = new HashMap<>();
         if (!structures.isEmpty()) {
             List<MarkingStructureComponent> structureComponents =
-                    markingStructureComponentRepository
-                            .findAllByMarkingStructureAndDeletedAtIsNull(structures.get(0));
+                    markingStructureComponentRepository.findAllByMarkingStructureAndDeletedAtIsNull(structures.get(0));
             structureComponents.forEach(sc ->
                     maxMarksMap.put(sc.getExamComponent().getId(), sc.getMaxMarks()));
         }
 
-        // fetch all existing marks for this session in one query
         List<Long> enrollmentIds = request.getMarks().stream()
                 .map(SaveMarksRequest.StudentMarkEntry::getEnrollmentId)
                 .filter(Objects::nonNull)
@@ -202,10 +173,8 @@ public class StudentMarkService {
                 .collect(Collectors.toList());
 
         List<StudentMark> existingMarks = studentMarkRepository
-                .findAllByEnrollmentIdInAndExamSessionIdAndDeletedAtIsNull(
-                        enrollmentIds, request.getExamSessionId());
+                .findAllByEnrollmentIdInAndRoutineIdAndSubjectIdAndDeletedAtIsNull(enrollmentIds, routineId, subjectId);
 
-        // build lookup map: enrollmentId + componentId -> existing mark
         Map<String, StudentMark> existingMap = existingMarks.stream()
                 .collect(Collectors.toMap(
                         m -> m.getEnrollmentId() + "_" + m.getExamComponent().getId(),
@@ -214,19 +183,13 @@ public class StudentMarkService {
         List<StudentMark> toSave = new ArrayList<>();
 
         for (SaveMarksRequest.StudentMarkEntry entry : request.getMarks()) {
-            if (entry.getEnrollmentId() == null) {
-                throw new RuntimeException("Enrollment id is required for each mark entry");
-            }
-            if (entry.getExamComponentId() == null) {
-                throw new RuntimeException("Exam component id is required for each mark entry");
-            }
+            if (entry.getEnrollmentId() == null) throw new RuntimeException("Enrollment id is required for each mark entry");
+            if (entry.getExamComponentId() == null) throw new RuntimeException("Exam component id is required for each mark entry");
 
             boolean isAbsentOrExpelled = "ABSENT".equals(entry.getStatus()) || "EXPELLED".equals(entry.getStatus());
 
-            // skip null marks for present students — partial save
             if (!isAbsentOrExpelled && entry.getMarksObtained() == null) continue;
 
-            // validate max marks only for present students
             if (!isAbsentOrExpelled) {
                 Integer maxMarks = maxMarksMap.get(entry.getExamComponentId());
                 if (maxMarks != null && entry.getMarksObtained().compareTo(BigDecimal.valueOf(maxMarks)) > 0) {
@@ -251,7 +214,8 @@ public class StudentMarkService {
                                 "Exam component not found with id: " + entry.getExamComponentId()));
                 mark = new StudentMark();
                 mark.setEnrollmentId(entry.getEnrollmentId());
-                mark.setExamSession(session);
+                mark.setRoutineId(routineId);
+                mark.setSubjectId(subjectId);
                 mark.setExamComponent(component);
                 mark.setMarksObtained(isAbsentOrExpelled ? null : entry.getMarksObtained());
                 mark.setStatus(entry.getStatus());
@@ -266,34 +230,13 @@ public class StudentMarkService {
                 "message", toSave.size() + " mark(s) saved successfully",
                 "data", toSave.stream().map(this::toResponse).collect(Collectors.toList()));
     }
-    // ─── helpers ────────────────────────────────────────────────────────────────
-
-    private MarkSheetResponse buildEmptySheet(
-            ExamSession session,
-            MarkingStructure structure,
-            List<MarkingStructureComponent> components) {
-        MarkSheetResponse response = new MarkSheetResponse();
-        response.setExamSessionId(session.getId());
-        response.setSubjectName(session.getSubject().getName());
-        response.setExamTypeName(session.getExamRoutine().getExamType().getName());
-        response.setClassName(session.getExamClass().getName());
-        response.setTotalMarks(structure.getTotalMarks());
-        response.setComponents(components.stream().map(c -> {
-            MarkSheetResponse.ComponentInfo info = new MarkSheetResponse.ComponentInfo();
-            info.setExamComponentId(c.getExamComponent().getId());
-            info.setExamComponentName(c.getExamComponent().getName());
-            info.setMaxMarks(c.getMaxMarks());
-            return info;
-        }).collect(Collectors.toList()));
-        response.setStudents(new ArrayList<>());
-        return response;
-    }
 
     private StudentMarkResponse toResponse(StudentMark m) {
         StudentMarkResponse res = new StudentMarkResponse();
         res.setId(m.getId());
         res.setEnrollmentId(m.getEnrollmentId());
-        res.setExamSessionId(m.getExamSession().getId());
+        res.setRoutineId(m.getRoutineId());
+        res.setSubjectId(m.getSubjectId());
         res.setExamComponentId(m.getExamComponent().getId());
         res.setExamComponentName(m.getExamComponent().getName());
         res.setMarksObtained(m.getMarksObtained());

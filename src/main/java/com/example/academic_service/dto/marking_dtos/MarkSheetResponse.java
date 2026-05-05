@@ -9,7 +9,8 @@ import java.util.List;
 @Getter
 @Setter
 public class MarkSheetResponse {
-    private Integer examSessionId;
+    private Integer routineId;
+    private Integer subjectId;
     private String subjectName;
     private String examTypeName;
     private String className;

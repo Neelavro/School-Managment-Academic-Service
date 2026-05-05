@@ -47,8 +47,10 @@ public class ResultService {
                 .findAllByClassIdAndFilters(classId, null, genderSectionId, sectionId, resolvedGroupId, null, null);
         List<Long> enrollmentIds = enrollments.stream().map(Enrollment::getId).collect(Collectors.toList());
 
+        Integer routineId = session.getExamRoutine().getId();
+        Integer subjectId = session.getSubject().getId();
         List<StudentMark> marks = studentMarkRepository
-                .findAllByEnrollmentIdInAndExamSessionIdAndDeletedAtIsNull(enrollmentIds, examSessionId);
+                .findAllByEnrollmentIdInAndRoutineIdAndSubjectIdAndDeletedAtIsNull(enrollmentIds, routineId, subjectId);
 
         Map<Long, Map<Integer, StudentMark>> markMap = new HashMap<>();
         for (StudentMark m : marks) {
@@ -167,7 +169,7 @@ public class ResultService {
                 boolean isFourth = fourthSubjectIds.contains(s.getSubject().getId());
                 Map<Integer, BigDecimal> compMarks = bundle.markMap
                         .getOrDefault(enrollment.getId(), Collections.emptyMap())
-                        .getOrDefault(s.getId(), Collections.emptyMap());
+                        .getOrDefault(s.getSubject().getId(), Collections.emptyMap());
                 boolean appeared = !compMarks.isEmpty();
                 BigDecimal total = sumComponentMarks(components, compMarks);
 
@@ -252,7 +254,7 @@ public class ResultService {
                 boolean isFourth = fourthSubjectIds.contains(s.getSubject().getId());
                 Map<Integer, BigDecimal> compMarks = bundle.markMap
                         .getOrDefault(enrollment.getId(), Collections.emptyMap())
-                        .getOrDefault(s.getId(), Collections.emptyMap());
+                        .getOrDefault(s.getSubject().getId(), Collections.emptyMap());
                 boolean appeared = !compMarks.isEmpty();
                 BigDecimal total = sumComponentMarks(components, compMarks);
 
@@ -498,7 +500,7 @@ public class ResultService {
 
             Map<Integer, BigDecimal> compMarks = bundle.markMap
                     .getOrDefault(enrollmentId, Collections.emptyMap())
-                    .getOrDefault(s.getId(), Collections.emptyMap());
+                    .getOrDefault(s.getSubject().getId(), Collections.emptyMap());
 
             boolean appeared = !compMarks.isEmpty();
             BigDecimal total = sumComponentMarks(components, compMarks);
@@ -736,7 +738,7 @@ public class ResultService {
             for (Enrollment enrollment : enrollments) {
                 Map<Integer, BigDecimal> compMarks = bundle.markMap
                         .getOrDefault(enrollment.getId(), Collections.emptyMap())
-                        .getOrDefault(s.getId(), Collections.emptyMap());
+                        .getOrDefault(s.getSubject().getId(), Collections.emptyMap());
                 if (compMarks.isEmpty()) continue;
                 BigDecimal total = sumComponentMarks(components, compMarks);
                 Grade grade = resolveGrade(total.doubleValue(), sortedGrades);
@@ -846,8 +848,10 @@ public class ResultService {
                 .findAllByClassIdAndFilters(classId, null, genderSectionId, sectionId, resolvedGroupId, null, null);
         List<Long> enrollmentIds = enrollments.stream().map(Enrollment::getId).collect(Collectors.toList());
 
+        Integer routineId = session.getExamRoutine().getId();
+        Integer subjectId = session.getSubject().getId();
         List<StudentMark> marks = studentMarkRepository
-                .findAllByEnrollmentIdInAndExamSessionIdAndDeletedAtIsNull(enrollmentIds, examSessionId);
+                .findAllByEnrollmentIdInAndRoutineIdAndSubjectIdAndDeletedAtIsNull(enrollmentIds, routineId, subjectId);
 
         Map<Long, BigDecimal> totalByEnrollment = new HashMap<>();
         Set<Long> appearedSet = new HashSet<>();
@@ -933,7 +937,7 @@ public class ResultService {
                 List<MarkingStructureComponent> comps = bundle.sessionComponentsMap.get(s.getId());
                 Map<Integer, BigDecimal> compMarks = bundle.markMap
                         .getOrDefault(enrollment.getId(), Collections.emptyMap())
-                        .getOrDefault(s.getId(), Collections.emptyMap());
+                        .getOrDefault(s.getSubject().getId(), Collections.emptyMap());
                 if (!compMarks.isEmpty()) grandTotal = grandTotal.add(sumComponentMarks(comps, compMarks));
             }
             totalMarksMap.put(enrollment.getId(), grandTotal);
@@ -949,7 +953,7 @@ public class ResultService {
             for (Enrollment e : allEnrollments) {
                 Map<Integer, BigDecimal> compMarks = bundle.markMap
                         .getOrDefault(e.getId(), Collections.emptyMap())
-                        .getOrDefault(s.getId(), Collections.emptyMap());
+                        .getOrDefault(s.getSubject().getId(), Collections.emptyMap());
                 if (!compMarks.isEmpty()) {
                     BigDecimal total = sumComponentMarks(comps, compMarks);
                     if (total.compareTo(highest) > 0) highest = total;
@@ -1023,7 +1027,7 @@ public class ResultService {
 
                 Map<Integer, BigDecimal> compMarks = bundle.markMap
                         .getOrDefault(enrollment.getId(), Collections.emptyMap())
-                        .getOrDefault(s.getId(), Collections.emptyMap());
+                        .getOrDefault(s.getSubject().getId(), Collections.emptyMap());
                 boolean appeared = !compMarks.isEmpty();
                 BigDecimal total = sumComponentMarks(comps, compMarks);
 
@@ -1108,7 +1112,7 @@ public class ResultService {
             for (Enrollment enrollment : enrollments) {
                 Map<Integer, BigDecimal> compMarks = bundle.markMap
                         .getOrDefault(enrollment.getId(), Collections.emptyMap())
-                        .getOrDefault(s.getId(), Collections.emptyMap());
+                        .getOrDefault(s.getSubject().getId(), Collections.emptyMap());
                 if (compMarks.isEmpty()) continue;
                 BigDecimal total = sumComponentMarks(components, compMarks);
                 Grade grade = resolveGrade(total.doubleValue(), sortedGrades);
@@ -1340,7 +1344,7 @@ public class ResultService {
         List<Enrollment> enrollments;
         Map<Integer, MarkingStructure> sessionStructureMap = new HashMap<>();
         Map<Integer, List<MarkingStructureComponent>> sessionComponentsMap = new HashMap<>();
-        // enrollmentId -> sessionId -> componentId -> marks
+        // enrollmentId -> subjectId -> componentId -> marks
         Map<Long, Map<Integer, Map<Integer, BigDecimal>>> markMap = new HashMap<>();
     }
 
@@ -1367,14 +1371,14 @@ public class ResultService {
                     bundle.sessionComponentsMap.put(sessionId, byStructureId.getOrDefault(structure.getId(), Collections.emptyList())));
         }
 
-        if (!enrollments.isEmpty()) {
+        if (!enrollments.isEmpty() && !sessions.isEmpty()) {
             List<Long> enrollmentIds = enrollments.stream().map(Enrollment::getId).collect(Collectors.toList());
-            List<Integer> sessionIds = sessions.stream().map(ExamSession::getId).collect(Collectors.toList());
+            Integer routineId = sessions.get(0).getExamRoutine().getId();
             List<StudentMark> allMarks = studentMarkRepository
-                    .findAllByEnrollmentIdsAndSessionIds(enrollmentIds, sessionIds);
+                    .findAllByEnrollmentIdsAndRoutineId(enrollmentIds, routineId);
             for (StudentMark m : allMarks) {
                 bundle.markMap.computeIfAbsent(m.getEnrollmentId(), k -> new HashMap<>())
-                        .computeIfAbsent(m.getExamSession().getId(), k -> new HashMap<>())
+                        .computeIfAbsent(m.getSubjectId(), k -> new HashMap<>())
                         .put(m.getExamComponent().getId(), m.getMarksObtained());
             }
         }
@@ -1385,8 +1389,8 @@ public class ResultService {
         Map<Integer, List<ExamSession>> sessionsBySubject;
         Map<Integer, MarkingStructure> sessionStructureMap = new HashMap<>();
         Map<Integer, List<MarkingStructureComponent>> sessionComponentsMap = new HashMap<>();
-        // enrollmentId -> sessionId -> componentId -> marks
-        Map<Long, Map<Integer, Map<Integer, BigDecimal>>> markMap = new HashMap<>();
+        // enrollmentId -> "routineId_subjectId" -> componentId -> marks
+        Map<Long, Map<String, Map<Integer, BigDecimal>>> markMap = new HashMap<>();
     }
 
     private AnnualDataBundle loadAnnualData(List<ExamSession> sessions, Integer classId, List<Enrollment> enrollments) {
@@ -1413,14 +1417,18 @@ public class ResultService {
                     bundle.sessionComponentsMap.put(sessionId, byStructureId.getOrDefault(structure.getId(), Collections.emptyList())));
         }
 
-        if (!enrollments.isEmpty()) {
+        if (!enrollments.isEmpty() && !sessions.isEmpty()) {
             List<Long> enrollmentIds = enrollments.stream().map(Enrollment::getId).collect(Collectors.toList());
-            List<Integer> sessionIds = sessions.stream().map(ExamSession::getId).collect(Collectors.toList());
+            List<Integer> routineIds = sessions.stream()
+                    .map(s -> s.getExamRoutine().getId())
+                    .distinct()
+                    .collect(Collectors.toList());
             List<StudentMark> allMarks = studentMarkRepository
-                    .findAllByEnrollmentIdsAndSessionIds(enrollmentIds, sessionIds);
+                    .findAllByEnrollmentIdsAndRoutineIds(enrollmentIds, routineIds);
             for (StudentMark m : allMarks) {
+                String key = m.getRoutineId() + "_" + m.getSubjectId();
                 bundle.markMap.computeIfAbsent(m.getEnrollmentId(), k -> new HashMap<>())
-                        .computeIfAbsent(m.getExamSession().getId(), k -> new HashMap<>())
+                        .computeIfAbsent(key, k -> new HashMap<>())
                         .put(m.getExamComponent().getId(), m.getMarksObtained());
             }
         }
@@ -1448,9 +1456,10 @@ public class ResultService {
         for (ExamSession s : subjectSessions) {
             MarkingStructure structure = bundle.sessionStructureMap.get(s.getId());
             List<MarkingStructureComponent> components = bundle.sessionComponentsMap.getOrDefault(s.getId(), Collections.emptyList());
+            String markKey = s.getExamRoutine().getId() + "_" + s.getSubject().getId();
             Map<Integer, BigDecimal> compMarks = bundle.markMap
                     .getOrDefault(enrollmentId, Collections.emptyMap())
-                    .getOrDefault(s.getId(), Collections.emptyMap());
+                    .getOrDefault(markKey, Collections.emptyMap());
 
             if (!compMarks.isEmpty()) appeared = true;
             totalObtained = totalObtained.add(sumComponentMarks(components, compMarks));

@@ -12,16 +12,21 @@ import java.util.Optional;
 @Repository
 public interface StudentMarkRepository extends JpaRepository<StudentMark, Long> {
 
-    Optional<StudentMark> findByEnrollmentIdAndExamSessionIdAndExamComponentId(
-            Long enrollmentId, Integer examSessionId, Integer examComponentId);
+    Optional<StudentMark> findByEnrollmentIdAndRoutineIdAndSubjectIdAndExamComponentId(
+            Long enrollmentId, Integer routineId, Integer subjectId, Integer examComponentId);
 
-    List<StudentMark> findAllByExamSessionIdAndDeletedAtIsNull(Integer examSessionId);
+    List<StudentMark> findAllByRoutineIdAndSubjectIdAndDeletedAtIsNull(Integer routineId, Integer subjectId);
 
-    List<StudentMark> findAllByEnrollmentIdInAndExamSessionIdAndDeletedAtIsNull(
-            List<Long> enrollmentIds, Integer examSessionId);
+    List<StudentMark> findAllByEnrollmentIdInAndRoutineIdAndSubjectIdAndDeletedAtIsNull(
+            List<Long> enrollmentIds, Integer routineId, Integer subjectId);
 
-    @Query("SELECT sm FROM StudentMark sm WHERE sm.enrollmentId IN :enrollmentIds AND sm.examSession.id IN :sessionIds AND sm.deletedAt IS NULL")
-    List<StudentMark> findAllByEnrollmentIdsAndSessionIds(
+    @Query("SELECT sm FROM StudentMark sm WHERE sm.enrollmentId IN :enrollmentIds AND sm.routineId = :routineId AND sm.deletedAt IS NULL")
+    List<StudentMark> findAllByEnrollmentIdsAndRoutineId(
             @Param("enrollmentIds") List<Long> enrollmentIds,
-            @Param("sessionIds") List<Integer> sessionIds);
+            @Param("routineId") Integer routineId);
+
+    @Query("SELECT sm FROM StudentMark sm WHERE sm.enrollmentId IN :enrollmentIds AND sm.routineId IN :routineIds AND sm.deletedAt IS NULL")
+    List<StudentMark> findAllByEnrollmentIdsAndRoutineIds(
+            @Param("enrollmentIds") List<Long> enrollmentIds,
+            @Param("routineIds") List<Integer> routineIds);
 }

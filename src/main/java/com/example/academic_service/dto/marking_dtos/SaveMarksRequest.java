@@ -9,7 +9,9 @@ import java.util.List;
 @Getter
 @Setter
 public class SaveMarksRequest {
-    private Integer examSessionId;
+    private Integer routineId;
+    private Integer subjectId;
+    private Integer classId;
     private List<StudentMarkEntry> marks;
 
     @Getter

@@ -8,7 +8,13 @@
       "Bash(grep \"\\\\.java$\")",
       "Bash(awk -F: '{print $1}')",
       "Bash(grep -c \"^\\\\.env$\" /Users/neelavroshafin/StudioProjects/school-management-auth-service/.gitignore)",
-      "Bash(grep -c \"^\\\\.env$\" /Users/neelavroshafin/StudioProjects/academic_service/.gitignore)"
+      "Bash(grep -c \"^\\\\.env$\" /Users/neelavroshafin/StudioProjects/academic_service/.gitignore)",
+      "WebFetch(domain:pub.dev)",
+      "WebFetch(domain:github.com)",
+      "Bash(flutter pub *)",
+      "Read(//Users/neelavroshafin/fvm/default/bin/**)",
+      "Read(//Users/neelavroshafin/**)",
+      "Bash(/Users/neelavroshafin/fvm/versions/3.41.7/bin/flutter pub *)"
     ]
   }
 }

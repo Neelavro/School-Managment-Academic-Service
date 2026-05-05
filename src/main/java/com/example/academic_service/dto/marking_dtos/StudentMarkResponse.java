@@ -9,7 +9,8 @@ import java.math.BigDecimal;
 public class StudentMarkResponse {
     private Long id;
     private Long enrollmentId;
-    private Integer examSessionId;
+    private Integer routineId;
+    private Integer subjectId;
     private Integer examComponentId;
     private String examComponentName;
     private BigDecimal marksObtained;
