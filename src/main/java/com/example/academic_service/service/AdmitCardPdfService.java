@@ -434,7 +434,7 @@ public class AdmitCardPdfService {
         }
 
         return "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><style>"
-                + getCss()
+                + getCss(540)
                 + "</style></head><body>"
                 + pages
                 + "</body></html>";
@@ -570,25 +570,27 @@ public class AdmitCardPdfService {
             String signatureBase64,
             boolean includeRoutine
     ) {
+        int cardsPerPage = includeRoutine ? 2 : 3;
+        int cardHeight   = includeRoutine ? 540 : 357;
+
         List<StudentAdmitDataBySection> students = new ArrayList<>(studentDataMap.values());
         StringBuilder pages = new StringBuilder();
 
-        for (int i = 0; i < students.size(); i += 2) {
-            StudentAdmitDataBySection s1 = students.get(i);
-            StudentAdmitDataBySection s2 = (i + 1 < students.size()) ? students.get(i + 1) : null;
-
-            EnrollmentResponseDto e1 = enrollmentMap.get(s1.studentSystemId);
-            EnrollmentResponseDto e2 = s2 != null ? enrollmentMap.get(s2.studentSystemId) : null;
-
+        for (int i = 0; i < students.size(); i += cardsPerPage) {
             pages.append("<div class=\"page\">");
-            pages.append(buildCardBySection(routine, s1, e1, heading, logoBase64, signatureBase64, includeRoutine));
-            pages.append("<div class=\"card-divider\"></div>");
-            if (s2 != null) pages.append(buildCardBySection(routine, s2, e2, heading, logoBase64, signatureBase64, includeRoutine));
+            for (int j = 0; j < cardsPerPage; j++) {
+                int idx = i + j;
+                if (idx >= students.size()) break;
+                if (j > 0) pages.append("<div class=\"card-divider\"></div>");
+                StudentAdmitDataBySection s = students.get(idx);
+                EnrollmentResponseDto e = enrollmentMap.get(s.studentSystemId);
+                pages.append(buildCardBySection(routine, s, e, heading, logoBase64, signatureBase64, includeRoutine));
+            }
             pages.append("</div>");
         }
 
         return "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><style>"
-                + getCss()
+                + getCss(cardHeight)
                 + "</style></head><body>"
                 + pages
                 + "</body></html>";
@@ -745,13 +747,13 @@ public class AdmitCardPdfService {
         } catch (Exception e) { return time; }
     }
 
-    private String getCss() {
+    private String getCss(int cardHeightPx) {
         return "* { box-sizing: border-box; margin: 0; padding: 0; }"
                 + "body { background: #fff; font-family: Arial, sans-serif; }"
                 + ".page { width: 794px; height: 1123px; display: flex;"
                 + "  flex-direction: column; padding: 16px 20px; gap: 10px; overflow: hidden; }"
                 + ".card-divider { display: none; }"
-                + ".admit-card { width: 100%; height: 540px; flex-shrink: 0;"
+                + ".admit-card { width: 100%; height: " + cardHeightPx + "px; flex-shrink: 0;"
                 + "  border: 7px solid #6ec1e4; padding: 12px 14px;"
                 + "  position: relative; background: #fff;"
                 + "  display: flex; flex-direction: column; overflow: hidden; }"
