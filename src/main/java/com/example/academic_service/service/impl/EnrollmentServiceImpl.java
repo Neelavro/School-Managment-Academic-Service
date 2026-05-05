@@ -8,6 +8,7 @@ import com.example.academic_service.repository.*;
 import com.example.academic_service.service.EnrollmentService;
 import com.example.academic_service.service.StudentImageService;
 import com.example.academic_service.service.StudentService;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -182,6 +183,7 @@ public class EnrollmentServiceImpl implements EnrollmentService {
 
     // ── Create enrollment ─────────────────────────────────────────────────────
     @Override
+    @Transactional
     public EnrollmentResponseDto createEnrollment(
             EnrollmentWithStudentRequestDto request, MultipartFile image) {
 
@@ -243,6 +245,7 @@ public class EnrollmentServiceImpl implements EnrollmentService {
 
     // ── Update enrollment ─────────────────────────────────────────────────────
     @Override
+    @Transactional
     public EnrollmentResponseDto updateEnrollment(Long id, EnrollmentWithStudentRequestDto request) {
         Enrollment existing = enrollmentRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Enrollment not found: " + id));

@@ -222,7 +222,98 @@ public class AdmitCardPdfService {
         String heading         = settings.getHeading();
         String logoBase64      = resolveBase64(settings.getLogoUrl());
         String signatureBase64 = resolveBase64(settings.getSignatureUrl());
-        String html = buildHtmlBySection(routine, studentDataMap, enrollmentMap, heading, logoBase64, signatureBase64);
+        String html = buildHtmlBySection(routine, studentDataMap, enrollmentMap, heading, logoBase64, signatureBase64, true);
+
+        try (Playwright playwright = Playwright.create()) {
+            Browser browser = playwright.chromium().launch(
+                    new BrowserType.LaunchOptions().setHeadless(true));
+            Page page = browser.newPage();
+            page.setContent(html, new Page.SetContentOptions()
+                    .setWaitUntil(WaitUntilState.NETWORKIDLE));
+            byte[] pdf = page.pdf(new Page.PdfOptions()
+                    .setPrintBackground(true)
+                    .setMargin(new Margin().setTop("0").setBottom("0")
+                            .setLeft("0").setRight("0"))
+                    .setWidth(PAGE_W + "px")
+                    .setHeight(PAGE_H + "px"));
+            browser.close();
+            return pdf;
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  FLOW 2b — By section, no routine table
+    // ═══════════════════════════════════════════════════════════════════════
+
+    public byte[] generateAdmitCardsBySectionNoRoutine(
+            Integer routineId,
+            Integer sessionId,
+            Integer classId,
+            Integer genderSectionId,
+            Long sectionId,
+            Integer groupId,
+            Integer startRoll,
+            Integer endRoll
+    ) throws Exception {
+        AdmitCardRoutineResponseDto routine = admitCardService.getAdmitCardDataBySection(
+                routineId, sessionId, classId, genderSectionId, sectionId, groupId);
+
+        List<EnrollmentResponseDto> allEnrollments = fetchEnrollments(
+                null, classId, sectionId, null, genderSectionId, groupId, startRoll, endRoll);
+
+        Map<String, EnrollmentResponseDto> enrollmentMap = allEnrollments.stream()
+                .filter(e -> e.getStudentSystemId() != null)
+                .collect(Collectors.toMap(
+                        EnrollmentResponseDto::getStudentSystemId,
+                        e -> e,
+                        (a, b) -> a));
+
+        Map<String, StudentAdmitDataBySection> studentDataMap = new LinkedHashMap<>();
+        for (AdmitCardSessionDto session : routine.getSessions()) {
+            for (AdmitCardAllocationDto alloc : session.getAllocations()) {
+                for (AdmitCardStudentDto student : alloc.getStudents()) {
+                    String sid = student.getStudentSystemId();
+                    if (sid == null) continue;
+                    studentDataMap.computeIfAbsent(sid, k -> new StudentAdmitDataBySection(
+                            sid,
+                            student.getClassRoll(),
+                            alloc.getSectionName(),
+                            alloc.getGenderSectionName(),
+                            session.getClassName()
+                    )).addSession(session);
+                }
+            }
+        }
+
+        for (Map.Entry<String, StudentAdmitDataBySection> entry : studentDataMap.entrySet()) {
+            EnrollmentResponseDto e = enrollmentMap.get(entry.getKey());
+            if (e == null) continue;
+            StudentAdmitDataBySection d = entry.getValue();
+            if (d.sectionName == null && e.getSection() != null)
+                d.sectionName = e.getSection().getSectionName();
+            if (d.genderSectionName == null && e.getGenderSection() != null)
+                d.genderSectionName = e.getGenderSection().getGenderName();
+            if (d.groupName == null && e.getStudentGroup() != null)
+                d.groupName = e.getStudentGroup().getName();
+        }
+
+        if (startRoll != null || endRoll != null) {
+            studentDataMap.entrySet().removeIf(entry -> {
+                EnrollmentResponseDto e = enrollmentMap.get(entry.getKey());
+                if (e == null) return true;
+                Integer roll = e.getClassRoll();
+                if (roll == null) return true;
+                if (startRoll != null && roll < startRoll) return true;
+                if (endRoll != null && roll > endRoll) return true;
+                return false;
+            });
+        }
+
+        var settings   = systemSettingsService.getSettings();
+        String heading         = settings.getHeading();
+        String logoBase64      = resolveBase64(settings.getLogoUrl());
+        String signatureBase64 = resolveBase64(settings.getSignatureUrl());
+        String html = buildHtmlBySection(routine, studentDataMap, enrollmentMap, heading, logoBase64, signatureBase64, false);
 
         try (Playwright playwright = Playwright.create()) {
             Browser browser = playwright.chromium().launch(
@@ -476,7 +567,8 @@ public class AdmitCardPdfService {
             Map<String, EnrollmentResponseDto> enrollmentMap,
             String heading,
             String logoBase64,
-            String signatureBase64
+            String signatureBase64,
+            boolean includeRoutine
     ) {
         List<StudentAdmitDataBySection> students = new ArrayList<>(studentDataMap.values());
         StringBuilder pages = new StringBuilder();
@@ -489,9 +581,9 @@ public class AdmitCardPdfService {
             EnrollmentResponseDto e2 = s2 != null ? enrollmentMap.get(s2.studentSystemId) : null;
 
             pages.append("<div class=\"page\">");
-            pages.append(buildCardBySection(routine, s1, e1, heading, logoBase64, signatureBase64));
+            pages.append(buildCardBySection(routine, s1, e1, heading, logoBase64, signatureBase64, includeRoutine));
             pages.append("<div class=\"card-divider\"></div>");
-            if (s2 != null) pages.append(buildCardBySection(routine, s2, e2, heading, logoBase64, signatureBase64));
+            if (s2 != null) pages.append(buildCardBySection(routine, s2, e2, heading, logoBase64, signatureBase64, includeRoutine));
             pages.append("</div>");
         }
 
@@ -508,7 +600,8 @@ public class AdmitCardPdfService {
             EnrollmentResponseDto enrollment,
             String heading,
             String logoBase64,
-            String signatureBase64
+            String signatureBase64,
+            boolean includeRoutine
     ) {
         String name      = enrollment != null ? nvl(enrollment.getNameEnglish(), "N/A") : "N/A";
         String phone     = enrollment != null ? nvl(enrollment.getMotherPhone(), "N/A") : "N/A";
@@ -576,10 +669,12 @@ public class AdmitCardPdfService {
                 + infoRow("Parent Mobile", phone)
                 + "</table>"
                 + "</div>"
-                + "<div class=\"ac-tables\">"
-                + buildScheduleTableNoRoom(left)
-                + buildScheduleTableNoRoom(right)
-                + "</div>"
+                + (includeRoutine
+                    ? "<div class=\"ac-tables\">"
+                        + buildScheduleTableNoRoom(left)
+                        + buildScheduleTableNoRoom(right)
+                        + "</div>"
+                    : "")
                 + "<div class=\"ac-bottom\">"
                 + "<div class=\"ac-footer\">"
                 + "<div class=\"ac-instruction\"><b>Instruction:</b>"

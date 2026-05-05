@@ -94,4 +94,30 @@ public class AdmitCardController {
             return ResponseEntity.internalServerError().build();
         }
     }
+
+    @GetMapping(value = "/download/by-section/no-routine", produces = "application/pdf")
+    public ResponseEntity<byte[]> downloadAdmitCardsBySectionNoRoutine(
+            @RequestParam Integer routineId,
+            @RequestParam(required = false) Integer sessionId,
+            @RequestParam(required = false) Integer classId,
+            @RequestParam(required = false) Integer genderSectionId,
+            @RequestParam(required = false) Long sectionId,
+            @RequestParam(required = false) Integer groupId,
+            @RequestParam(required = false) Integer startRoll,
+            @RequestParam(required = false) Integer endRoll
+    ) {
+        try {
+            byte[] pdf = admitCardPdfService.generateAdmitCardsBySectionNoRoutine(
+                    routineId, sessionId, classId, genderSectionId, sectionId,
+                    groupId, startRoll, endRoll);
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION,
+                            "attachment; filename=\"admit-cards-no-routine.pdf\"")
+                    .contentType(MediaType.APPLICATION_PDF)
+                    .body(pdf);
+        } catch (Exception e) {
+            log.error("Failed to generate admit cards by section (no routine)", e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
 }
