@@ -6,11 +6,15 @@ import java.util.List;
 
 public interface AcademicYearService {
 
-    public void migrateAcademicYear(AcademicYear request);
+    void migrateAcademicYear(AcademicYear request);
 
     AcademicYear createAcademicYear(AcademicYear academicYear);
 
     List<AcademicYear> getAllAcademicYears();
+
+    AcademicYear getCurrentAcademicYear();
+
+    AcademicYear activateAcademicYear(Integer id);
 
     AcademicYear getAcademicYearById(Integer id);
 

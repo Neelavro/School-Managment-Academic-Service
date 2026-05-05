@@ -11,10 +11,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Optional;
 
-
-
 @Service
 public class AcademicYearServiceImpl implements AcademicYearService {
+
     @PersistenceContext
     private EntityManager entityManager;
 
@@ -38,37 +37,46 @@ public class AcademicYearServiceImpl implements AcademicYearService {
 
     @Override
     public AcademicYear createAcademicYear(AcademicYear academicYear) {
-        AcademicYear year = new AcademicYear();
+        academicYear.setIsActive(false);
         return academicYearRepository.save(academicYear);
     }
 
     @Override
     public List<AcademicYear> getAllAcademicYears() {
-        return academicYearRepository.findByIsActiveTrue();
+        return academicYearRepository.findAll();
+    }
+
+    @Override
+    public AcademicYear getCurrentAcademicYear() {
+        return academicYearRepository.findFirstByIsActiveTrue()
+                .orElseThrow(() -> new RuntimeException("No active academic year set"));
+    }
+
+    @Override
+    @Transactional
+    public AcademicYear activateAcademicYear(Integer id) {
+        AcademicYear year = academicYearRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Academic year not found"));
+        academicYearRepository.deactivateAll();
+        year.setIsActive(true);
+        return academicYearRepository.save(year);
     }
 
     @Override
     public AcademicYear getAcademicYearById(Integer id) {
-        Optional<AcademicYear> year = academicYearRepository.findById(id);
-        return year.orElse(null); // or throw custom exception
+        return academicYearRepository.findById(id).orElse(null);
     }
 
     @Override
     public AcademicYear updateAcademicYear(Integer id, AcademicYear academicYear) {
         AcademicYear existing = getAcademicYearById(id);
-        if (existing != null) {
-            existing.setYearName(academicYear.getYearName());
-            existing.setIsActive(academicYear.getIsActive());
-            return academicYearRepository.save(existing);
-        }
-        return null; // or throw custom exception
+        if (existing == null) return null;
+        existing.setYearName(academicYear.getYearName());
+        return academicYearRepository.save(existing);
     }
 
     @Override
     public void deleteAcademicYear(Integer id) {
-        AcademicYear academicYear = academicYearRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Academic year not found"));
-
-        academicYear.setIsActive(false);
-        academicYearRepository.save(academicYear);
-    }}
+        academicYearRepository.deleteById(id);
+    }
+}

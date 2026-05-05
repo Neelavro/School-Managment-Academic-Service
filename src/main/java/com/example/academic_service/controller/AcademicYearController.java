@@ -23,41 +23,41 @@ public class AcademicYearController {
         return ResponseEntity.ok("Migrated");
     }
 
-    // Create
     @PostMapping
     public ResponseEntity<AcademicYear> createAcademicYear(@RequestBody AcademicYear academicYear) {
-        AcademicYear created = academicYearService.createAcademicYear(academicYear);
-        return ResponseEntity.ok(created);
+        return ResponseEntity.ok(academicYearService.createAcademicYear(academicYear));
     }
 
-    // Read all
     @GetMapping
     public ResponseEntity<List<AcademicYear>> getAllAcademicYears() {
-        List<AcademicYear> years = academicYearService.getAllAcademicYears();
-        return ResponseEntity.ok(years);
+        return ResponseEntity.ok(academicYearService.getAllAcademicYears());
     }
 
-    // Read by ID
+    @GetMapping("/current")
+    public ResponseEntity<AcademicYear> getCurrentAcademicYear() {
+        return ResponseEntity.ok(academicYearService.getCurrentAcademicYear());
+    }
+
+    @PutMapping("/{id}/activate")
+    public ResponseEntity<AcademicYear> activateAcademicYear(@PathVariable Integer id) {
+        return ResponseEntity.ok(academicYearService.activateAcademicYear(id));
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<AcademicYear> getAcademicYearById(@PathVariable Integer id) {
         AcademicYear year = academicYearService.getAcademicYearById(id);
-        if (year == null) {
-            return ResponseEntity.notFound().build();
-        }
+        if (year == null) return ResponseEntity.notFound().build();
         return ResponseEntity.ok(year);
     }
 
-    // Update
     @PutMapping("/{id}")
-    public ResponseEntity<AcademicYear> updateAcademicYear(@PathVariable Integer id, @RequestBody AcademicYear academicYear) {
+    public ResponseEntity<AcademicYear> updateAcademicYear(@PathVariable Integer id,
+                                                            @RequestBody AcademicYear academicYear) {
         AcademicYear updated = academicYearService.updateAcademicYear(id, academicYear);
-        if (updated == null) {
-            return ResponseEntity.notFound().build();
-        }
+        if (updated == null) return ResponseEntity.notFound().build();
         return ResponseEntity.ok(updated);
     }
 
-    // Delete
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteAcademicYear(@PathVariable Integer id) {
         academicYearService.deleteAcademicYear(id);
