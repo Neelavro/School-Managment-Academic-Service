@@ -1,3 +1,12 @@
+# ── Stage 1: build ────────────────────────────────────────────────────────────
+FROM maven:3.9-eclipse-temurin-21 AS build
+WORKDIR /app
+COPY pom.xml .
+RUN mvn dependency:go-offline -q
+COPY src ./src
+RUN mvn clean package -DskipTests -q
+
+# ── Stage 2: runtime ──────────────────────────────────────────────────────────
 FROM eclipse-temurin:21-jdk-jammy
 WORKDIR /app
 
@@ -12,5 +21,5 @@ RUN apt-get update && apt-get install -y \
 
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers
 
-COPY target/academic_service-0.0.1-SNAPSHOT.jar app.jar
+COPY --from=build /app/target/academic_service-0.0.1-SNAPSHOT.jar app.jar
 ENTRYPOINT ["java", "-jar", "app.jar"]
