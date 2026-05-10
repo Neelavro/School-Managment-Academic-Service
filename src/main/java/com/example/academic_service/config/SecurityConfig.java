@@ -38,7 +38,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(Arrays.asList("http://localhost:49408","http://167.172.86.59:5000")); // Your Flutter web port
+        configuration.setAllowedOrigins(Arrays.asList("http://localhost:5000","http://167.172.86.59:5000")); // Your Flutter web port
         configuration.setAllowedMethods(Arrays.asList(
                 "GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH" // ← add PATCH
         ));
