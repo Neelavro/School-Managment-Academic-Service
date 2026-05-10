@@ -1273,7 +1273,10 @@ public class ResultService {
     private BigDecimal sumComponentMarks(List<MarkingStructureComponent> components, Map<Integer, BigDecimal> compMarks) {
         return components.stream()
                 .filter(c -> compMarks.containsKey(c.getExamComponent().getId()))
-                .map(c -> compMarks.getOrDefault(c.getExamComponent().getId(), BigDecimal.ZERO))
+                .map(c -> {
+                    BigDecimal val = compMarks.get(c.getExamComponent().getId());
+                    return val != null ? val : BigDecimal.ZERO;
+                })
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 

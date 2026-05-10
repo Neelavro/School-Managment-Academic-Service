@@ -177,15 +177,15 @@ public class MarkingStructureService {
     }
     @Transactional
     public Map<String, Object> bulkCreate(BulkMarkingStructureRequest request) {
-        if (request.getClassIds() == null || request.getClassIds().isEmpty()) {
-            throw new RuntimeException("At least one class must be selected");
+        if (request.getSubjectIds() == null || request.getSubjectIds().isEmpty()) {
+            throw new RuntimeException("At least one subject must be selected");
         }
 
         ExamType examType = examTypeRepository.findByIdAndIsActiveTrue(request.getExamTypeId())
                 .orElseThrow(() -> new RuntimeException("Exam type not found with id: " + request.getExamTypeId()));
 
-        Subject subject = subjectRepository.findByIdAndIsActiveTrue(request.getSubjectId())
-                .orElseThrow(() -> new RuntimeException("Subject not found with id: " + request.getSubjectId()));
+        Class examClass = classRepository.findByIdAndIsActiveTrue(request.getClassId())
+                .orElseThrow(() -> new RuntimeException("Class not found with id: " + request.getClassId()));
 
         StudentGroup group = null;
         if (request.getGroupId() != null) {
@@ -198,11 +198,11 @@ public class MarkingStructureService {
         List<MarkingStructureResponse> created = new ArrayList<>();
         List<String> skipped = new ArrayList<>();
 
-        for (Integer classId : request.getClassIds()) {
-            Class examClass = classRepository.findByIdAndIsActiveTrue(classId)
+        for (Integer subjectId : request.getSubjectIds()) {
+            Subject subject = subjectRepository.findByIdAndIsActiveTrue(subjectId)
                     .orElse(null);
-            if (examClass == null) {
-                skipped.add("Class id " + classId + " not found");
+            if (subject == null) {
+                skipped.add("Subject id " + subjectId + " not found");
                 continue;
             }
 
@@ -210,7 +210,7 @@ public class MarkingStructureService {
                     .existsByExamTypeAndExamClassAndSubjectAndGroupAndDeletedAtIsNull(
                             examType, examClass, subject, group);
             if (exists) {
-                skipped.add(examClass.getName() + " already has a structure for this combination");
+                skipped.add(subject.getName() + " already has a structure for this combination");
                 continue;
             }
 

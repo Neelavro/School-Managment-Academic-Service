@@ -14,7 +14,9 @@
       "Bash(flutter pub *)",
       "Read(//Users/neelavroshafin/fvm/default/bin/**)",
       "Read(//Users/neelavroshafin/**)",
-      "Bash(/Users/neelavroshafin/fvm/versions/3.41.7/bin/flutter pub *)"
+      "Bash(/Users/neelavroshafin/fvm/versions/3.41.7/bin/flutter pub *)",
+      "Bash(git -C /Users/neelavroshafin/StudioProjects/academic_service status)",
+      "Bash(git -C /Users/neelavroshafin/StudioProjects/academic_service diff)"
     ]
   }
 }

@@ -8,8 +8,8 @@ import java.util.List;
 @Setter
 public class BulkMarkingStructureRequest {
     private Integer examTypeId;
-    private List<Integer> classIds;
-    private Integer subjectId;
+    private Integer classId;
+    private List<Integer> subjectIds;
     private Integer groupId; // nullable
     private Integer totalMarks;
     private Integer passMarks; // nullable — overall pass mark
