@@ -68,7 +68,6 @@ public class StaffService {
         existing.setPhone(req.getPhone());
         existing.setEmail(req.getEmail());
         existing.setNationalId(req.getNationalId());
-        existing.setAddress(req.getAddress());
         if (req.getCurrentDesignation() != null && req.getCurrentDesignation().getId() != null)
             existing.setCurrentDesignation(designationRepository.getReferenceById(req.getCurrentDesignation().getId()));
         Staff saved = staffRepository.save(existing);

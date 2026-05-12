@@ -1262,8 +1262,9 @@ public class ResultService {
     }
 
     private MarkingStructure resolveMarkingStructure(Integer examTypeId, Integer classId, Integer subjectId, Integer groupId) {
-        List<MarkingStructure> structures = markingStructureRepository
-                .findAllByFiltersAndDeletedAtIsNull(examTypeId, classId, subjectId, groupId);
+        List<MarkingStructure> structures = groupId != null
+                ? markingStructureRepository.findAllByGroupIdAndFilters(examTypeId, classId, subjectId, groupId)
+                : markingStructureRepository.findAllByFiltersAndDeletedAtIsNull(examTypeId, classId, subjectId);
         if (structures.isEmpty() && groupId != null) {
             structures = markingStructureRepository.findClassWideAndDeletedAtIsNull(examTypeId, classId, subjectId);
         }

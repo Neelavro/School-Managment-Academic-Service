@@ -99,7 +99,6 @@ public class StaffController {
         if (body.get("phone") != null) s.setPhone((String) body.get("phone"));
         if (body.get("email") != null) s.setEmail((String) body.get("email"));
         if (body.get("nationalId") != null) s.setNationalId((String) body.get("nationalId"));
-        if (body.get("address") != null) s.setAddress((String) body.get("address"));
         if (body.get("joiningDate") != null) s.setJoiningDate(java.time.LocalDate.parse((String) body.get("joiningDate")));
         if (body.get("dob") != null) s.setDob(java.time.LocalDate.parse((String) body.get("dob")));
         if (body.get("designationId") != null) {
