@@ -36,7 +36,7 @@ public class SystemUserController {
     public ResponseEntity<ApiResponse> grantAccess(@RequestBody Map<String, Object> body) {
         Long staffId = ((Number) body.get("staffId")).longValue();
         String phone = (String) body.get("phone");
-        String password = (String) body.get("password");
+        String password = (String) body.get("temporaryPassword");
         UserType userType = UserType.valueOf((String) body.get("userType"));
         @SuppressWarnings("unchecked")
         List<Integer> roleIds = (List<Integer>) body.get("fbacRoleIds");

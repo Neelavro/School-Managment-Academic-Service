@@ -12,5 +12,11 @@ import lombok.Setter;
 public class ApiResponse<T> {
     private String message;
     private T data;
-    private Boolean success; // optional flag
+    private Boolean success;
+
+    public ApiResponse(String message, T data) {
+        this.message = message;
+        this.data = data;
+        this.success = true;
+    }
 }
