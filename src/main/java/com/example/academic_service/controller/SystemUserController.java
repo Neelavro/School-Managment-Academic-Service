@@ -52,6 +52,20 @@ public class SystemUserController {
                 systemUserService.updateRoles(id, body.get("fbacRoleIds"))));
     }
 
+    @PostMapping("/{id}/roles/{roleId}")
+    @RequirePermission(submodule = Submodule.USER_MANAGEMENT, action = "UPDATE")
+    public ResponseEntity<ApiResponse> assignRole(@PathVariable Long id, @PathVariable Integer roleId) {
+        systemUserService.assignRole(id, roleId);
+        return ResponseEntity.ok(new ApiResponse("Role assigned", null));
+    }
+
+    @DeleteMapping("/{id}/roles/{roleId}")
+    @RequirePermission(submodule = Submodule.USER_MANAGEMENT, action = "UPDATE")
+    public ResponseEntity<ApiResponse> removeRole(@PathVariable Long id, @PathVariable Integer roleId) {
+        systemUserService.removeRole(id, roleId);
+        return ResponseEntity.ok(new ApiResponse("Role removed", null));
+    }
+
     @PatchMapping("/{id}/suspend")
     @RequirePermission(submodule = Submodule.USER_MANAGEMENT, action = "UPDATE")
     public ResponseEntity<ApiResponse> suspend(@PathVariable Long id) {

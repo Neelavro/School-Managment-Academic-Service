@@ -87,6 +87,23 @@ public class SystemUserService {
         });
     }
 
+    @Transactional
+    public void assignRole(Long userId, Integer roleId) {
+        SystemUser user = getById(userId);
+        boolean alreadyAssigned = userRoleRepository.findBySystemUserId(userId)
+                .stream().anyMatch(ur -> ur.getFbacRole().getId().equals(roleId));
+        if (alreadyAssigned) return;
+        SystemUserRole ur = new SystemUserRole();
+        ur.setSystemUser(user);
+        ur.setFbacRole(fbacRoleRepository.getReferenceById(roleId));
+        userRoleRepository.save(ur);
+    }
+
+    @Transactional
+    public void removeRole(Long userId, Integer roleId) {
+        userRoleRepository.deleteBySystemUserIdAndFbacRoleId(userId, roleId);
+    }
+
     public void suspend(Long userId) {
         SystemUser u = getById(userId);
         u.setIsSuspended(true);

@@ -20,7 +20,9 @@
       "Bash(xargs ls *)",
       "Bash(node -e \"const bcrypt = require\\('bcrypt'\\); bcrypt.hash\\('AYAAN483316', 10\\).then\\(h => console.log\\(h\\)\\);\")",
       "Bash(python3 -c \"import bcrypt; print\\(bcrypt.hashpw\\(b'AYAAN483316', bcrypt.gensalt\\(10\\)\\).decode\\(\\)\\)\")",
-      "Bash(htpasswd -bnBC 10 \"\" AYAAN483316)"
+      "Bash(htpasswd -bnBC 10 \"\" AYAAN483316)",
+      "Bash(sed -n '538,548p' \"/Users/neelavroshafin/StudioProjects/school management/school_management_system_front_end/lib/modules/exam/view/exam_session_page.dart\")",
+      "Bash(sed -n '1605,1630p' \"/Users/neelavroshafin/StudioProjects/school management/school_management_system_front_end/lib/modules/marking/view/marking_structure_page.dart\")"
     ]
   }
 }

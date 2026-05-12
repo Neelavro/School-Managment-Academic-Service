@@ -20,6 +20,12 @@ public class LeaveRequestController {
 
     private final LeaveRequestService leaveRequestService;
 
+    @GetMapping
+    @RequirePermission(submodule = Submodule.HR_MANAGEMENT, action = "READ")
+    public ResponseEntity<ApiResponse> getAll(@RequestParam(required = false) String status) {
+        return ResponseEntity.ok(new ApiResponse("OK", leaveRequestService.getAll(status)));
+    }
+
     @GetMapping("/staff/{staffId}")
     @RequirePermission(submodule = Submodule.HR_MANAGEMENT, action = "READ")
     public ResponseEntity<ApiResponse> getByStaff(@PathVariable Long staffId) {

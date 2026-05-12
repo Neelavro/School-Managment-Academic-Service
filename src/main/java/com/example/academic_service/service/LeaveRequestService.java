@@ -21,6 +21,13 @@ public class LeaveRequestService {
     private final SystemUserRoleRepository systemUserRoleRepository;
     private final FbacPermissionRepository fbacPermissionRepository;
 
+    public List<LeaveRequest> getAll(String status) {
+        if (status != null) {
+            return requestRepository.findByStatusOrderBySubmittedAtDesc(LeaveStatus.valueOf(status));
+        }
+        return requestRepository.findAllByOrderBySubmittedAtDesc();
+    }
+
     public List<LeaveRequest> getByStaff(Long staffId) {
         return requestRepository.findByStaffIdOrderBySubmittedAtDesc(staffId);
     }

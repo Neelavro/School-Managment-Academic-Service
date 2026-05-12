@@ -18,7 +18,6 @@ public class LeaveTypeController {
     private final LeaveTypeService leaveTypeService;
 
     @GetMapping
-    @RequirePermission(submodule = Submodule.HR_MANAGEMENT, action = "READ")
     public ResponseEntity<ApiResponse> getAll() {
         return ResponseEntity.ok(new ApiResponse("OK", leaveTypeService.getAll()));
     }

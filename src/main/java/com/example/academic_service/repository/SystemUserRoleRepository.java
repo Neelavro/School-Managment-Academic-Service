@@ -9,6 +9,7 @@ import java.util.List;
 public interface SystemUserRoleRepository extends JpaRepository<SystemUserRole, Long> {
     List<SystemUserRole> findBySystemUserId(Long systemUserId);
     void deleteBySystemUserId(Long systemUserId);
+    void deleteBySystemUserIdAndFbacRoleId(Long systemUserId, Integer fbacRoleId);
 
     @Query("SELECT sur.fbacRole.id FROM SystemUserRole sur WHERE sur.systemUser.id = :userId")
     List<Integer> findRoleIdsByUserId(Long userId);
