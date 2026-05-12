@@ -46,11 +46,17 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         Claims claims = jwtUtil.extractClaims(token);
         String phone = claims.getSubject();
         String role = (String) claims.get("role");
+        Object userIdRaw = claims.get("userId");
+        String userType = (String) claims.get("userType");
 
         UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
                 phone, null,
-                List.of(new SimpleGrantedAuthority("ROLE_" + role))
+                List.of(new SimpleGrantedAuthority("ROLE_" + (role != null ? role : "USER")))
         );
+        java.util.Map<String, Object> details = new java.util.HashMap<>();
+        if (userIdRaw != null) details.put("userId", userIdRaw);
+        if (userType != null) details.put("userType", userType);
+        auth.setDetails(details);
         SecurityContextHolder.getContext().setAuthentication(auth);
 
         filterChain.doFilter(request, response);

@@ -22,10 +22,21 @@ public interface MarkingStructureRepository extends JpaRepository<MarkingStructu
             "(:examTypeId IS NULL OR m.exam_type_id = :examTypeId) AND " +
             "(:classId IS NULL OR m.class_id = :classId) AND " +
             "(:subjectId IS NULL OR m.subject_id = :subjectId) AND " +
-            "(:groupId IS NULL OR m.group_id = :groupId) AND " +
             "m.deleted_at IS NULL",
             nativeQuery = true)
     List<MarkingStructure> findAllByFiltersAndDeletedAtIsNull(
+            @Param("examTypeId") Integer examTypeId,
+            @Param("classId") Integer classId,
+            @Param("subjectId") Integer subjectId);
+
+    @Query(value = "SELECT * FROM marking_structure m WHERE " +
+            "(:examTypeId IS NULL OR m.exam_type_id = :examTypeId) AND " +
+            "(:classId IS NULL OR m.class_id = :classId) AND " +
+            "(:subjectId IS NULL OR m.subject_id = :subjectId) AND " +
+            "m.group_id = :groupId AND " +
+            "m.deleted_at IS NULL",
+            nativeQuery = true)
+    List<MarkingStructure> findAllByGroupIdAndFilters(
             @Param("examTypeId") Integer examTypeId,
             @Param("classId") Integer classId,
             @Param("subjectId") Integer subjectId,

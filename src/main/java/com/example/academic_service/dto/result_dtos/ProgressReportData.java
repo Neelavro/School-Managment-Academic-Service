@@ -49,6 +49,8 @@ public class ProgressReportData {
         private String studentName;
         private String fatherName;
         private String motherName;
+        private String fatherPhone;
+        private String motherPhone;
         private Integer classRoll;
         private String genderSectionName;
         private String sectionName;

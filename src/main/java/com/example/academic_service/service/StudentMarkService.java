@@ -35,8 +35,9 @@ public class StudentMarkService {
                 .orElseThrow(() -> new RuntimeException("Exam routine not found: " + routineId));
         Integer examTypeId = routine.getExamType().getId();
 
-        List<MarkingStructure> structures = markingStructureRepository
-                .findAllByFiltersAndDeletedAtIsNull(examTypeId, classId, subjectId, groupId);
+        List<MarkingStructure> structures = groupId != null
+                ? markingStructureRepository.findAllByGroupIdAndFilters(examTypeId, classId, subjectId, groupId)
+                : markingStructureRepository.findAllByFiltersAndDeletedAtIsNull(examTypeId, classId, subjectId);
         if (structures.isEmpty() && groupId != null) {
             structures = markingStructureRepository.findClassWideAndDeletedAtIsNull(examTypeId, classId, subjectId);
         }
@@ -156,7 +157,7 @@ public class StudentMarkService {
         Integer classId = request.getClassId();
 
         List<MarkingStructure> structures = markingStructureRepository
-                .findAllByFiltersAndDeletedAtIsNull(examTypeId, classId, subjectId, null);
+                .findAllByFiltersAndDeletedAtIsNull(examTypeId, classId, subjectId);
 
         Map<Integer, Integer> maxMarksMap = new HashMap<>();
         if (!structures.isEmpty()) {

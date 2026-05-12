@@ -108,23 +108,28 @@ public class ProgressReportPdfService {
                 + "<div class=\"logo-stack\">"
                 + "<div class=\"logo-wrap\">" + logoTag + "</div>"
                 + "<div class=\"stamp\">PROGRESS REPORT</div>"
+                + "<div class=\"stamp-sub\">" + nvl(data.getRoutineTitle(), "") + "</div>"
+                + "<div class=\"stamp-sub\">" + nvl(data.getAcademicYearName(), "") + "</div>"
                 + "</div>"
                 + gradingHtml
                 + "</div>";
+
+        // Phone: mother first, fall back to father
+        String contactPhone = nvl(student.getMotherPhone(), null) != null
+                ? student.getMotherPhone()
+                : nvl(student.getFatherPhone(), "N/A");
 
         // Info grid
         String infoHtml = "<div class=\"info-grid\">"
                 + "<table>"
                 + infoRow("Name of Student", nvl(student.getStudentName(), "N/A"), "lbl-d", "v-blue")
-                + infoRow("Father's Name",   nvl(student.getFatherName(),   "N/A"), "lbl-g", "v-blue")
-                + infoRow("Mother's Name",   nvl(student.getMotherName(),   "N/A"), "lbl-r", "v-blue")
+                + infoRow("Phone No.",       contactPhone, "lbl-g", "v-blue")
+                + infoRow("Year/Session",    nvl(data.getAcademicYearName(), "N/A"), "lbl-d", "v-blue")
                 + infoRow("Student ID",      nvl(student.getStudentSystemId(), "N/A"), "lbl-p", "v-blue")
                 + infoRow("Roll No.",        student.getClassRoll() != null ? String.valueOf(student.getClassRoll()) : "N/A", "lbl-p", "v-blue")
                 + infoRow("Class",           classLabel, "lbl-b", "v-blue")
                 + "</table>"
                 + "<table>"
-                + infoRow("Exam",         nvl(data.getRoutineTitle(), "N/A"), "lbl-d", "v-red")
-                + infoRow("Year/Session", nvl(data.getAcademicYearName(), "N/A"), "lbl-d", "v-blue")
                 + (student.getGroupName() != null ? infoRow("Group", student.getGroupName(), "lbl-r", "v-red") : "")
                 + "</table>"
                 + "</div>";
@@ -436,6 +441,7 @@ public class ProgressReportPdfService {
                 + ".logo { width: 18mm; height: 18mm; border-radius: 50%; border: 1.5px solid #0F6E56; margin: 0 auto; display: flex; align-items: center; justify-content: center; color: #0F6E56; font-weight: 600; font-size: 11pt; }"
                 + ".logo-wrap { display: flex; align-items: center; justify-content: center; margin: 0 auto 2mm; }"
                 + ".stamp { display: inline-block; margin-top: 2mm; color: #C2185B; font-weight: 600; font-size: 11pt; letter-spacing: 0.6px; border-bottom: 1.5px solid #0F6E56; padding-bottom: 1px; }"
+                + ".stamp-sub { font-size: 8.5pt; color: #013E5B; font-weight: 600; margin-top: 1mm; }"
                 + ".grading { font-size: 7pt; justify-self: end; }"
                 + ".grading th, .grading td { padding: 1px 3px; text-align: center; }"
                 + ".th-tan { background: #FAF3E0; color: #5C3A00; font-weight: 600; }"

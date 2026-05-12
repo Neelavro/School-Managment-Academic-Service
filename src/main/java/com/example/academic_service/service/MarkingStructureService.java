@@ -68,9 +68,10 @@ public class MarkingStructureService {
 
     public Map<String, Object> getByFilters(
             Integer examTypeId, Integer classId, Integer subjectId, Integer groupId) {
-        List<MarkingStructureResponse> list = markingStructureRepository
-                .findAllByFiltersAndDeletedAtIsNull(examTypeId, classId, subjectId, groupId)
-                .stream().map(this::toResponse).toList();
+        List<MarkingStructure> structures = groupId != null
+                ? markingStructureRepository.findAllByGroupIdAndFilters(examTypeId, classId, subjectId, groupId)
+                : markingStructureRepository.findAllByFiltersAndDeletedAtIsNull(examTypeId, classId, subjectId);
+        List<MarkingStructureResponse> list = structures.stream().map(this::toResponse).toList();
         return Map.of("message", "Marking structures fetched successfully", "data", list);
     }
 

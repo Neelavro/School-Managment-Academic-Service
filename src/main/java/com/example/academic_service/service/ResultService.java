@@ -990,6 +990,8 @@ public class ResultService {
                 report.setStudentName(enrollment.getStudent().getNameEnglish());
                 report.setFatherName(enrollment.getStudent().getFatherNameEnglish());
                 report.setMotherName(enrollment.getStudent().getMotherNameEnglish());
+                report.setFatherPhone(enrollment.getStudent().getFatherPhone());
+                report.setMotherPhone(enrollment.getStudent().getMotherPhone());
                 if (enrollment.getStudent().getImage() != null)
                     report.setImageUrl(enrollment.getStudent().getImage().getImageUrl());
             }

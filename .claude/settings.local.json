@@ -16,7 +16,11 @@
       "Read(//Users/neelavroshafin/**)",
       "Bash(/Users/neelavroshafin/fvm/versions/3.41.7/bin/flutter pub *)",
       "Bash(git -C /Users/neelavroshafin/StudioProjects/academic_service status)",
-      "Bash(git -C /Users/neelavroshafin/StudioProjects/academic_service diff)"
+      "Bash(git -C /Users/neelavroshafin/StudioProjects/academic_service diff)",
+      "Bash(xargs ls *)",
+      "Bash(node -e \"const bcrypt = require\\('bcrypt'\\); bcrypt.hash\\('AYAAN483316', 10\\).then\\(h => console.log\\(h\\)\\);\")",
+      "Bash(python3 -c \"import bcrypt; print\\(bcrypt.hashpw\\(b'AYAAN483316', bcrypt.gensalt\\(10\\)\\).decode\\(\\)\\)\")",
+      "Bash(htpasswd -bnBC 10 \"\" AYAAN483316)"
     ]
   }
 }
