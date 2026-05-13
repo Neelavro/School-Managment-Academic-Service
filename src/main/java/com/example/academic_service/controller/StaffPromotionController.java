@@ -21,13 +21,13 @@ public class StaffPromotionController {
     private final StaffPromotionService promotionService;
 
     @GetMapping("/staff/{staffId}")
-    @RequirePermission(submodule = Submodule.HR_MANAGEMENT, action = "READ")
+    @RequirePermission(submodule = Submodule.HR_STAFF, action = "READ")
     public ResponseEntity<ApiResponse> getHistory(@PathVariable Long staffId) {
         return ResponseEntity.ok(new ApiResponse("OK", promotionService.getHistory(staffId)));
     }
 
     @PostMapping("/staff/{staffId}")
-    @RequirePermission(submodule = Submodule.HR_MANAGEMENT, action = "CREATE")
+    @RequirePermission(submodule = Submodule.HR_STAFF, action = "CREATE")
     public ResponseEntity<ApiResponse> record(@PathVariable Long staffId, @RequestBody Map<String, Object> body) {
         StaffPromotion req = new StaffPromotion();
         Designation to = new Designation();

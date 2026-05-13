@@ -20,7 +20,7 @@ public class AuditLogController {
     private final AuditLogService auditLogService;
 
     @GetMapping
-    @RequirePermission(submodule = Submodule.USER_MANAGEMENT, action = "READ")
+    @RequirePermission(submodule = Submodule.ACCESS_ROLES, action = "READ")
     public ResponseEntity<ApiResponse> search(
             @RequestParam(required = false) Long userId,
             @RequestParam(required = false) Submodule submodule,

@@ -49,4 +49,10 @@ public class SystemUser {
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;
+
+    @Column(name = "has_teacher_portal")
+    private Boolean hasTeacherPortal = false;
+
+    @Column(name = "has_admin_portal")
+    private Boolean hasAdminPortal = false;
 }

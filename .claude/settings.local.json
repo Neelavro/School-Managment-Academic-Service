@@ -22,7 +22,19 @@
       "Bash(python3 -c \"import bcrypt; print\\(bcrypt.hashpw\\(b'AYAAN483316', bcrypt.gensalt\\(10\\)\\).decode\\(\\)\\)\")",
       "Bash(htpasswd -bnBC 10 \"\" AYAAN483316)",
       "Bash(sed -n '538,548p' \"/Users/neelavroshafin/StudioProjects/school management/school_management_system_front_end/lib/modules/exam/view/exam_session_page.dart\")",
-      "Bash(sed -n '1605,1630p' \"/Users/neelavroshafin/StudioProjects/school management/school_management_system_front_end/lib/modules/marking/view/marking_structure_page.dart\")"
+      "Bash(sed -n '1605,1630p' \"/Users/neelavroshafin/StudioProjects/school management/school_management_system_front_end/lib/modules/marking/view/marking_structure_page.dart\")",
+      "Bash(python3 -c \"import bcrypt; h = bcrypt.hashpw\\(b'123456', bcrypt.gensalt\\(10\\)\\); print\\(h.decode\\(\\)\\)\")",
+      "Bash(python3 -c ' *)",
+      "Bash(node -e ' *)",
+      "Bash(npm list *)",
+      "Bash(node -e \"try { const b = require\\('bcryptjs'\\); console.log\\(b.hashSync\\('123456', 10\\)\\); } catch\\(e\\) { console.log\\('not found'\\); }\")",
+      "Read(//private/tmp/**)",
+      "Bash(npm install *)",
+      "Bash(node -e \"const b = require\\('/tmp/node_modules/bcryptjs'\\); console.log\\(b.hashSync\\('123456', 10\\)\\);\")",
+      "Bash(node -e \"const b = require\\('bcryptjs'\\); console.log\\(b.hashSync\\('123456', 10\\)\\);\")",
+      "Bash(awk -F'Submodule\\\\.' '{print $2}')",
+      "Bash(awk '{print $1}')",
+      "Bash(awk -F',' '{print $1}')"
     ]
   }
 }

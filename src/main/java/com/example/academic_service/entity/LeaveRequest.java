@@ -38,6 +38,9 @@ public class LeaveRequest {
     @Column(name = "reason", columnDefinition = "TEXT")
     private String reason;
 
+    @Column(name = "total_days", nullable = false)
+    private Integer totalDays = 0;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
     private LeaveStatus status = LeaveStatus.PENDING;

@@ -62,12 +62,14 @@ public class AuthService {
                     )));
         }
 
-        return Map.of(
-                "token", token,
-                "userId", user.getId(),
-                "userType", user.getUserType().name(),
-                "mustResetPassword", Boolean.TRUE.equals(user.getMustResetPassword()),
-                "permissions", permissions
-        );
+        Map<String, Object> response = new HashMap<>();
+        response.put("token", token);
+        response.put("userId", user.getId());
+        response.put("userType", user.getUserType().name());
+        response.put("mustResetPassword", Boolean.TRUE.equals(user.getMustResetPassword()));
+        response.put("permissions", permissions);
+        response.put("hasTeacherPortal", Boolean.TRUE.equals(user.getHasTeacherPortal()));
+        response.put("hasAdminPortal", Boolean.TRUE.equals(user.getHasAdminPortal()));
+        return response;
     }
 }

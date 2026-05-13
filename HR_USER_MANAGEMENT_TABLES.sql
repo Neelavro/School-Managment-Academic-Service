@@ -352,3 +352,54 @@ CREATE TABLE staff_dependent (
 ) ENGINE=InnoDB;
 
 CREATE INDEX idx_staff_dependent_staff ON staff_dependent (staff_id);
+
+
+
+-- /// updates
+
+- 1. Add portal flags to system_user
+ALTER TABLE system_user
+    ADD COLUMN has_teacher_portal BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN has_admin_portal   BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- 2. Add total_days to leave_request
+ALTER TABLE leave_request
+    ADD COLUMN total_days INT NOT NULL DEFAULT 0;
+
+-- 3. Leave policy (designation + leave type → annual days)
+CREATE TABLE leave_policy (
+                              id                BIGINT AUTO_INCREMENT PRIMARY KEY,
+                              designation_id    BIGINT NOT NULL,
+                              leave_type_id     BIGINT NOT NULL,
+                              annual_days       INT    NOT NULL DEFAULT 0,
+                              CONSTRAINT fk_lp_designation FOREIGN KEY (designation_id) REFERENCES designation(id),
+                              CONSTRAINT fk_lp_leave_type  FOREIGN KEY (leave_type_id)  REFERENCES leave_type(id),
+                              CONSTRAINT uq_lp_desig_type  UNIQUE (designation_id, leave_type_id)
+);
+
+-- 4. Leave balance (per staff, per leave type, per year)
+CREATE TABLE leave_balance (
+                               id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+                               staff_id        BIGINT       NOT NULL,
+                               leave_type_id   BIGINT       NOT NULL,
+                               year            INT          NOT NULL,
+                               allocated_days  INT          NOT NULL DEFAULT 0,
+                               used_days       INT          NOT NULL DEFAULT 0,
+                               pending_days    INT          NOT NULL DEFAULT 0,
+                               CONSTRAINT fk_lb_staff      FOREIGN KEY (staff_id)      REFERENCES staff(id),
+                               CONSTRAINT fk_lb_leave_type FOREIGN KEY (leave_type_id) REFERENCES leave_type(id),
+                               CONSTRAINT uq_lb_staff_type_year UNIQUE (staff_id, leave_type_id, year)
+);
+
+-- 5. Designation approval chain
+--    approver_role_id NULL means "any admin can approve at this tier"
+CREATE TABLE designation_approval_chain (
+                                            id               BIGINT AUTO_INCREMENT PRIMARY KEY,
+                                            designation_id   BIGINT       NOT NULL,
+                                            tier_order       INT          NOT NULL,
+                                            tier_label       VARCHAR(100) NOT NULL,
+                                            approver_role_id BIGINT,
+                                            CONSTRAINT fk_dac_designation    FOREIGN KEY (designation_id)   REFERENCES designation(id),
+                                            CONSTRAINT fk_dac_approver_role  FOREIGN KEY (approver_role_id) REFERENCES fbac_role(id),
+                                            CONSTRAINT uq_dac_desig_tier     UNIQUE (designation_id, tier_order)
+);

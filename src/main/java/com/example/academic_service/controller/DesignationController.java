@@ -20,25 +20,25 @@ public class DesignationController {
     private final DesignationService designationService;
 
     @GetMapping
-    @RequirePermission(submodule = Submodule.HR_MANAGEMENT, action = "READ")
+    @RequirePermission(submodule = Submodule.HR_DESIGNATIONS, action = "READ")
     public ResponseEntity<ApiResponse> getAll() {
         return ResponseEntity.ok(new ApiResponse("OK", designationService.getAll()));
     }
 
     @PostMapping
-    @RequirePermission(submodule = Submodule.HR_MANAGEMENT, action = "CREATE")
+    @RequirePermission(submodule = Submodule.HR_DESIGNATIONS, action = "CREATE")
     public ResponseEntity<ApiResponse> create(@RequestBody Designation designation) {
         return ResponseEntity.ok(new ApiResponse("Created", designationService.create(designation)));
     }
 
     @PutMapping("/{id}")
-    @RequirePermission(submodule = Submodule.HR_MANAGEMENT, action = "UPDATE")
+    @RequirePermission(submodule = Submodule.HR_DESIGNATIONS, action = "UPDATE")
     public ResponseEntity<ApiResponse> update(@PathVariable Integer id, @RequestBody Designation req) {
         return ResponseEntity.ok(new ApiResponse("Updated", designationService.update(id, req)));
     }
 
     @DeleteMapping("/{id}")
-    @RequirePermission(submodule = Submodule.HR_MANAGEMENT, action = "DELETE")
+    @RequirePermission(submodule = Submodule.HR_DESIGNATIONS, action = "DELETE")
     public ResponseEntity<ApiResponse> deactivate(@PathVariable Integer id) {
         designationService.deactivate(id);
         return ResponseEntity.ok(new ApiResponse("Deactivated", null));
@@ -46,20 +46,20 @@ public class DesignationController {
 
     // Promotion matrix
     @GetMapping("/promotion-matrix")
-    @RequirePermission(submodule = Submodule.HR_MANAGEMENT, action = "READ")
+    @RequirePermission(submodule = Submodule.HR_DESIGNATIONS, action = "READ")
     public ResponseEntity<ApiResponse> getMatrix() {
         return ResponseEntity.ok(new ApiResponse("OK", designationService.getPromotionMatrix()));
     }
 
     @PostMapping("/promotion-matrix")
-    @RequirePermission(submodule = Submodule.HR_MANAGEMENT, action = "CREATE")
+    @RequirePermission(submodule = Submodule.HR_DESIGNATIONS, action = "CREATE")
     public ResponseEntity<ApiResponse> addPath(@RequestBody Map<String, Integer> body) {
         return ResponseEntity.ok(new ApiResponse("Added",
                 designationService.addPromotionPath(body.get("fromId"), body.get("toId"))));
     }
 
     @DeleteMapping("/promotion-matrix/{id}")
-    @RequirePermission(submodule = Submodule.HR_MANAGEMENT, action = "DELETE")
+    @RequirePermission(submodule = Submodule.HR_DESIGNATIONS, action = "DELETE")
     public ResponseEntity<ApiResponse> removePath(@PathVariable Integer id) {
         designationService.removePromotionPath(id);
         return ResponseEntity.ok(new ApiResponse("Removed", null));

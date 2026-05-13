@@ -21,27 +21,27 @@ public class TeacherOnboardingController {
     // ── Academic Qualifications ───────────────────────────────────────────────
 
     @GetMapping("/staff/{staffId}/qualifications")
-    @RequirePermission(submodule = Submodule.HR_MANAGEMENT, action = "READ")
+    @RequirePermission(submodule = Submodule.HR_STAFF, action = "READ")
     public ResponseEntity<ApiResponse> getQualifications(@PathVariable Long staffId) {
         return ResponseEntity.ok(new ApiResponse("OK", onboardingService.getQualifications(staffId)));
     }
 
     @PutMapping("/staff/{staffId}/qualifications")
-    @RequirePermission(submodule = Submodule.HR_MANAGEMENT, action = "UPDATE")
+    @RequirePermission(submodule = Submodule.HR_STAFF, action = "UPDATE")
     public ResponseEntity<ApiResponse> replaceQualifications(@PathVariable Long staffId,
                                                               @RequestBody List<AcademicQualification> list) {
         return ResponseEntity.ok(new ApiResponse("Saved", onboardingService.replaceQualifications(staffId, list)));
     }
 
     @PostMapping("/staff/{staffId}/qualifications")
-    @RequirePermission(submodule = Submodule.HR_MANAGEMENT, action = "CREATE")
+    @RequirePermission(submodule = Submodule.HR_STAFF, action = "CREATE")
     public ResponseEntity<ApiResponse> addQualification(@PathVariable Long staffId,
                                                          @RequestBody AcademicQualification req) {
         return ResponseEntity.ok(new ApiResponse("Added", onboardingService.saveQualification(staffId, req)));
     }
 
     @DeleteMapping("/qualifications/{id}")
-    @RequirePermission(submodule = Submodule.HR_MANAGEMENT, action = "DELETE")
+    @RequirePermission(submodule = Submodule.HR_STAFF, action = "DELETE")
     public ResponseEntity<ApiResponse> deleteQualification(@PathVariable Long id) {
         onboardingService.deleteQualification(id);
         return ResponseEntity.ok(new ApiResponse("Deleted", null));
@@ -50,13 +50,13 @@ public class TeacherOnboardingController {
     // ── Teacher Profile (MPO / NTRCA / Experience) ───────────────────────────
 
     @GetMapping("/staff/{staffId}/profile")
-    @RequirePermission(submodule = Submodule.HR_MANAGEMENT, action = "READ")
+    @RequirePermission(submodule = Submodule.HR_STAFF, action = "READ")
     public ResponseEntity<ApiResponse> getProfile(@PathVariable Long staffId) {
         return ResponseEntity.ok(new ApiResponse("OK", onboardingService.getProfile(staffId)));
     }
 
     @PutMapping("/staff/{staffId}/profile")
-    @RequirePermission(submodule = Submodule.HR_MANAGEMENT, action = "UPDATE")
+    @RequirePermission(submodule = Submodule.HR_STAFF, action = "UPDATE")
     public ResponseEntity<ApiResponse> saveProfile(@PathVariable Long staffId,
                                                     @RequestBody TeacherProfile req) {
         return ResponseEntity.ok(new ApiResponse("Saved", onboardingService.saveProfile(staffId, req)));
@@ -65,27 +65,27 @@ public class TeacherOnboardingController {
     // ── Dependents ────────────────────────────────────────────────────────────
 
     @GetMapping("/staff/{staffId}/dependents")
-    @RequirePermission(submodule = Submodule.HR_MANAGEMENT, action = "READ")
+    @RequirePermission(submodule = Submodule.HR_STAFF, action = "READ")
     public ResponseEntity<ApiResponse> getDependents(@PathVariable Long staffId) {
         return ResponseEntity.ok(new ApiResponse("OK", onboardingService.getDependents(staffId)));
     }
 
     @PutMapping("/staff/{staffId}/dependents")
-    @RequirePermission(submodule = Submodule.HR_MANAGEMENT, action = "UPDATE")
+    @RequirePermission(submodule = Submodule.HR_STAFF, action = "UPDATE")
     public ResponseEntity<ApiResponse> replaceDependents(@PathVariable Long staffId,
                                                           @RequestBody List<StaffDependent> list) {
         return ResponseEntity.ok(new ApiResponse("Saved", onboardingService.replaceDependents(staffId, list)));
     }
 
     @PostMapping("/staff/{staffId}/dependents")
-    @RequirePermission(submodule = Submodule.HR_MANAGEMENT, action = "CREATE")
+    @RequirePermission(submodule = Submodule.HR_STAFF, action = "CREATE")
     public ResponseEntity<ApiResponse> addDependent(@PathVariable Long staffId,
                                                      @RequestBody StaffDependent req) {
         return ResponseEntity.ok(new ApiResponse("Added", onboardingService.addDependent(staffId, req)));
     }
 
     @DeleteMapping("/dependents/{id}")
-    @RequirePermission(submodule = Submodule.HR_MANAGEMENT, action = "DELETE")
+    @RequirePermission(submodule = Submodule.HR_STAFF, action = "DELETE")
     public ResponseEntity<ApiResponse> deleteDependent(@PathVariable Long id) {
         onboardingService.deleteDependent(id);
         return ResponseEntity.ok(new ApiResponse("Deleted", null));

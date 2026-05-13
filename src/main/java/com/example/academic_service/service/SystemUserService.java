@@ -47,7 +47,8 @@ public class SystemUserService {
 
     @Transactional
     public SystemUser grantAccess(Long staffId, String phone, String rawPassword,
-                                   UserType userType, List<Integer> fbacRoleIds) {
+                                   UserType userType, List<Integer> fbacRoleIds,
+                                   boolean hasTeacherPortal, boolean hasAdminPortal) {
         Staff staff = staffRepository.findById(staffId)
                 .orElseThrow(() -> new IllegalArgumentException("Staff not found: " + staffId));
 
@@ -62,6 +63,8 @@ public class SystemUserService {
         user.setIsActive(true);
         user.setIsSuspended(false);
         user.setMustResetPassword(true);
+        user.setHasTeacherPortal(hasTeacherPortal);
+        user.setHasAdminPortal(hasAdminPortal);
         user.setCreatedAt(LocalDateTime.now());
         SystemUser saved = userRepository.save(user);
 

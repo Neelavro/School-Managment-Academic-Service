@@ -20,32 +20,34 @@ public class SystemUserController {
     private final SystemUserService systemUserService;
 
     @GetMapping
-    @RequirePermission(submodule = Submodule.USER_MANAGEMENT, action = "READ")
+    @RequirePermission(submodule = Submodule.SYSTEM_USERS, action = "READ")
     public ResponseEntity<ApiResponse> getAll() {
         return ResponseEntity.ok(new ApiResponse("OK", systemUserService.getAll()));
     }
 
     @GetMapping("/{id}")
-    @RequirePermission(submodule = Submodule.USER_MANAGEMENT, action = "READ")
+    @RequirePermission(submodule = Submodule.SYSTEM_USERS, action = "READ")
     public ResponseEntity<ApiResponse> getById(@PathVariable Long id) {
         return ResponseEntity.ok(new ApiResponse("OK", systemUserService.getById(id)));
     }
 
     @PostMapping("/grant-access")
-    @RequirePermission(submodule = Submodule.USER_MANAGEMENT, action = "CREATE")
+    @RequirePermission(submodule = Submodule.SYSTEM_USERS, action = "CREATE")
     public ResponseEntity<ApiResponse> grantAccess(@RequestBody Map<String, Object> body) {
         Long staffId = ((Number) body.get("staffId")).longValue();
         String phone = (String) body.get("phone");
         String password = (String) body.get("temporaryPassword");
         UserType userType = UserType.valueOf((String) body.get("userType"));
+        boolean hasTeacherPortal = Boolean.TRUE.equals(body.get("hasTeacherPortal"));
+        boolean hasAdminPortal = Boolean.TRUE.equals(body.get("hasAdminPortal"));
         @SuppressWarnings("unchecked")
         List<Integer> roleIds = (List<Integer>) body.get("fbacRoleIds");
         return ResponseEntity.ok(new ApiResponse("Access granted",
-                systemUserService.grantAccess(staffId, phone, password, userType, roleIds)));
+                systemUserService.grantAccess(staffId, phone, password, userType, roleIds, hasTeacherPortal, hasAdminPortal)));
     }
 
     @PutMapping("/{id}/roles")
-    @RequirePermission(submodule = Submodule.USER_MANAGEMENT, action = "UPDATE")
+    @RequirePermission(submodule = Submodule.SYSTEM_USERS, action = "UPDATE")
     public ResponseEntity<ApiResponse> updateRoles(@PathVariable Long id,
                                                     @RequestBody Map<String, List<Integer>> body) {
         return ResponseEntity.ok(new ApiResponse("Roles updated",
@@ -53,42 +55,42 @@ public class SystemUserController {
     }
 
     @PostMapping("/{id}/roles/{roleId}")
-    @RequirePermission(submodule = Submodule.USER_MANAGEMENT, action = "UPDATE")
+    @RequirePermission(submodule = Submodule.SYSTEM_USERS, action = "UPDATE")
     public ResponseEntity<ApiResponse> assignRole(@PathVariable Long id, @PathVariable Integer roleId) {
         systemUserService.assignRole(id, roleId);
         return ResponseEntity.ok(new ApiResponse("Role assigned", null));
     }
 
     @DeleteMapping("/{id}/roles/{roleId}")
-    @RequirePermission(submodule = Submodule.USER_MANAGEMENT, action = "UPDATE")
+    @RequirePermission(submodule = Submodule.SYSTEM_USERS, action = "UPDATE")
     public ResponseEntity<ApiResponse> removeRole(@PathVariable Long id, @PathVariable Integer roleId) {
         systemUserService.removeRole(id, roleId);
         return ResponseEntity.ok(new ApiResponse("Role removed", null));
     }
 
     @PatchMapping("/{id}/suspend")
-    @RequirePermission(submodule = Submodule.USER_MANAGEMENT, action = "UPDATE")
+    @RequirePermission(submodule = Submodule.SYSTEM_USERS, action = "UPDATE")
     public ResponseEntity<ApiResponse> suspend(@PathVariable Long id) {
         systemUserService.suspend(id);
         return ResponseEntity.ok(new ApiResponse("Suspended", null));
     }
 
     @PatchMapping("/{id}/reinstate")
-    @RequirePermission(submodule = Submodule.USER_MANAGEMENT, action = "UPDATE")
+    @RequirePermission(submodule = Submodule.SYSTEM_USERS, action = "UPDATE")
     public ResponseEntity<ApiResponse> reinstate(@PathVariable Long id) {
         systemUserService.reinstate(id);
         return ResponseEntity.ok(new ApiResponse("Reinstated", null));
     }
 
     @PatchMapping("/{id}/force-reset")
-    @RequirePermission(submodule = Submodule.USER_MANAGEMENT, action = "UPDATE")
+    @RequirePermission(submodule = Submodule.SYSTEM_USERS, action = "UPDATE")
     public ResponseEntity<ApiResponse> forceReset(@PathVariable Long id) {
         systemUserService.forcePasswordReset(id);
         return ResponseEntity.ok(new ApiResponse("Password reset forced", null));
     }
 
     @GetMapping("/{id}/permissions")
-    @RequirePermission(submodule = Submodule.USER_MANAGEMENT, action = "READ")
+    @RequirePermission(submodule = Submodule.SYSTEM_USERS, action = "READ")
     public ResponseEntity<ApiResponse> getPermissions(@PathVariable Long id) {
         return ResponseEntity.ok(new ApiResponse("OK", systemUserService.getPermissions(id)));
     }

@@ -22,7 +22,7 @@ public class StaffController {
     private final StaffService staffService;
 
     @GetMapping
-    @RequirePermission(submodule = Submodule.HR_MANAGEMENT, action = "READ")
+    @RequirePermission(submodule = Submodule.HR_STAFF, action = "READ")
     public ResponseEntity<ApiResponse> getAll(
             @RequestParam(required = false) Boolean isActive,
             @RequestParam(required = false) EmployeeType employeeType) {
@@ -30,19 +30,19 @@ public class StaffController {
     }
 
     @GetMapping("/{id}")
-    @RequirePermission(submodule = Submodule.HR_MANAGEMENT, action = "READ")
+    @RequirePermission(submodule = Submodule.HR_STAFF, action = "READ")
     public ResponseEntity<ApiResponse> getById(@PathVariable Long id) {
         return ResponseEntity.ok(new ApiResponse("OK", staffService.getById(id)));
     }
 
     @GetMapping("/system/{systemId}")
-    @RequirePermission(submodule = Submodule.HR_MANAGEMENT, action = "READ")
+    @RequirePermission(submodule = Submodule.HR_STAFF, action = "READ")
     public ResponseEntity<ApiResponse> getBySystemId(@PathVariable String systemId) {
         return ResponseEntity.ok(new ApiResponse("OK", staffService.getBySystemId(systemId)));
     }
 
     @PostMapping
-    @RequirePermission(submodule = Submodule.HR_MANAGEMENT, action = "CREATE")
+    @RequirePermission(submodule = Submodule.HR_STAFF, action = "CREATE")
     public ResponseEntity<ApiResponse> create(@RequestBody Map<String, Object> body) {
         Staff staff = extractStaff(body);
         List<StaffEmergencyContact> contacts = extractContacts(body);
@@ -50,7 +50,7 @@ public class StaffController {
     }
 
     @PutMapping("/{id}")
-    @RequirePermission(submodule = Submodule.HR_MANAGEMENT, action = "UPDATE")
+    @RequirePermission(submodule = Submodule.HR_STAFF, action = "UPDATE")
     public ResponseEntity<ApiResponse> update(@PathVariable Long id, @RequestBody Map<String, Object> body) {
         Staff staff = extractStaff(body);
         List<StaffEmergencyContact> contacts = extractContacts(body);
@@ -58,33 +58,33 @@ public class StaffController {
     }
 
     @DeleteMapping("/{id}")
-    @RequirePermission(submodule = Submodule.HR_MANAGEMENT, action = "DELETE")
+    @RequirePermission(submodule = Submodule.HR_STAFF, action = "DELETE")
     public ResponseEntity<ApiResponse> deactivate(@PathVariable Long id) {
         staffService.deactivate(id);
         return ResponseEntity.ok(new ApiResponse("Deactivated", null));
     }
 
     @GetMapping("/{id}/emergency-contacts")
-    @RequirePermission(submodule = Submodule.HR_MANAGEMENT, action = "READ")
+    @RequirePermission(submodule = Submodule.HR_STAFF, action = "READ")
     public ResponseEntity<ApiResponse> getEmergencyContacts(@PathVariable Long id) {
         return ResponseEntity.ok(new ApiResponse("OK", staffService.getEmergencyContacts(id)));
     }
 
     @GetMapping("/{id}/documents")
-    @RequirePermission(submodule = Submodule.HR_MANAGEMENT, action = "READ")
+    @RequirePermission(submodule = Submodule.HR_STAFF, action = "READ")
     public ResponseEntity<ApiResponse> getDocuments(@PathVariable Long id) {
         return ResponseEntity.ok(new ApiResponse("OK", staffService.getDocuments(id)));
     }
 
     @PostMapping("/{id}/documents")
-    @RequirePermission(submodule = Submodule.HR_MANAGEMENT, action = "CREATE")
+    @RequirePermission(submodule = Submodule.HR_STAFF, action = "CREATE")
     public ResponseEntity<ApiResponse> addDocument(@PathVariable Long id, @RequestBody Map<String, String> body) {
         return ResponseEntity.ok(new ApiResponse("Added",
                 staffService.addDocument(id, body.get("documentType"), body.get("fileUrl"))));
     }
 
     @DeleteMapping("/documents/{documentId}")
-    @RequirePermission(submodule = Submodule.HR_MANAGEMENT, action = "DELETE")
+    @RequirePermission(submodule = Submodule.HR_STAFF, action = "DELETE")
     public ResponseEntity<ApiResponse> deleteDocument(@PathVariable Long documentId) {
         staffService.deleteDocument(documentId);
         return ResponseEntity.ok(new ApiResponse("Deleted", null));
