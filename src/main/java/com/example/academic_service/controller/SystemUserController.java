@@ -82,6 +82,16 @@ public class SystemUserController {
         return ResponseEntity.ok(new ApiResponse("Reinstated", null));
     }
 
+    @PatchMapping("/{id}/portals")
+    @RequirePermission(submodule = Submodule.SYSTEM_USERS, action = "UPDATE")
+    public ResponseEntity<ApiResponse> updatePortals(@PathVariable Long id,
+                                                      @RequestBody Map<String, Object> body) {
+        boolean hasTeacherPortal = Boolean.TRUE.equals(body.get("hasTeacherPortal"));
+        boolean hasAdminPortal = Boolean.TRUE.equals(body.get("hasAdminPortal"));
+        systemUserService.updatePortals(id, hasTeacherPortal, hasAdminPortal);
+        return ResponseEntity.ok(new ApiResponse("Portals updated", null));
+    }
+
     @PatchMapping("/{id}/force-reset")
     @RequirePermission(submodule = Submodule.SYSTEM_USERS, action = "UPDATE")
     public ResponseEntity<ApiResponse> forceReset(@PathVariable Long id) {

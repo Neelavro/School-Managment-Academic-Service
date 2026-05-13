@@ -15,4 +15,7 @@ public interface FbacPermissionRepository extends JpaRepository<FbacPermission, 
 
     @Query("SELECT p FROM FbacPermission p WHERE p.fbacRole.id IN :roleIds AND p.submodule = :submodule")
     List<FbacPermission> findByRoleIdsAndSubmodule(List<Integer> roleIds, Submodule submodule);
+
+    // Fetch all permissions for a set of roles in one query
+    List<FbacPermission> findByFbacRoleIdIn(List<Integer> roleIds);
 }

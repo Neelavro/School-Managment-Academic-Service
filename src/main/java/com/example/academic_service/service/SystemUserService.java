@@ -8,8 +8,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -23,7 +22,36 @@ public class SystemUserService {
     private final FbacRoleService fbacRoleService;
     private final PasswordEncoder passwordEncoder;
 
-    public List<SystemUser> getAll() { return userRepository.findAll(); }
+    // Returns users with their assigned roles attached as a response map
+    public List<Map<String, Object>> getAll() {
+        List<SystemUser> users = userRepository.findAll();
+        List<SystemUserRole> allRoles = userRoleRepository.findAll();
+
+        Map<Long, List<FbacRole>> rolesByUser = allRoles.stream()
+                .collect(Collectors.groupingBy(
+                        ur -> ur.getSystemUser().getId(),
+                        Collectors.mapping(SystemUserRole::getFbacRole, Collectors.toList())
+                ));
+
+        return users.stream().map(u -> {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id", u.getId());
+            m.put("phone", u.getPhone());
+            m.put("userType", u.getUserType());
+            m.put("staffId", u.getStaffId());
+            m.put("isActive", u.getIsActive());
+            m.put("isSuspended", u.getIsSuspended());
+            m.put("mustResetPassword", u.getMustResetPassword());
+            m.put("hasTeacherPortal", Boolean.TRUE.equals(u.getHasTeacherPortal()));
+            m.put("hasAdminPortal", Boolean.TRUE.equals(u.getHasAdminPortal()));
+            m.put("lastLoginAt", u.getLastLoginAt());
+            m.put("createdAt", u.getCreatedAt());
+            m.put("assignedRoles", rolesByUser.getOrDefault(u.getId(), Collections.emptyList())
+                    .stream().map(r -> Map.of("id", r.getId(), "roleName", r.getRoleName()))
+                    .collect(Collectors.toList()));
+            return m;
+        }).collect(Collectors.toList());
+    }
 
     public SystemUser getById(Long id) {
         return userRepository.findById(id)
@@ -55,6 +83,11 @@ public class SystemUserService {
         if (userRepository.existsByPhone(phone))
             throw new IllegalArgumentException("Phone already in use: " + phone);
 
+        // Teaching staff automatically get teacher portal access
+        if (EmployeeType.TEACHING == staff.getEmployeeType()) {
+            hasTeacherPortal = true;
+        }
+
         SystemUser user = new SystemUser();
         user.setPhone(phone);
         user.setPasswordHash(passwordEncoder.encode(rawPassword));
@@ -81,23 +114,21 @@ public class SystemUserService {
     }
 
     private void assignRoles(SystemUser user, List<Integer> fbacRoleIds) {
-        if (fbacRoleIds == null) return;
-        fbacRoleIds.forEach(roleId -> {
+        if (fbacRoleIds == null || fbacRoleIds.isEmpty()) return;
+        List<SystemUserRole> roles = fbacRoleIds.stream().map(roleId -> {
             SystemUserRole ur = new SystemUserRole();
             ur.setSystemUser(user);
             ur.setFbacRole(fbacRoleRepository.getReferenceById(roleId));
-            userRoleRepository.save(ur);
-        });
+            return ur;
+        }).collect(Collectors.toList());
+        userRoleRepository.saveAll(roles);
     }
 
     @Transactional
     public void assignRole(Long userId, Integer roleId) {
-        SystemUser user = getById(userId);
-        boolean alreadyAssigned = userRoleRepository.findBySystemUserId(userId)
-                .stream().anyMatch(ur -> ur.getFbacRole().getId().equals(roleId));
-        if (alreadyAssigned) return;
+        if (userRoleRepository.existsBySystemUserIdAndFbacRoleId(userId, roleId)) return;
         SystemUserRole ur = new SystemUserRole();
-        ur.setSystemUser(user);
+        ur.setSystemUser(userRepository.getReferenceById(userId));
         ur.setFbacRole(fbacRoleRepository.getReferenceById(roleId));
         userRoleRepository.save(ur);
     }
@@ -123,6 +154,13 @@ public class SystemUserService {
     public void forcePasswordReset(Long userId) {
         SystemUser u = getById(userId);
         u.setMustResetPassword(true);
+        userRepository.save(u);
+    }
+
+    public void updatePortals(Long userId, boolean hasTeacherPortal, boolean hasAdminPortal) {
+        SystemUser u = getById(userId);
+        u.setHasTeacherPortal(hasTeacherPortal);
+        u.setHasAdminPortal(hasAdminPortal);
         userRepository.save(u);
     }
 

@@ -9,9 +9,7 @@ import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -39,12 +37,13 @@ public class FbacRoleService {
     }
 
     private void initPermissions(FbacRole role) {
-        Arrays.stream(Submodule.values()).forEach(sub -> {
+        List<FbacPermission> perms = Arrays.stream(Submodule.values()).map(sub -> {
             FbacPermission p = new FbacPermission();
             p.setFbacRole(role);
             p.setSubmodule(sub);
-            permissionRepository.save(p);
-        });
+            return p;
+        }).collect(Collectors.toList());
+        permissionRepository.saveAll(perms);
     }
 
     public FbacRole update(Integer id, FbacRole req) {
@@ -67,27 +66,31 @@ public class FbacRoleService {
     @Transactional
     public List<FbacPermission> savePermissionMatrix(Integer roleId, List<FbacPermission> permissions) {
         permissionRepository.deleteByFbacRoleId(roleId);
+        permissionRepository.flush();
         FbacRole role = roleRepository.getReferenceById(roleId);
-        return permissions.stream().map(p -> {
-            p.setFbacRole(role);
-            return permissionRepository.save(p);
-        }).collect(Collectors.toList());
+        permissions.forEach(p -> p.setFbacRole(role));
+        return permissionRepository.saveAll(permissions);
     }
 
-    // returns a map of submodule -> permission for quick lookup
+    // One query for all roleIds, merge in Java — O(n) instead of 33 round trips
     public Map<Submodule, FbacPermission> getPermissionMap(List<Integer> roleIds) {
-        return Arrays.stream(Submodule.values()).collect(Collectors.toMap(
-                sub -> sub,
-                sub -> {
-                    List<FbacPermission> perms = permissionRepository.findByRoleIdsAndSubmodule(roleIds, sub);
-                    FbacPermission merged = new FbacPermission();
-                    merged.setSubmodule(sub);
-                    merged.setCanCreate(perms.stream().anyMatch(p -> Boolean.TRUE.equals(p.getCanCreate())));
-                    merged.setCanRead(perms.stream().anyMatch(p -> Boolean.TRUE.equals(p.getCanRead())));
-                    merged.setCanUpdate(perms.stream().anyMatch(p -> Boolean.TRUE.equals(p.getCanUpdate())));
-                    merged.setCanDelete(perms.stream().anyMatch(p -> Boolean.TRUE.equals(p.getCanDelete())));
-                    return merged;
-                }
-        ));
+        if (roleIds == null || roleIds.isEmpty()) return new EnumMap<>(Submodule.class);
+
+        List<FbacPermission> all = permissionRepository.findByFbacRoleIdIn(roleIds);
+        Map<Submodule, List<FbacPermission>> bySubmodule = all.stream()
+                .collect(Collectors.groupingBy(FbacPermission::getSubmodule));
+
+        Map<Submodule, FbacPermission> result = new EnumMap<>(Submodule.class);
+        for (Submodule sub : Submodule.values()) {
+            List<FbacPermission> perms = bySubmodule.getOrDefault(sub, Collections.emptyList());
+            FbacPermission merged = new FbacPermission();
+            merged.setSubmodule(sub);
+            merged.setCanCreate(perms.stream().anyMatch(p -> Boolean.TRUE.equals(p.getCanCreate())));
+            merged.setCanRead(perms.stream().anyMatch(p -> Boolean.TRUE.equals(p.getCanRead())));
+            merged.setCanUpdate(perms.stream().anyMatch(p -> Boolean.TRUE.equals(p.getCanUpdate())));
+            merged.setCanDelete(perms.stream().anyMatch(p -> Boolean.TRUE.equals(p.getCanDelete())));
+            result.put(sub, merged);
+        }
+        return result;
     }
 }
