@@ -9,6 +9,7 @@ import com.example.academic_service.service.StaffService;
 import com.example.academic_service.util.ApiResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -88,6 +89,25 @@ public class StaffController {
     public ResponseEntity<ApiResponse> deleteDocument(@PathVariable Long documentId) {
         staffService.deleteDocument(documentId);
         return ResponseEntity.ok(new ApiResponse("Deleted", null));
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<ApiResponse> getMe(Authentication auth) {
+        @SuppressWarnings("unchecked")
+        Map<String, Object> details = (Map<String, Object>) auth.getDetails();
+        Object staffIdObj = details != null ? details.get("staffId") : null;
+        if (staffIdObj == null) throw new IllegalStateException("No staff record linked to this account");
+        return ResponseEntity.ok(new ApiResponse("OK", staffService.getById(((Number) staffIdObj).longValue())));
+    }
+
+    @PutMapping("/me")
+    public ResponseEntity<ApiResponse> updateMe(@RequestBody Map<String, Object> body, Authentication auth) {
+        @SuppressWarnings("unchecked")
+        Map<String, Object> details = (Map<String, Object>) auth.getDetails();
+        Long staffId = ((Number) details.get("staffId")).longValue();
+        Staff staff = extractStaff(body);
+        List<StaffEmergencyContact> contacts = extractContacts(body);
+        return ResponseEntity.ok(new ApiResponse("Updated", staffService.update(staffId, staff, contacts)));
     }
 
     @SuppressWarnings("unchecked")

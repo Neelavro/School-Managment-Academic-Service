@@ -20,6 +20,27 @@ public class LeaveRequestController {
 
     private final LeaveRequestService leaveRequestService;
 
+    @GetMapping("/me")
+    public ResponseEntity<ApiResponse> getMyRequests(Authentication auth) {
+        @SuppressWarnings("unchecked")
+        Map<String, Object> details = (Map<String, Object>) auth.getDetails();
+        Long staffId = ((Number) details.get("staffId")).longValue();
+        return ResponseEntity.ok(new ApiResponse("OK", leaveRequestService.getByStaff(staffId)));
+    }
+
+    @PostMapping("/me")
+    public ResponseEntity<ApiResponse> submitMy(@RequestBody Map<String, Object> body, Authentication auth) {
+        @SuppressWarnings("unchecked")
+        Map<String, Object> details = (Map<String, Object>) auth.getDetails();
+        Long staffId = ((Number) details.get("staffId")).longValue();
+        Integer leaveTypeId = ((Number) body.get("leaveTypeId")).intValue();
+        LocalDate startDate = LocalDate.parse((String) body.get("startDate"));
+        LocalDate endDate = LocalDate.parse((String) body.get("endDate"));
+        String reason = (String) body.getOrDefault("reason", null);
+        return ResponseEntity.ok(new ApiResponse("Submitted",
+            leaveRequestService.submit(staffId, leaveTypeId, startDate, endDate, reason)));
+    }
+
     @GetMapping
     @RequirePermission(submodule = Submodule.HR_LEAVE_REQUESTS, action = "READ")
     public ResponseEntity<ApiResponse> getAll(@RequestParam(required = false) String status) {

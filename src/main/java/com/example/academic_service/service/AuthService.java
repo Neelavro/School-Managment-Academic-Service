@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -62,6 +63,10 @@ public class AuthService {
                     )));
         }
 
+        List<Map<String, Object>> assignedRoles = systemUserService.getRoles(user.getId()).stream()
+                .map(ur -> Map.<String, Object>of("id", ur.getFbacRole().getId(), "roleName", ur.getFbacRole().getRoleName()))
+                .collect(Collectors.toList());
+
         Map<String, Object> response = new HashMap<>();
         response.put("token", token);
         response.put("userId", user.getId());
@@ -70,6 +75,8 @@ public class AuthService {
         response.put("permissions", permissions);
         response.put("hasTeacherPortal", Boolean.TRUE.equals(user.getHasTeacherPortal()));
         response.put("hasAdminPortal", Boolean.TRUE.equals(user.getHasAdminPortal()));
+        if (user.getStaffId() != null) response.put("staffId", user.getStaffId());
+        response.put("assignedRoles", assignedRoles);
         return response;
     }
 }
