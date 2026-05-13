@@ -62,6 +62,21 @@ public class TeacherOnboardingController {
         return ResponseEntity.ok(new ApiResponse("Saved", onboardingService.saveProfile(staffId, req)));
     }
 
+    // ── Employment History ────────────────────────────────────────────────────
+
+    @GetMapping("/staff/{staffId}/employment-history")
+    @RequirePermission(submodule = Submodule.HR_STAFF, action = "READ")
+    public ResponseEntity<ApiResponse> getEmploymentHistory(@PathVariable Long staffId) {
+        return ResponseEntity.ok(new ApiResponse("OK", onboardingService.getEmploymentHistory(staffId)));
+    }
+
+    @PutMapping("/staff/{staffId}/employment-history")
+    @RequirePermission(submodule = Submodule.HR_STAFF, action = "UPDATE")
+    public ResponseEntity<ApiResponse> saveEmploymentHistory(@PathVariable Long staffId,
+                                                              @RequestBody List<EmploymentHistory> list) {
+        return ResponseEntity.ok(new ApiResponse("Saved", onboardingService.replaceEmploymentHistory(staffId, list)));
+    }
+
     // ── Dependents ────────────────────────────────────────────────────────────
 
     @GetMapping("/staff/{staffId}/dependents")

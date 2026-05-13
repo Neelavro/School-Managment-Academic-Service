@@ -16,6 +16,7 @@ public class TeacherOnboardingService {
     private final TeacherProfileRepository teacherProfileRepository;
     private final StaffDependentRepository dependentRepository;
     private final StaffRepository staffRepository;
+    private final EmploymentHistoryRepository employmentHistoryRepository;
 
     // ── Academic Qualifications ───────────────────────────────────────────────
 
@@ -60,6 +61,20 @@ public class TeacherOnboardingService {
         profile.setPreviousInstitutions(req.getPreviousInstitutions());
         profile.setTrainingsCompleted(req.getTrainingsCompleted());
         return teacherProfileRepository.save(profile);
+    }
+
+    // ── Employment History ────────────────────────────────────────────────────
+
+    public List<EmploymentHistory> getEmploymentHistory(Long staffId) {
+        return employmentHistoryRepository.findByStaffIdOrderByFromDateDesc(staffId);
+    }
+
+    @Transactional
+    public List<EmploymentHistory> replaceEmploymentHistory(Long staffId, List<EmploymentHistory> list) {
+        employmentHistoryRepository.deleteByStaffId(staffId);
+        Staff ref = staffRepository.getReferenceById(staffId);
+        list.forEach(h -> h.setStaff(ref));
+        return employmentHistoryRepository.saveAll(list);
     }
 
     // ── Dependents (spouse, children) ────────────────────────────────────────
