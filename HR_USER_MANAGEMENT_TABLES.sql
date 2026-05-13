@@ -357,7 +357,7 @@ CREATE INDEX idx_staff_dependent_staff ON staff_dependent (staff_id);
 
 -- /// updates
 
-- 1. Add portal flags to system_user
+-- - 1. Add portal flags to system_user
 ALTER TABLE system_user
     ADD COLUMN has_teacher_portal BOOLEAN NOT NULL DEFAULT FALSE,
     ADD COLUMN has_admin_portal   BOOLEAN NOT NULL DEFAULT FALSE;
