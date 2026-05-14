@@ -19,4 +19,6 @@ public interface ExamRoutineService {
     ApiResponse<ExamRoutine> reactivate(Integer id);
     ApiResponse<Void> delete(Integer id);
     ApiResponse<ExamRoutine> clone(Integer sourceId, CloneRoutineRequestDto dto);
+    ApiResponse<ExamRoutine> publishResults(Integer routineId);
+    ApiResponse<ExamRoutine> unpublishResults(Integer routineId);
 }

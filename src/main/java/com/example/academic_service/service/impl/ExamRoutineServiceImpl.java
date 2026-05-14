@@ -4,16 +4,20 @@ import com.example.academic_service.dto.ApiResponse;
 import com.example.academic_service.dto.exam_dtos.CloneRoutineRequestDto;
 import com.example.academic_service.dto.exam_dtos.ExamRoutineRequestDto;
 import com.example.academic_service.entity.*;
+import com.example.academic_service.entity.ResultPublication;
 import com.example.academic_service.repository.AcademicYearRepository;
 import com.example.academic_service.repository.ExamRoutineRepository;
 import com.example.academic_service.repository.ExamSessionRepository;
 import com.example.academic_service.repository.ExamTypeRepository;
+import com.example.academic_service.repository.ResultPublicationRepository;
 import com.example.academic_service.service.ExamRoutineService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -23,6 +27,7 @@ public class ExamRoutineServiceImpl implements ExamRoutineService {
     private final ExamTypeRepository examTypeRepository;
     private final AcademicYearRepository academicYearRepository;
     private final ExamSessionRepository examSessionRepository;
+    private final ResultPublicationRepository resultPublicationRepository;
 
     @Override
     public ApiResponse<ExamRoutine> create(ExamRoutineRequestDto dto) {
@@ -73,10 +78,23 @@ public class ExamRoutineServiceImpl implements ExamRoutineService {
         return ApiResponse.success("Exam routine updated successfully", examRoutineRepository.save(routine));
     }
 
+    private void hydrateResultPublished(List<ExamRoutine> routines) {
+        if (routines.isEmpty()) return;
+        List<Integer> ids = routines.stream().map(ExamRoutine::getId).collect(Collectors.toList());
+        Set<Integer> publishedIds = resultPublicationRepository.findPublishedRoutineIds(ids);
+        routines.forEach(r -> r.setResultPublished(publishedIds.contains(r.getId())));
+    }
+
+    private void hydrateResultPublished(ExamRoutine routine) {
+        resultPublicationRepository.findByExamRoutine_Id(routine.getId())
+                .ifPresent(rp -> routine.setResultPublished(Boolean.TRUE.equals(rp.getPublished())));
+    }
+
     @Override
     public ApiResponse<ExamRoutine> getById(Integer id) {
         ExamRoutine routine = examRoutineRepository.findById(id).orElse(null);
         if (routine == null) return ApiResponse.error("Exam routine not found");
+        hydrateResultPublished(routine);
         return ApiResponse.success("Exam routine fetched successfully", routine);
     }
 
@@ -90,19 +108,22 @@ public class ExamRoutineServiceImpl implements ExamRoutineService {
         } else {
             result = examRoutineRepository.findByIsActiveFalseOrderByCreatedAtDesc();
         }
+        hydrateResultPublished(result);
         return ApiResponse.success("Exam routines fetched successfully", result);
     }
 
     @Override
     public ApiResponse<List<ExamRoutine>> getByAcademicYear(Integer academicYearId) {
-        return ApiResponse.success("Exam routines fetched successfully",
-                examRoutineRepository.findByAcademicYearIdAndIsActiveTrue(academicYearId));
+        List<ExamRoutine> result = examRoutineRepository.findByAcademicYearIdAndIsActiveTrue(academicYearId);
+        hydrateResultPublished(result);
+        return ApiResponse.success("Exam routines fetched successfully", result);
     }
 
     @Override
     public ApiResponse<List<ExamRoutine>> getByExamType(Integer examTypeId) {
-        return ApiResponse.success("Exam routines fetched successfully",
-                examRoutineRepository.findByExamTypeIdAndIsActiveTrue(examTypeId));
+        List<ExamRoutine> result = examRoutineRepository.findByExamTypeIdAndIsActiveTrue(examTypeId);
+        hydrateResultPublished(result);
+        return ApiResponse.success("Exam routines fetched successfully", result);
     }
 
     @Override
@@ -201,5 +222,44 @@ public class ExamRoutineServiceImpl implements ExamRoutineService {
         }
 
         return ApiResponse.success("Routine cloned successfully", newRoutine);
+    }
+
+    @Override
+    public ApiResponse<ExamRoutine> publishResults(Integer routineId) {
+        ExamRoutine routine = examRoutineRepository.findById(routineId).orElse(null);
+        if (routine == null) return ApiResponse.error("Exam routine not found");
+        ResultPublication pub = resultPublicationRepository.findByExamRoutine_Id(routineId)
+                .orElseGet(() -> {
+                    ResultPublication rp = new ResultPublication();
+                    rp.setExamRoutine(routine);
+                    return rp;
+                });
+
+        if (Boolean.TRUE.equals(pub.getPublished()))
+            return ApiResponse.error("Results are already published for this routine");
+
+        pub.setPublished(true);
+        pub.setPublishedAt(LocalDateTime.now());
+        resultPublicationRepository.save(pub);
+
+        routine.setResultPublished(true);
+        return ApiResponse.success("Results published successfully", routine);
+    }
+
+    @Override
+    public ApiResponse<ExamRoutine> unpublishResults(Integer routineId) {
+        ExamRoutine routine = examRoutineRepository.findById(routineId).orElse(null);
+        if (routine == null) return ApiResponse.error("Exam routine not found");
+
+        ResultPublication pub = resultPublicationRepository.findByExamRoutine_Id(routineId).orElse(null);
+        if (pub == null || !Boolean.TRUE.equals(pub.getPublished()))
+            return ApiResponse.error("Results are not published for this routine");
+
+        pub.setPublished(false);
+        pub.setPublishedAt(null);
+        resultPublicationRepository.save(pub);
+
+        routine.setResultPublished(false);
+        return ApiResponse.success("Results unpublished successfully", routine);
     }
 }

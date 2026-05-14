@@ -78,4 +78,14 @@ public class ExamRoutineController {
                                                           @Valid @RequestBody CloneRoutineRequestDto dto) {
         return ResponseEntity.ok(examRoutineService.clone(id, dto));
     }
+
+    @PatchMapping("/{id}/publish-results")
+    public ResponseEntity<ApiResponse<ExamRoutine>> publishResults(@PathVariable Integer id) {
+        return ResponseEntity.ok(examRoutineService.publishResults(id));
+    }
+
+    @PatchMapping("/{id}/unpublish-results")
+    public ResponseEntity<ApiResponse<ExamRoutine>> unpublishResults(@PathVariable Integer id) {
+        return ResponseEntity.ok(examRoutineService.unpublishResults(id));
+    }
 }

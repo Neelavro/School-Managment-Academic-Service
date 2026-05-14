@@ -49,5 +49,8 @@ public class ExamRoutine {
 
     @Column(name = "routine_end_date")
     private LocalDate routineEndDate;
+
+    @Transient
+    private Boolean resultPublished = false;
 }
 
