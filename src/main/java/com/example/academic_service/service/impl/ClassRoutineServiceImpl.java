@@ -4,6 +4,7 @@ import com.example.academic_service.dto.ApiResponse;
 import com.example.academic_service.dto.schedule_dtos.ClassRoutineRequestDto;
 import com.example.academic_service.dto.schedule_dtos.ClassRoutineResponseDto;
 import com.example.academic_service.entity.*;
+import com.example.academic_service.entity.Subject;
 import com.example.academic_service.repository.*;
 import com.example.academic_service.service.ClassRoutineService;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +25,7 @@ public class ClassRoutineServiceImpl implements ClassRoutineService {
     private final SectionRepository sectionRepository;
     private final StudentGroupRepository studentGroupRepository;
     private final RoomRepository roomRepository;
+    private final SubjectRepository subjectRepository;
 
     @Override
     public ApiResponse<ClassRoutineResponseDto> create(ClassRoutineRequestDto dto) {
@@ -137,6 +139,13 @@ public class ClassRoutineServiceImpl implements ClassRoutineService {
             routine.setStudentGroup(group);
         } else {
             routine.setStudentGroup(null);
+        }
+
+        if (dto.getSubjectId() != null) {
+            Subject subject = subjectRepository.findById(dto.getSubjectId()).orElse(null);
+            routine.setSubject(subject);
+        } else {
+            routine.setSubject(null);
         }
 
         return routine;

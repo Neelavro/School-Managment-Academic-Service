@@ -34,6 +34,10 @@ public class ClassRoutine {
     private StudentGroup studentGroup;
 
     @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "subject_id", nullable = true)
+    private Subject subject;
+
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "room_id", nullable = false)
     private Room room;
 

@@ -22,6 +22,8 @@ public class ClassRoutineRequestDto {
 
     private Integer studentGroupId;
 
+    private Integer subjectId;
+
     @NotNull(message = "Room is required")
     private Integer roomId;
 

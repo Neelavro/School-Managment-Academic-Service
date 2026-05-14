@@ -14,6 +14,7 @@ public class ClassRoutineResponseDto {
     private GenderSectionInfo genderSection;
     private SectionInfo section;
     private StudentGroupInfo studentGroup;
+    private SubjectInfo subject;
     private RoomInfo room;
     private String dayOfWeek;
     private String startTime;
@@ -31,6 +32,9 @@ public class ClassRoutineResponseDto {
         }
         if (r.getStudentGroup() != null) {
             dto.setStudentGroup(new StudentGroupInfo(r.getStudentGroup().getId(), r.getStudentGroup().getGroupName()));
+        }
+        if (r.getSubject() != null) {
+            dto.setSubject(new SubjectInfo(r.getSubject().getId(), r.getSubject().getName(), r.getSubject().getCode()));
         }
         dto.setRoom(new RoomInfo(r.getRoom().getId(), r.getRoom().getName()));
         dto.setDayOfWeek(r.getDayOfWeek().name());
@@ -67,6 +71,14 @@ public class ClassRoutineResponseDto {
     public static class StudentGroupInfo {
         private Integer id;
         private String groupName;
+    }
+
+    @Getter
+    @AllArgsConstructor
+    public static class SubjectInfo {
+        private Integer id;
+        private String name;
+        private String code;
     }
 
     @Getter
