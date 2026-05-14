@@ -7736,3 +7736,52 @@
        add constraint if not exists FK_class_routine_room
        foreign key (room_id)
        references room (id);
+
+    -- Teacher duty tables
+    create table if not exists teacher_period_duty (
+        id bigint not null auto_increment,
+        staff_id bigint not null,
+        class_routine_id integer not null,
+        primary key (id),
+        unique key UK_tpd_staff_routine (staff_id, class_routine_id)
+    ) engine=InnoDB;
+
+    create index if not exists idx_tpd_staff on teacher_period_duty (staff_id);
+    create index if not exists idx_tpd_routine on teacher_period_duty (class_routine_id);
+
+    alter table teacher_period_duty
+       add constraint if not exists FK_tpd_staff
+       foreign key (staff_id)
+       references staff (id);
+
+    alter table teacher_period_duty
+       add constraint if not exists FK_tpd_class_routine
+       foreign key (class_routine_id)
+       references class_routine (id);
+
+    create table if not exists teacher_exam_duty (
+        id bigint not null auto_increment,
+        staff_id bigint not null,
+        exam_session_id integer not null,
+        room_id integer not null,
+        primary key (id),
+        unique key UK_ted_staff_session (staff_id, exam_session_id)
+    ) engine=InnoDB;
+
+    create index if not exists idx_ted_staff on teacher_exam_duty (staff_id);
+    create index if not exists idx_ted_session_room on teacher_exam_duty (exam_session_id, room_id);
+
+    alter table teacher_exam_duty
+       add constraint if not exists FK_ted_staff
+       foreign key (staff_id)
+       references staff (id);
+
+    alter table teacher_exam_duty
+       add constraint if not exists FK_ted_exam_session
+       foreign key (exam_session_id)
+       references exam_session (id);
+
+    alter table teacher_exam_duty
+       add constraint if not exists FK_ted_room
+       foreign key (room_id)
+       references room (id);

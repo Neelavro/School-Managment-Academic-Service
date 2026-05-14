@@ -43,7 +43,8 @@
       "Bash(grep -i \"\\\\.dart$\")",
       "Bash(flutter analyze *)",
       "Bash(python3 *)",
-      "WebFetch(domain:www.dhakatribune.com)"
+      "WebFetch(domain:www.dhakatribune.com)",
+      "Bash(./mvnw compile *)"
     ]
   }
 }

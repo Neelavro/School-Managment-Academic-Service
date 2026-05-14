@@ -44,4 +44,9 @@ public interface ExamSessionRepository extends JpaRepository<ExamSession, Intege
             @Param("academicYearId") Integer academicYearId,
             @Param("classId") Integer classId,
             @Param("groupId") Integer groupId);
+
+    @Query("SELECT es FROM ExamSession es WHERE es.isActive = true " +
+            "AND es.date IS NOT NULL AND es.startTime IS NOT NULL AND es.endTime IS NOT NULL " +
+            "ORDER BY es.date ASC, es.startTime ASC")
+    List<ExamSession> findAllWithDefinedTimeSlots();
 }
