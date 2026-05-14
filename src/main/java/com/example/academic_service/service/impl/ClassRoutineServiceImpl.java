@@ -111,7 +111,7 @@ public class ClassRoutineServiceImpl implements ClassRoutineService {
     }
 
     private ClassRoutine buildRoutine(ClassRoutine routine, ClassRoutineRequestDto dto) {
-        Class cls = classRepository.findById(dto.getClassId()).orElse(null);
+        com.example.academic_service.entity.Class cls = classRepository.findById(dto.getClassId()).orElse(null);
         GenderSection genderSection = genderSectionRepository.findById(dto.getGenderSectionId()).orElse(null);
         Room room = roomRepository.findById(dto.getRoomId()).orElse(null);
 
@@ -126,7 +126,7 @@ public class ClassRoutineServiceImpl implements ClassRoutineService {
         routine.setRoutineType(dto.getRoutineType());
 
         if (dto.getSectionId() != null) {
-            Section section = sectionRepository.findById(dto.getSectionId()).orElse(null);
+            Section section = sectionRepository.findById(dto.getSectionId().longValue()).orElse(null);
             routine.setSection(section);
         } else {
             routine.setSection(null);
