@@ -45,6 +45,11 @@ public class TeacherDutyController {
         return ResponseEntity.ok(service.getMyMarkAssignments(resolveStaffId()));
     }
 
+    @GetMapping("/me/upcoming-exam-duties")
+    public ResponseEntity<ApiResponse<List<TeacherExamDutyResponseDto>>> getMyUpcomingExamDuties() {
+        return ResponseEntity.ok(service.getMyUpcomingExamDuties(resolveStaffId()));
+    }
+
     @GetMapping("/teachers")
     @RequirePermission(submodule = Submodule.HR_TEACHER_DUTY, action = "READ")
     public ResponseEntity<ApiResponse<List<?>>> getTeachingStaff() {

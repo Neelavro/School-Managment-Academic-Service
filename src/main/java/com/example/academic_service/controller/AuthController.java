@@ -30,6 +30,12 @@ public class AuthController {
         return ResponseEntity.ok(new ApiResponse("Super admin created", user));
     }
 
+    @PostMapping("/student-login")
+    public ResponseEntity<ApiResponse> studentLogin(@RequestBody Map<String, String> body) {
+        Map<String, Object> result = authService.studentLogin(body.get("studentSystemId"), body.get("password"));
+        return ResponseEntity.ok(new ApiResponse("Login successful", result));
+    }
+
     @PutMapping("/change-password")
     public ResponseEntity<ApiResponse> changePassword(@RequestBody Map<String, Object> body) {
         Long userId = ((Number) body.get("userId")).longValue();

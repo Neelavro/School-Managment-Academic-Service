@@ -26,4 +26,11 @@ public interface TeacherExamDutyRepository extends JpaRepository<TeacherExamDuty
             @Param("date") LocalDate date,
             @Param("startTime") LocalTime startTime,
             @Param("endTime") LocalTime endTime);
+
+    @Query("SELECT d FROM TeacherExamDuty d WHERE d.staff.id = :staffId " +
+            "AND (d.examSession.date IS NULL OR d.examSession.date >= :today) " +
+            "ORDER BY d.examSession.date ASC NULLS LAST, d.examSession.startTime ASC")
+    List<TeacherExamDuty> findUpcomingByStaffId(
+            @Param("staffId") Long staffId,
+            @Param("today") LocalDate today);
 }

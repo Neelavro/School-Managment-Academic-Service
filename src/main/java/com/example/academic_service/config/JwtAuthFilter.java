@@ -49,6 +49,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         Object userIdRaw = claims.get("userId");
         String userType = (String) claims.get("userType");
         Object staffIdRaw = claims.get("staffId");
+        String studentSystemId = (String) claims.get("studentSystemId");
 
         UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
                 phone, null,
@@ -58,6 +59,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         if (userIdRaw != null) details.put("userId", userIdRaw);
         if (userType != null) details.put("userType", userType);
         if (staffIdRaw != null) details.put("staffId", staffIdRaw);
+        if (studentSystemId != null) details.put("studentSystemId", studentSystemId);
         auth.setDetails(details);
         SecurityContextHolder.getContext().setAuthentication(auth);
 

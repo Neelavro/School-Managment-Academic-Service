@@ -111,6 +111,9 @@ public class Student {
     @Column(name = "is_active")
     private Boolean isActive;
 
+    @Column(name = "password_hash")
+    private String passwordHash;
+
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "gender_id")
     private Gender gender;

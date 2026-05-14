@@ -41,6 +41,8 @@ public class ExamRoutineServiceImpl implements ExamRoutineService {
         routine.setTitle(dto.getTitle());
         routine.setExamType(examType);
         routine.setAcademicYear(academicYear);
+        routine.setRoutineStartDate(dto.getRoutineStartDate());
+        routine.setRoutineEndDate(dto.getRoutineEndDate());
         return ApiResponse.success("Exam routine created successfully", examRoutineRepository.save(routine));
     }
 
@@ -65,6 +67,8 @@ public class ExamRoutineServiceImpl implements ExamRoutineService {
         routine.setTitle(dto.getTitle());
         routine.setExamType(examType);
         routine.setAcademicYear(academicYear);
+        routine.setRoutineStartDate(dto.getRoutineStartDate());
+        routine.setRoutineEndDate(dto.getRoutineEndDate());
         routine.setLastModifiedAt(LocalDateTime.now());
         return ApiResponse.success("Exam routine updated successfully", examRoutineRepository.save(routine));
     }

@@ -49,4 +49,16 @@ public interface ExamSessionRepository extends JpaRepository<ExamSession, Intege
             "AND es.date IS NOT NULL AND es.startTime IS NOT NULL AND es.endTime IS NOT NULL " +
             "ORDER BY es.date ASC, es.startTime ASC")
     List<ExamSession> findAllWithDefinedTimeSlots();
+
+    @Query("SELECT es FROM ExamSession es WHERE es.isActive = true " +
+            "AND es.examRoutine.isActive = true " +
+            "AND es.examRoutine.status = com.example.academic_service.entity.RoutineStatus.PUBLISHED " +
+            "AND es.examClass.id = :classId " +
+            "AND (:groupId IS NULL OR es.group IS NULL OR es.group.id = :groupId) " +
+            "AND es.date >= :today " +
+            "ORDER BY es.date ASC, es.startTime ASC")
+    List<ExamSession> findUpcomingForStudent(
+            @Param("classId") Integer classId,
+            @Param("groupId") Integer groupId,
+            @Param("today") java.time.LocalDate today);
 }

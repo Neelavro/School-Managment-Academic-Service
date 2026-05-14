@@ -8,6 +8,7 @@ import com.example.academic_service.repository.StudentRepository;
 import com.example.academic_service.repository.StudentStatusRepository;
 import com.example.academic_service.service.StudentService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -19,6 +20,7 @@ public class StudentServiceImpl implements StudentService {
     private final StudentRepository studentRepository;
     private final GenderRepository genderRepository;
     private final StudentStatusRepository studentStatusRepository;
+    private final PasswordEncoder passwordEncoder;
 
     private String generateStudentSystemId() {
         String yearPrefix = String.valueOf(java.time.Year.now().getValue());
@@ -50,6 +52,7 @@ public class StudentServiceImpl implements StudentService {
     @Override
     public Student createStudent(Student student) {
         student.setIsActive(true);
+        student.setPasswordHash(passwordEncoder.encode("123456"));
         assignOrUpdateStudentSystemId(student, student);
 
         if (student.getGender() != null) {

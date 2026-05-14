@@ -2,9 +2,11 @@ package com.example.academic_service.service;
 
 import com.example.academic_service.config.JwtUtil;
 import com.example.academic_service.entity.FbacPermission;
+import com.example.academic_service.entity.Student;
 import com.example.academic_service.entity.Submodule;
 import com.example.academic_service.entity.SystemUser;
 import com.example.academic_service.entity.UserType;
+import com.example.academic_service.repository.StudentRepository;
 import com.example.academic_service.repository.SystemUserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -25,6 +27,7 @@ public class AuthService {
     private final JwtUtil jwtUtil;
     private final PasswordEncoder passwordEncoder;
     private final SystemUserService systemUserService;
+    private final StudentRepository studentRepository;
 
     public Map<String, Object> login(String phone, String rawPassword) {
         SystemUser user = userRepository.findByPhone(phone)
@@ -77,6 +80,33 @@ public class AuthService {
         response.put("hasAdminPortal", Boolean.TRUE.equals(user.getHasAdminPortal()));
         if (user.getStaffId() != null) response.put("staffId", user.getStaffId());
         response.put("assignedRoles", assignedRoles);
+        return response;
+    }
+
+    public Map<String, Object> studentLogin(String studentSystemId, String password) {
+        Student student = studentRepository.findByStudentSystemId(studentSystemId)
+                .orElseThrow(() -> new IllegalArgumentException("Invalid credentials"));
+
+        if (!Boolean.TRUE.equals(student.getIsActive()))
+            throw new IllegalStateException("Student account is inactive");
+
+        String hash = student.getPasswordHash();
+        if (hash == null || !passwordEncoder.matches(password, hash))
+            throw new IllegalArgumentException("Invalid credentials");
+
+        Map<String, Object> extraClaims = new HashMap<>();
+        extraClaims.put("userType", "STUDENT");
+        extraClaims.put("role", "STUDENT");
+        extraClaims.put("studentSystemId", studentSystemId);
+
+        String token = jwtUtil.generateToken(studentSystemId, extraClaims);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("token", token);
+        response.put("userType", "STUDENT");
+        response.put("studentSystemId", studentSystemId);
+        response.put("studentName", student.getNameEnglish());
+        response.put("hasStudentPortal", true);
         return response;
     }
 }

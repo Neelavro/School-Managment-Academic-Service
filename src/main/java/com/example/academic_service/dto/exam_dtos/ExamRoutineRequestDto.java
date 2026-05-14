@@ -2,6 +2,7 @@ package com.example.academic_service.dto.exam_dtos;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
+import java.time.LocalDate;
 @Getter
 @Setter
 public class ExamRoutineRequestDto {
@@ -13,4 +14,7 @@ public class ExamRoutineRequestDto {
 
     @NotNull(message = "Academic year is required")
     private Integer academicYearId;
+
+    private LocalDate routineStartDate;
+    private LocalDate routineEndDate;
 }

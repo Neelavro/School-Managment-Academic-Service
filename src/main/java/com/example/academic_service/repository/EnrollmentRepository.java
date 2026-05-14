@@ -25,6 +25,9 @@ public interface EnrollmentRepository extends JpaRepository<Enrollment, Long>,
 
     // Find all enrollments for a student that are active
     List<Enrollment> findByStudentSystemIdAndIsActive(String studentSystemId, Boolean isActive);
+
+    @Query("SELECT e FROM Enrollment e WHERE e.studentSystemId = :studentSystemId AND e.isActive = true AND e.academicYear.isActive = true")
+    java.util.Optional<Enrollment> findActiveEnrollmentByStudentSystemId(@Param("studentSystemId") String studentSystemId);
     @Query("""
 SELECT e FROM Enrollment e
 WHERE e.studentClass.id = :classId

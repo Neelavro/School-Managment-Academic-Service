@@ -257,6 +257,14 @@ public class TeacherDutyService {
                 .existsByStaff_IdAndClassRoutine_ClassEntity_IdAndClassRoutine_Subject_Id(staffId, classId, subjectId);
     }
 
+    // ─── Teacher self-service: upcoming exam duties ────────────────────────────
+
+    public ApiResponse<List<TeacherExamDutyResponseDto>> getMyUpcomingExamDuties(Long staffId) {
+        List<TeacherExamDutyResponseDto> result = examDutyRepository.findUpcomingByStaffId(staffId, LocalDate.now())
+                .stream().map(TeacherExamDutyResponseDto::from).collect(Collectors.toList());
+        return new ApiResponse<>("OK", result);
+    }
+
     // ─── Available exam sessions (with defined time slots) ─────────────────────
 
     public ApiResponse<List<ExamSessionForDutyDto>> getAvailableExamSessions() {
