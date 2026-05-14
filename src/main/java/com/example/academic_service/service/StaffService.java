@@ -4,7 +4,9 @@ import com.example.academic_service.entity.*;
 import com.example.academic_service.repository.*;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.time.Year;
@@ -46,6 +48,10 @@ public class StaffService {
 
     @Transactional
     public Staff create(Staff staff, List<StaffEmergencyContact> contacts) {
+        if (staff.getPhone() != null && !staff.getPhone().isBlank()
+                && staffRepository.existsByPhone(staff.getPhone())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Phone number already in use: " + staff.getPhone());
+        }
         staff.setStaffSystemId(generateStaffSystemId());
         staff.setIsActive(true);
         if (staff.getCurrentDesignation() != null && staff.getCurrentDesignation().getId() != null)
@@ -61,6 +67,10 @@ public class StaffService {
     @Transactional
     public Staff update(Long id, Staff req, List<StaffEmergencyContact> contacts) {
         Staff existing = getById(id);
+        if (req.getPhone() != null && !req.getPhone().isBlank()
+                && staffRepository.existsByPhoneAndIdNot(req.getPhone(), id)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Phone number already in use: " + req.getPhone());
+        }
         existing.setNameEnglish(req.getNameEnglish());
         existing.setNameBangla(req.getNameBangla());
         existing.setEmployeeType(req.getEmployeeType());

@@ -75,9 +75,9 @@ public class TeacherDutyService {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Class routine " + routineId + " is not active");
             }
 
-            if (periodDutyRepository.existsByStaff_IdAndClassRoutine_Id(staffId, routineId)) {
+            if (periodDutyRepository.existsByClassRoutine_Id(routineId)) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT,
-                        "Teacher is already assigned to this period: " + routine.getClassEntity().getName()
+                        "This period already has a teacher assigned: " + routine.getClassEntity().getName()
                                 + " " + routine.getDayOfWeek() + " " + routine.getStartTime());
             }
 

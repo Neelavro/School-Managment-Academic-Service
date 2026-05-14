@@ -6,7 +6,7 @@ import lombok.Setter;
 
 @Entity
 @Table(name = "teacher_period_duty",
-        uniqueConstraints = @UniqueConstraint(columnNames = {"staff_id", "class_routine_id"}),
+        uniqueConstraints = @UniqueConstraint(columnNames = {"class_routine_id"}),
         indexes = {
                 @Index(name = "idx_tpd_staff", columnList = "staff_id"),
                 @Index(name = "idx_tpd_routine", columnList = "class_routine_id")

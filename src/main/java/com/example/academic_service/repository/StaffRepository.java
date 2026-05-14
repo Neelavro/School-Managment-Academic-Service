@@ -15,6 +15,9 @@ public interface StaffRepository extends JpaRepository<Staff, Long> {
     List<Staff> findByEmployeeType(EmployeeType employeeType);
     List<Staff> findByIsActiveAndEmployeeType(Boolean isActive, EmployeeType employeeType);
 
+    boolean existsByPhone(String phone);
+    boolean existsByPhoneAndIdNot(String phone, Long id);
+
     @Query("SELECT MAX(s.staffSystemId) FROM Staff s WHERE s.staffSystemId LIKE :prefix%")
     String findMaxStaffSystemIdByPrefix(String prefix);
 }
