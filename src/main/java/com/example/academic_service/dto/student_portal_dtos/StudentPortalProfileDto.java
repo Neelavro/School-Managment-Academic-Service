@@ -58,7 +58,7 @@ public class StudentPortalProfileDto {
         dto.setNameBangla(s.getNameBangla());
         dto.setDob(s.getDob() != null ? s.getDob().toString() : null);
         dto.setNationality(s.getNationality());
-        if (s.getGender() != null) dto.setGender(s.getGender().getGenderName());
+        if (s.getGender() != null) dto.setGender(s.getGender().getGender());
         if (s.getStudentStatus() != null) dto.setStudentStatus(s.getStudentStatus().getStatusName());
         if (s.getImage() != null) dto.setImageUrl(s.getImage().getImageUrl());
 
