@@ -17,6 +17,9 @@ public interface TeacherPeriodDutyRepository extends JpaRepository<TeacherPeriod
 
     boolean existsByClassRoutine_Id(Integer classRoutineId);
 
+    boolean existsByStaff_IdAndClassRoutine_ClassEntity_IdAndClassRoutine_Subject_Id(
+            Long staffId, Integer classId, Integer subjectId);
+
     @Query("SELECT d FROM TeacherPeriodDuty d WHERE d.staff.id = :staffId " +
             "AND d.classRoutine.dayOfWeek = :dayOfWeek " +
             "AND d.classRoutine.startTime < :endTime " +

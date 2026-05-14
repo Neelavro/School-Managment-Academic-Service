@@ -10,6 +10,11 @@ import lombok.Setter;
 public class TeacherPeriodDutyResponseDto {
     private Long id;
     private Integer classRoutineId;
+    private Integer classId;
+    private Integer subjectId;
+    private Integer genderSectionId;
+    private Long sectionId;
+    private Integer groupId;
     private String className;
     private String genderSectionName;
     private String sectionName;
@@ -25,11 +30,20 @@ public class TeacherPeriodDutyResponseDto {
         TeacherPeriodDutyResponseDto dto = new TeacherPeriodDutyResponseDto();
         dto.setId(d.getId());
         dto.setClassRoutineId(r.getId());
+        dto.setClassId(r.getClassEntity().getId());
+        dto.setGenderSectionId(r.getGenderSection().getId());
         dto.setClassName(r.getClassEntity().getName());
         dto.setGenderSectionName(r.getGenderSection().getGenderName());
-        if (r.getSection() != null) dto.setSectionName(r.getSection().getSectionName());
-        if (r.getStudentGroup() != null) dto.setStudentGroupName(r.getStudentGroup().getGroupName());
+        if (r.getSection() != null) {
+            dto.setSectionId(r.getSection().getId());
+            dto.setSectionName(r.getSection().getSectionName());
+        }
+        if (r.getStudentGroup() != null) {
+            dto.setGroupId(r.getStudentGroup().getId());
+            dto.setStudentGroupName(r.getStudentGroup().getGroupName());
+        }
         if (r.getSubject() != null) {
+            dto.setSubjectId(r.getSubject().getId());
             dto.setSubjectName(r.getSubject().getName());
             dto.setSubjectCode(r.getSubject().getCode());
         }

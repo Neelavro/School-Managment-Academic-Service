@@ -11,7 +11,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.util.List;
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -193,6 +195,66 @@ public class TeacherDutyService {
                 .findByExamRoutineIdAndExamClassId(session.getExamRoutine().getId(), session.getExamClass().getId())
                 .stream().map(a -> AvailableRoomDto.from(a.getRoom())).collect(Collectors.toList());
         return new ApiResponse<>("OK", rooms);
+    }
+
+    // ─── Teacher self-service: weekly schedule ─────────────────────────────────
+
+    public ApiResponse<WeeklyScheduleResponseDto> getMyWeeklySchedule(Long staffId) {
+        Staff staff = staffRepository.findById(staffId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Staff not found"));
+
+        List<TeacherPeriodDutyResponseDto> allPeriods = periodDutyRepository.findByStaff_Id(staffId)
+                .stream().map(TeacherPeriodDutyResponseDto::from).collect(Collectors.toList());
+
+        // Order days Mon → Sat
+        List<String> dayOrder = List.of("MONDAY","TUESDAY","WEDNESDAY","THURSDAY","FRIDAY","SATURDAY","SUNDAY");
+        Map<String, List<TeacherPeriodDutyResponseDto>> byDay = new LinkedHashMap<>();
+        for (String day : dayOrder) {
+            List<TeacherPeriodDutyResponseDto> dayDuties = allPeriods.stream()
+                    .filter(p -> p.getDayOfWeek().equals(day))
+                    .sorted(Comparator.comparing(TeacherPeriodDutyResponseDto::getStartTime))
+                    .collect(Collectors.toList());
+            if (!dayDuties.isEmpty()) byDay.put(day, dayDuties);
+        }
+
+        LocalDate today = LocalDate.now();
+        LocalDate weekStart = today.with(DayOfWeek.MONDAY);
+        LocalDate weekEnd = weekStart.plusDays(5); // Saturday
+
+        List<TeacherExamDutyResponseDto> examThisWeek = examDutyRepository.findByStaff_Id(staffId)
+                .stream()
+                .filter(d -> {
+                    LocalDate date = d.getExamSession().getDate();
+                    return date != null && !date.isBefore(weekStart) && !date.isAfter(weekEnd);
+                })
+                .map(TeacherExamDutyResponseDto::from)
+                .sorted(Comparator.comparing(TeacherExamDutyResponseDto::getDate,
+                        Comparator.nullsLast(Comparator.naturalOrder())))
+                .collect(Collectors.toList());
+
+        WeeklyScheduleResponseDto dto = new WeeklyScheduleResponseDto();
+        dto.setTeacherName(staff.getNameEnglish());
+        dto.setTotalPeriodsThisWeek(allPeriods.size());
+        dto.setTotalExamDutiesThisWeek(examThisWeek.size());
+        dto.setPeriodsByDay(byDay);
+        dto.setExamDutiesThisWeek(examThisWeek);
+        return new ApiResponse<>("OK", dto);
+    }
+
+    // ─── Teacher self-service: mark entry assignments ──────────────────────────
+
+    public ApiResponse<List<TeacherPeriodDutyResponseDto>> getMyMarkAssignments(Long staffId) {
+        List<TeacherPeriodDutyResponseDto> result = periodDutyRepository.findByStaff_Id(staffId)
+                .stream()
+                .filter(d -> d.getClassRoutine().getSubject() != null)
+                .map(TeacherPeriodDutyResponseDto::from)
+                .collect(Collectors.toList());
+        return new ApiResponse<>("OK", result);
+    }
+
+    public boolean hasMarkAccess(Long staffId, Integer classId, Integer subjectId) {
+        return periodDutyRepository
+                .existsByStaff_IdAndClassRoutine_ClassEntity_IdAndClassRoutine_Subject_Id(staffId, classId, subjectId);
     }
 
     // ─── Available exam sessions (with defined time slots) ─────────────────────

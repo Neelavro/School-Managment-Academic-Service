@@ -8,10 +8,15 @@ import com.example.academic_service.entity.Submodule;
 import com.example.academic_service.service.TeacherDutyService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/teacher-duties")
@@ -19,6 +24,26 @@ import java.util.List;
 public class TeacherDutyController {
 
     private final TeacherDutyService service;
+
+    private Long resolveStaffId() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        Map<String, Object> details = (Map<String, Object>) auth.getDetails();
+        Object raw = details != null ? details.get("staffId") : null;
+        if (raw == null) throw new ResponseStatusException(HttpStatus.FORBIDDEN, "No staff record linked to this account");
+        return ((Number) raw).longValue();
+    }
+
+    // ─── Teacher self-service (/me) ────────────────────────────────────────────
+
+    @GetMapping("/me/weekly-schedule")
+    public ResponseEntity<ApiResponse<WeeklyScheduleResponseDto>> getMyWeeklySchedule() {
+        return ResponseEntity.ok(service.getMyWeeklySchedule(resolveStaffId()));
+    }
+
+    @GetMapping("/me/mark-assignments")
+    public ResponseEntity<ApiResponse<List<TeacherPeriodDutyResponseDto>>> getMyMarkAssignments() {
+        return ResponseEntity.ok(service.getMyMarkAssignments(resolveStaffId()));
+    }
 
     @GetMapping("/teachers")
     @RequirePermission(submodule = Submodule.HR_TEACHER_DUTY, action = "READ")
