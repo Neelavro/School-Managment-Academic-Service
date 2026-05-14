@@ -7,7 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 
 public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, Long> {
-    List<LeaveRequest> findByStaffIdOrderBySubmittedAtDesc(Long staffId);
+    List<LeaveRequest> findByStaff_IdOrderBySubmittedAtDesc(Long staffId);
     List<LeaveRequest> findByStatusOrderBySubmittedAtDesc(LeaveStatus status);
     List<LeaveRequest> findByStatusInOrderBySubmittedAtDesc(List<LeaveStatus> statuses);
     List<LeaveRequest> findAllByOrderBySubmittedAtDesc();

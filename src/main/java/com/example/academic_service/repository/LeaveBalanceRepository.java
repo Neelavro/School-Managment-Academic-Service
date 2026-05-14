@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Optional;
 
 public interface LeaveBalanceRepository extends JpaRepository<LeaveBalance, Long> {
-    List<LeaveBalance> findByStaffIdAndYear(Long staffId, Integer year);
-    Optional<LeaveBalance> findByStaffIdAndLeaveTypeIdAndYear(Long staffId, Integer leaveTypeId, Integer year);
+    List<LeaveBalance> findByStaff_IdAndYear(Long staffId, Integer year);
+    Optional<LeaveBalance> findByStaff_IdAndLeaveType_IdAndYear(Long staffId, Integer leaveTypeId, Integer year);
     List<LeaveBalance> findByYear(Integer year);
 }

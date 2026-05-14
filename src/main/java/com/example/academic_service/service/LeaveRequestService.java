@@ -30,7 +30,7 @@ public class LeaveRequestService {
     }
 
     public List<LeaveRequest> getByStaff(Long staffId) {
-        return requestRepository.findByStaffIdOrderBySubmittedAtDesc(staffId);
+        return requestRepository.findByStaff_IdOrderBySubmittedAtDesc(staffId);
     }
 
     public List<LeaveRequest> getPending() {
@@ -72,7 +72,7 @@ public class LeaveRequestService {
 
         // Get or auto-create balance row for this leave type + year
         LeaveBalance balance = balanceRepository
-                .findByStaffIdAndLeaveTypeIdAndYear(staffId, leaveTypeId, year)
+                .findByStaff_IdAndLeaveType_IdAndYear(staffId, leaveTypeId, year)
                 .orElseGet(() -> {
                     LeaveBalance b = new LeaveBalance();
                     b.setStaff(staff);
@@ -149,7 +149,7 @@ public class LeaveRequestService {
         approvalRecordRepository.save(record);
 
         LeaveBalance balance = balanceRepository
-                .findByStaffIdAndLeaveTypeIdAndYear(
+                .findByStaff_IdAndLeaveType_IdAndYear(
                         request.getStaff().getId(),
                         request.getLeaveType().getId(),
                         request.getStartDate().getYear())

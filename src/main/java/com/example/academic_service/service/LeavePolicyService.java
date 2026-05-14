@@ -49,7 +49,7 @@ public class LeavePolicyService {
             List<LeavePolicy> policies = policyRepository.findByDesignationId(staff.getCurrentDesignation().getId());
             for (LeavePolicy policy : policies) {
                 boolean exists = balanceRepository
-                        .findByStaffIdAndLeaveTypeIdAndYear(staff.getId(), policy.getLeaveType().getId(), year)
+                        .findByStaff_IdAndLeaveType_IdAndYear(staff.getId(), policy.getLeaveType().getId(), year)
                         .isPresent();
                 if (exists) { skipped++; continue; }
                 LeaveBalance balance = new LeaveBalance();
@@ -72,7 +72,7 @@ public class LeavePolicyService {
         if (staff.getCurrentDesignation() == null) return;
         List<LeavePolicy> policies = policyRepository.findByDesignationId(staff.getCurrentDesignation().getId());
         for (LeavePolicy policy : policies) {
-            balanceRepository.findByStaffIdAndLeaveTypeIdAndYear(staffId, policy.getLeaveType().getId(), year)
+            balanceRepository.findByStaff_IdAndLeaveType_IdAndYear(staffId, policy.getLeaveType().getId(), year)
                     .ifPresentOrElse(b -> {}, () -> {
                         LeaveBalance balance = new LeaveBalance();
                         balance.setStaff(staff);
