@@ -52,8 +52,10 @@ public class DesignationService {
 
     public DesignationPromotion addPromotionPath(Integer fromId, Integer toId) {
         DesignationPromotion dp = new DesignationPromotion();
-        dp.setFromDesignation(designationRepository.getReferenceById(fromId));
-        dp.setToDesignation(designationRepository.getReferenceById(toId));
+        dp.setFromDesignation(designationRepository.findById(fromId)
+                .orElseThrow(() -> new IllegalArgumentException("Designation not found: " + fromId)));
+        dp.setToDesignation(designationRepository.findById(toId)
+                .orElseThrow(() -> new IllegalArgumentException("Designation not found: " + toId)));
         return promotionRepository.save(dp);
     }
 

@@ -52,8 +52,10 @@ public class StaffDutyRoleService {
         if (assignmentRepository.existsByStaffIdAndDutyRoleId(staffId, dutyRoleId))
             throw new IllegalArgumentException("Already assigned");
         StaffDutyRoleAssignment a = new StaffDutyRoleAssignment();
-        a.setStaff(staffRepository.getReferenceById(staffId));
-        a.setDutyRole(dutyRoleRepository.getReferenceById(dutyRoleId));
+        a.setStaff(staffRepository.findById(staffId)
+                .orElseThrow(() -> new IllegalArgumentException("Staff not found: " + staffId)));
+        a.setDutyRole(dutyRoleRepository.findById(dutyRoleId)
+                .orElseThrow(() -> new IllegalArgumentException("Duty role not found: " + dutyRoleId)));
         return assignmentRepository.save(a);
     }
 

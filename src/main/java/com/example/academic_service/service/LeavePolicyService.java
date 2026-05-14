@@ -28,8 +28,10 @@ public class LeavePolicyService {
         LeavePolicy policy = policyRepository
                 .findByDesignationIdAndLeaveTypeId(designationId, leaveTypeId)
                 .orElse(new LeavePolicy());
-        policy.setDesignation(designationRepository.getReferenceById(designationId));
-        policy.setLeaveType(leaveTypeRepository.getReferenceById(leaveTypeId));
+        policy.setDesignation(designationRepository.findById(designationId)
+                .orElseThrow(() -> new IllegalArgumentException("Designation not found: " + designationId)));
+        policy.setLeaveType(leaveTypeRepository.findById(leaveTypeId)
+                .orElseThrow(() -> new IllegalArgumentException("LeaveType not found: " + leaveTypeId)));
         policy.setAnnualDays(annualDays);
         policy.setIsActive(true);
         return policyRepository.save(policy);

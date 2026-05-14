@@ -49,7 +49,8 @@ public class StaffService {
         staff.setStaffSystemId(generateStaffSystemId());
         staff.setIsActive(true);
         if (staff.getCurrentDesignation() != null && staff.getCurrentDesignation().getId() != null)
-            staff.setCurrentDesignation(designationRepository.getReferenceById(staff.getCurrentDesignation().getId()));
+            staff.setCurrentDesignation(designationRepository.findById(staff.getCurrentDesignation().getId())
+                    .orElseThrow(() -> new IllegalArgumentException("Designation not found: " + staff.getCurrentDesignation().getId())));
         Staff saved = staffRepository.save(staff);
         if (contacts != null) {
             contacts.forEach(c -> { c.setStaff(saved); emergencyContactRepository.save(c); });
@@ -69,7 +70,8 @@ public class StaffService {
         existing.setEmail(req.getEmail());
         existing.setNationalId(req.getNationalId());
         if (req.getCurrentDesignation() != null && req.getCurrentDesignation().getId() != null)
-            existing.setCurrentDesignation(designationRepository.getReferenceById(req.getCurrentDesignation().getId()));
+            existing.setCurrentDesignation(designationRepository.findById(req.getCurrentDesignation().getId())
+                    .orElseThrow(() -> new IllegalArgumentException("Designation not found: " + req.getCurrentDesignation().getId())));
         Staff saved = staffRepository.save(existing);
         if (contacts != null) {
             emergencyContactRepository.deleteByStaffId(id);
