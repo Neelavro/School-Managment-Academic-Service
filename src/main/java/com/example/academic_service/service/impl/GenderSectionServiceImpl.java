@@ -13,10 +13,15 @@ import java.util.List;
 @Service
 public class GenderSectionServiceImpl implements GenderSectionService {
 
-    GenderSectionRepository genderSectionRepository;
+    private final GenderSectionRepository genderSectionRepository;
 
     @PersistenceContext
     private EntityManager entityManager;
+
+    GenderSectionServiceImpl(GenderSectionRepository genderSectionRepository) {
+        this.genderSectionRepository = genderSectionRepository;
+    }
+
     @Override
     @Transactional
     public void migrateGenderSection(GenderSection request) {
@@ -28,12 +33,36 @@ public class GenderSectionServiceImpl implements GenderSectionService {
                 .executeUpdate();
     }
 
-    GenderSectionServiceImpl(GenderSectionRepository genderSectionRepository){
-        this.genderSectionRepository = genderSectionRepository;
-    }
-
-    public List<GenderSection> getAllGenderSections(){
+    @Override
+    public List<GenderSection> getAllGenderSections() {
         return genderSectionRepository.findAll();
     }
 
+    @Override
+    public GenderSection create(String genderName) {
+        if (genderSectionRepository.existsByGenderNameIgnoreCase(genderName.trim())) {
+            throw new RuntimeException("Gender section '" + genderName + "' already exists");
+        }
+        GenderSection gs = new GenderSection();
+        gs.setGenderName(genderName.trim());
+        return genderSectionRepository.save(gs);
+    }
+
+    @Override
+    public GenderSection update(Integer id, String genderName) {
+        GenderSection gs = genderSectionRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Gender section not found"));
+        if (genderSectionRepository.existsByGenderNameIgnoreCaseAndIdNot(genderName.trim(), id)) {
+            throw new RuntimeException("Gender section '" + genderName + "' already exists");
+        }
+        gs.setGenderName(genderName.trim());
+        return genderSectionRepository.save(gs);
+    }
+
+    @Override
+    public void delete(Integer id) {
+        GenderSection gs = genderSectionRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Gender section not found"));
+        genderSectionRepository.delete(gs);
+    }
 }

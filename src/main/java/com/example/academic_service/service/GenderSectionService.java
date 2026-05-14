@@ -5,6 +5,9 @@ import com.example.academic_service.entity.GenderSection;
 import java.util.List;
 
 public interface GenderSectionService {
-    public void migrateGenderSection(GenderSection request);
+    void migrateGenderSection(GenderSection request);
     List<GenderSection> getAllGenderSections();
+    GenderSection create(String genderName);
+    GenderSection update(Integer id, String genderName);
+    void delete(Integer id);
 }

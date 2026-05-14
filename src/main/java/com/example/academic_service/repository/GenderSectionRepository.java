@@ -5,4 +5,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 
 public interface GenderSectionRepository extends JpaRepository<GenderSection, Integer> {
+    boolean existsByGenderNameIgnoreCase(String genderName);
+    boolean existsByGenderNameIgnoreCaseAndIdNot(String genderName, Integer id);
 }

@@ -54,8 +54,40 @@ public class SectionController {
 
     @GetMapping("/gender-sections")
     public ResponseEntity<List<GenderSection>> getAllGenderSections() {
-        List<GenderSection> genderSections = genderSectionService.getAllGenderSections();
-        return ResponseEntity.ok(genderSections);
+        return ResponseEntity.ok(genderSectionService.getAllGenderSections());
+    }
+
+    @PostMapping("/gender-sections")
+    public ResponseEntity<?> createGenderSection(@RequestBody java.util.Map<String, String> body) {
+        try {
+            String name = body.get("genderName");
+            if (name == null || name.isBlank()) return ResponseEntity.badRequest().body("genderName is required");
+            return ResponseEntity.ok(genderSectionService.create(name));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @PutMapping("/gender-sections/{id}")
+    public ResponseEntity<?> updateGenderSection(@PathVariable Integer id,
+                                                 @RequestBody java.util.Map<String, String> body) {
+        try {
+            String name = body.get("genderName");
+            if (name == null || name.isBlank()) return ResponseEntity.badRequest().body("genderName is required");
+            return ResponseEntity.ok(genderSectionService.update(id, name));
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @DeleteMapping("/gender-sections/{id}")
+    public ResponseEntity<?> deleteGenderSection(@PathVariable Integer id) {
+        try {
+            genderSectionService.delete(id);
+            return ResponseEntity.ok("Deleted successfully");
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
     }
 
 
