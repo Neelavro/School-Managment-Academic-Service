@@ -7679,3 +7679,60 @@
        add constraint FKleqww1gyi9mwxdq99nscry884 
        foreign key (exam_session_id) 
        references exam_session (id);
+
+    create table if not exists academic_calendar_entry (
+        id integer not null auto_increment,
+        academic_year_id integer not null,
+        type varchar(20) not null,
+        name varchar(255) not null,
+        start_date date not null,
+        end_date date not null,
+        created_at datetime(6),
+        is_active bit,
+        primary key (id)
+    ) engine=InnoDB;
+
+    alter table academic_calendar_entry
+       add constraint if not exists FK_cal_entry_academic_year
+       foreign key (academic_year_id)
+       references academic_year (id);
+
+    create table if not exists class_routine (
+        id integer not null auto_increment,
+        class_id integer not null,
+        gender_section_id integer not null,
+        section_id bigint,
+        student_group_id integer,
+        room_id integer not null,
+        day_of_week varchar(10) not null,
+        start_time time not null,
+        end_time time not null,
+        routine_type varchar(10) not null,
+        is_active bit,
+        primary key (id)
+    ) engine=InnoDB;
+
+    alter table class_routine
+       add constraint if not exists FK_class_routine_class
+       foreign key (class_id)
+       references class (id);
+
+    alter table class_routine
+       add constraint if not exists FK_class_routine_gender_section
+       foreign key (gender_section_id)
+       references gender_section (id);
+
+    alter table class_routine
+       add constraint if not exists FK_class_routine_section
+       foreign key (section_id)
+       references section (id);
+
+    alter table class_routine
+       add constraint if not exists FK_class_routine_student_group
+       foreign key (student_group_id)
+       references student_group (id);
+
+    alter table class_routine
+       add constraint if not exists FK_class_routine_room
+       foreign key (room_id)
+       references room (id);

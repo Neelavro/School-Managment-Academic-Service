@@ -3,6 +3,7 @@ package com.example.academic_service.entity;
 public enum Submodule {
     // Setup
     SYSTEM_SETTINGS, ACADEMIC_YEARS, SHIFTS, CLASSES, GROUPS, SECTIONS, GRADING_POLICIES,
+    ACADEMIC_CALENDAR, CLASS_ROUTINE,
     // Students
     STUDENTS, STUDENT_ARCHIVE, STUDENT_TRANSFER,
     // Exam

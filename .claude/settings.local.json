@@ -39,7 +39,8 @@
       "Bash(mkdir -p /Users/neelavroshafin/StudioProjects/school_management_system_front_end/lib/modules/hr/service)",
       "Bash(mkdir -p /Users/neelavroshafin/StudioProjects/school_management_system_front_end/lib/modules/hr/view)",
       "Bash(mkdir -p /Users/neelavroshafin/StudioProjects/school_management_system_front_end/lib/modules/profile/service)",
-      "Bash(mkdir -p /Users/neelavroshafin/StudioProjects/school_management_system_front_end/lib/modules/profile/view)"
+      "Bash(mkdir -p /Users/neelavroshafin/StudioProjects/school_management_system_front_end/lib/modules/profile/view)",
+      "Bash(grep -i \"\\\\.dart$\")"
     ]
   }
 }
