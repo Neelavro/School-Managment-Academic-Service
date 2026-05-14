@@ -48,6 +48,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         String role = (String) claims.get("role");
         Object userIdRaw = claims.get("userId");
         String userType = (String) claims.get("userType");
+        Object staffIdRaw = claims.get("staffId");
 
         UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
                 phone, null,
@@ -56,6 +57,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         java.util.Map<String, Object> details = new java.util.HashMap<>();
         if (userIdRaw != null) details.put("userId", userIdRaw);
         if (userType != null) details.put("userType", userType);
+        if (staffIdRaw != null) details.put("staffId", staffIdRaw);
         auth.setDetails(details);
         SecurityContextHolder.getContext().setAuthentication(auth);
 

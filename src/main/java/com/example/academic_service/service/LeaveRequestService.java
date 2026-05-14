@@ -70,11 +70,19 @@ public class LeaveRequestService {
         int totalDays = (int) startDate.datesUntil(endDate.plusDays(1)).count();
         int year = startDate.getYear();
 
-        // Check balance
+        // Get or auto-create balance row for this leave type + year
         LeaveBalance balance = balanceRepository
                 .findByStaffIdAndLeaveTypeIdAndYear(staffId, leaveTypeId, year)
-                .orElseThrow(() -> new IllegalStateException(
-                        "No leave balance found for this leave type. Contact HR to initialize your balance."));
+                .orElseGet(() -> {
+                    LeaveBalance b = new LeaveBalance();
+                    b.setStaff(staff);
+                    b.setLeaveType(leaveType);
+                    b.setYear(year);
+                    b.setAllocatedDays(leaveType.getAnnualQuota() != null ? leaveType.getAnnualQuota() : 0);
+                    b.setUsedDays(0);
+                    b.setPendingDays(0);
+                    return balanceRepository.save(b);
+                });
 
         int available = balance.getAllocatedDays() - balance.getUsedDays() - balance.getPendingDays();
         if (available < totalDays)

@@ -24,7 +24,10 @@ public class LeaveRequestController {
     public ResponseEntity<ApiResponse> getMyRequests(Authentication auth) {
         @SuppressWarnings("unchecked")
         Map<String, Object> details = (Map<String, Object>) auth.getDetails();
-        Long staffId = ((Number) details.get("staffId")).longValue();
+        Object staffIdRaw = details != null ? details.get("staffId") : null;
+        if (staffIdRaw == null)
+            return ResponseEntity.badRequest().body(new ApiResponse("No staff record linked to this account", null));
+        Long staffId = ((Number) staffIdRaw).longValue();
         return ResponseEntity.ok(new ApiResponse("OK", leaveRequestService.getByStaff(staffId)));
     }
 
@@ -32,7 +35,10 @@ public class LeaveRequestController {
     public ResponseEntity<ApiResponse> submitMy(@RequestBody Map<String, Object> body, Authentication auth) {
         @SuppressWarnings("unchecked")
         Map<String, Object> details = (Map<String, Object>) auth.getDetails();
-        Long staffId = ((Number) details.get("staffId")).longValue();
+        Object staffIdRaw = details != null ? details.get("staffId") : null;
+        if (staffIdRaw == null)
+            return ResponseEntity.badRequest().body(new ApiResponse("No staff record linked to this account", null));
+        Long staffId = ((Number) staffIdRaw).longValue();
         Integer leaveTypeId = ((Number) body.get("leaveTypeId")).intValue();
         LocalDate startDate = LocalDate.parse((String) body.get("startDate"));
         LocalDate endDate = LocalDate.parse((String) body.get("endDate"));
