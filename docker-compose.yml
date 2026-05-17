@@ -6,7 +6,7 @@ services:
     env_file:
       - .env
     environment:
-      SPRING_DATASOthaURCE_URL: jdbc:mysql://172.17.0.1:3306/academic_service
+      SPRING_DATASOURCE_URL: jdbc:mysql://172.17.0.1:3306/academic_service
       PLAYWRIGHT_BROWSERS_PATH: /opt/pw-browsers
     volumes:
       - /var/www/student-service-images:/var/www/student-service-images
