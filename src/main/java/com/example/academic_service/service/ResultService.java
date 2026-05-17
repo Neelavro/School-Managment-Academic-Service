@@ -1286,9 +1286,7 @@ public class ResultService {
                                                   Map<Integer, Set<Integer>> groupCache) {
         Integer override = overrideMap.get(enrollment.getId());
         if (override != null) return Set.of(override);
-        Integer groupId = enrollment.getStudentGroup() != null ? enrollment.getStudentGroup().getId() : null;
-        Integer key = groupId != null ? groupId : -1;
-        return groupCache.computeIfAbsent(key, ignored -> loadFourthSubjectIds(classId, groupId));
+        return Set.of();
     }
 
     private Set<Integer> loadFourthSubjectIds(Integer classId, Integer groupId) {
