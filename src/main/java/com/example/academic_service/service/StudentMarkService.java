@@ -72,29 +72,47 @@ public class StudentMarkService {
         response.setTotalMarks(structure.getTotalMarks());
         response.setComponents(componentInfos);
 
-        List<Enrollment> enrollments = enrollmentRepository
+        List<Enrollment> allEnrollments = enrollmentRepository
                 .findAllByClassIdAndFilters(classId, null, genderSectionId, sectionId, groupId, null, null);
 
-        if (enrollments.isEmpty()) {
+        if (allEnrollments.isEmpty()) {
             response.setStudents(new ArrayList<>());
             return Map.of("message", "No students found for the given filters", "data", response);
         }
 
-        List<Long> enrollmentIds = enrollments.stream().map(Enrollment::getId).collect(Collectors.toList());
+        List<Long> allEnrollmentIds = allEnrollments.stream().map(Enrollment::getId).collect(Collectors.toList());
 
         // build override map: enrollmentId -> overridden fourth subject id
         Map<Long, Integer> fourthSubjectOverrides = studentFourthSubjectOverrideRepository
-                .findByEnrollmentIdIn(enrollmentIds).stream()
+                .findByEnrollmentIdIn(allEnrollmentIds).stream()
                 .collect(Collectors.toMap(
                         StudentFourthSubjectOverride::getEnrollmentId,
                         o -> o.getSubject().getId()));
 
-        // group-level fourth subject ids (fallback for students without override)
+        // fourth subject ids for this class/group
         Set<Integer> groupFourthSubjectIds = classSubjectGroupRepository
                 .findSubjectsForStudent(classId, groupId).stream()
                 .filter(g -> Boolean.TRUE.equals(g.getIsFourthSubject()))
                 .map(g -> g.getSubject().getId())
                 .collect(Collectors.toSet());
+
+        // if this subject is a fourth subject, only show students whose override matches
+        boolean isSubjectFourth = groupFourthSubjectIds.contains(subjectId);
+        List<Enrollment> enrollments = isSubjectFourth
+                ? allEnrollments.stream()
+                        .filter(e -> subjectId.equals(fourthSubjectOverrides.get(e.getId())))
+                        .collect(Collectors.toList())
+                : allEnrollments;
+
+        if (enrollments.isEmpty()) {
+            response.setStudents(new ArrayList<>());
+            String msg = isSubjectFourth
+                    ? "No students have this subject assigned as their fourth subject"
+                    : "No students found for the given filters";
+            return Map.of("message", msg, "data", response);
+        }
+
+        List<Long> enrollmentIds = enrollments.stream().map(Enrollment::getId).collect(Collectors.toList());
 
         List<StudentMark> existingMarks = studentMarkRepository
                 .findAllByEnrollmentIdInAndRoutineIdAndSubjectId(enrollmentIds, routineId, subjectId);
@@ -144,11 +162,7 @@ public class StudentMarkService {
             String studentStatus = statusMap.get(enrollment.getId());
             row.setStatus(studentStatus);
 
-            // isFourthSubject: use per-student override if set, else group default
-            boolean isFourthForThisStudent = fourthSubjectOverrides.containsKey(enrollment.getId())
-                    ? fourthSubjectOverrides.get(enrollment.getId()).equals(subjectId)
-                    : groupFourthSubjectIds.contains(subjectId);
-            row.setFourthSubject(isFourthForThisStudent);
+            row.setFourthSubject(subjectId.equals(fourthSubjectOverrides.get(enrollment.getId())));
 
             boolean isAbsent = "ABSENT".equals(studentStatus) || "EXPELLED".equals(studentStatus);
             BigDecimal total = isAbsent ? BigDecimal.ZERO : markEntries.stream()
