@@ -36,6 +36,7 @@ public class MarkSheetResponse {
         private List<MarkEntry> marks;
         private BigDecimal total;
         private String status; // null / "PRESENT" / "ABSENT" / "EXPELLED"
+        private boolean isFourthSubject;
 
         @Getter
         @Setter

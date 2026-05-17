@@ -3,6 +3,7 @@ package com.example.academic_service.service;
 import com.example.academic_service.dto.marking_dtos.*;
 import com.example.academic_service.entity.*;
 import com.example.academic_service.repository.*;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,6 +23,8 @@ public class StudentMarkService {
     private final MarkingStructureRepository markingStructureRepository;
     private final MarkingStructureComponentRepository markingStructureComponentRepository;
     private final ExamComponentRepository examComponentRepository;
+    private final StudentFourthSubjectOverrideRepository studentFourthSubjectOverrideRepository;
+    private final ClassSubjectGroupRepository classSubjectGroupRepository;
 
     public Map<String, Object> getMarkSheet(
             Integer routineId,
@@ -79,6 +82,20 @@ public class StudentMarkService {
 
         List<Long> enrollmentIds = enrollments.stream().map(Enrollment::getId).collect(Collectors.toList());
 
+        // build override map: enrollmentId -> overridden fourth subject id
+        Map<Long, Integer> fourthSubjectOverrides = studentFourthSubjectOverrideRepository
+                .findByEnrollmentIdIn(enrollmentIds).stream()
+                .collect(Collectors.toMap(
+                        StudentFourthSubjectOverride::getEnrollmentId,
+                        o -> o.getSubject().getId()));
+
+        // group-level fourth subject ids (fallback for students without override)
+        Set<Integer> groupFourthSubjectIds = classSubjectGroupRepository
+                .findSubjectsForStudent(classId, groupId).stream()
+                .filter(g -> Boolean.TRUE.equals(g.getIsFourthSubject()))
+                .map(g -> g.getSubject().getId())
+                .collect(Collectors.toSet());
+
         List<StudentMark> existingMarks = studentMarkRepository
                 .findAllByEnrollmentIdInAndRoutineIdAndSubjectId(enrollmentIds, routineId, subjectId);
 
@@ -126,6 +143,12 @@ public class StudentMarkService {
 
             String studentStatus = statusMap.get(enrollment.getId());
             row.setStatus(studentStatus);
+
+            // isFourthSubject: use per-student override if set, else group default
+            boolean isFourthForThisStudent = fourthSubjectOverrides.containsKey(enrollment.getId())
+                    ? fourthSubjectOverrides.get(enrollment.getId()).equals(subjectId)
+                    : groupFourthSubjectIds.contains(subjectId);
+            row.setFourthSubject(isFourthForThisStudent);
 
             boolean isAbsent = "ABSENT".equals(studentStatus) || "EXPELLED".equals(studentStatus);
             BigDecimal total = isAbsent ? BigDecimal.ZERO : markEntries.stream()

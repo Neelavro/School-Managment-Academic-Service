@@ -47,7 +47,11 @@
       "Bash(./mvnw compile *)",
       "Bash(mkdir -p \"/Users/neelavroshafin/StudioProjects/school management/school_management_system_front_end/lib/modules/student_portal/model\")",
       "Bash(mkdir -p \"/Users/neelavroshafin/StudioProjects/school management/school_management_system_front_end/lib/modules/student_portal/controller\")",
-      "Bash(mkdir -p \"/Users/neelavroshafin/StudioProjects/school management/school_management_system_front_end/lib/modules/student_portal/view\")"
+      "Bash(mkdir -p \"/Users/neelavroshafin/StudioProjects/school management/school_management_system_front_end/lib/modules/student_portal/view\")",
+      "Bash(git -C \"/Users/neelavroshafin/StudioProjects/school management/school_management_system_front_end\" log --oneline -5)",
+      "Bash(git -C \"/Users/neelavroshafin/StudioProjects/school management/school_management_system_front_end\" status)",
+      "Bash(git -C \"/Users/neelavroshafin/StudioProjects/school management/school_management_system_front_end\" diff --stat)",
+      "Bash(xargs -I{} basename {} .java)"
     ]
   }
 }
