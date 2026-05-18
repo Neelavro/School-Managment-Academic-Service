@@ -43,8 +43,9 @@ public class ResultService {
         Class examClass = structure.getExamClass();
         List<Grade> sortedGrades = loadSortedGrades(examClass);
 
+        Integer routineAcademicYearId = routine.getAcademicYear() != null ? routine.getAcademicYear().getId() : null;
         List<Enrollment> enrollments = enrollmentRepository
-                .findAllByClassIdAndFilters(classId, null, genderSectionId, sectionId, groupId, null, null);
+                .findAllByClassIdAndFilters(classId, routineAcademicYearId, null, genderSectionId, sectionId, groupId, null, null);
         List<Long> enrollmentIds = enrollments.stream().map(Enrollment::getId).collect(Collectors.toList());
 
         List<StudentMark> marks = studentMarkRepository
@@ -144,8 +145,9 @@ public class ResultService {
         List<Grade> sortedGrades = loadSortedGrades(examClass);
         Set<Integer> defaultFourthSubjectIds = loadFourthSubjectIds(classId, groupId);
 
+        Integer routineAcademicYearId = routine.getAcademicYear() != null ? routine.getAcademicYear().getId() : null;
         // load ALL class enrollments for rank computation
-        List<Enrollment> allEnrollments = enrollmentRepository.findAllByClassIdAndFilters(classId, shiftId, null, null, groupId, null, null);
+        List<Enrollment> allEnrollments = enrollmentRepository.findAllByClassIdAndFilters(classId, routineAcademicYearId, shiftId, null, null, groupId, null, null);
         SessionDataBundle bundle = loadSessionData(sessions, classId, allEnrollments);
 
         Map<Long, Integer> overrideMap = loadOverrideMap(allEnrollments);
@@ -325,7 +327,7 @@ public class ResultService {
         Set<Integer> defaultFourthSubjectIds = loadFourthSubjectIds(classId, groupId);
 
         // load ALL class enrollments for rank computation
-        List<Enrollment> allEnrollments = enrollmentRepository.findAllByClassIdAndFilters(classId, shiftId, null, null, groupId, null, null);
+        List<Enrollment> allEnrollments = enrollmentRepository.findAllByClassIdAndFilters(classId, academicYearId, shiftId, null, null, groupId, null, null);
         AnnualDataBundle bundle = loadAnnualData(sessions, classId, allEnrollments);
 
         Map<Long, Integer> overrideMap = loadOverrideMap(allEnrollments);
@@ -677,7 +679,7 @@ public class ResultService {
         Set<Integer> defaultFourthSubjectIds = loadFourthSubjectIds(classId, groupId);
 
         List<Enrollment> enrollments = enrollmentRepository
-                .findAllByClassIdAndFilters(classId, shiftId, genderSectionId, sectionId, groupId, startRoll, endRoll);
+                .findAllByClassIdAndFilters(classId, academicYearId, shiftId, genderSectionId, sectionId, groupId, startRoll, endRoll);
         AnnualDataBundle bundle = loadAnnualData(sessions, classId, enrollments);
         List<Integer> orderedSubjectIds = bundle.sessionsBySubject.keySet().stream().sorted().collect(Collectors.toList());
 
@@ -763,8 +765,9 @@ public class ResultService {
         List<Grade> sortedGrades = loadSortedGrades(examClass);
         Set<Integer> fourthSubjectIds = loadFourthSubjectIds(classId, groupId);
 
+        Integer routineAcademicYearId = routine.getAcademicYear() != null ? routine.getAcademicYear().getId() : null;
         List<Enrollment> enrollments = enrollmentRepository
-                .findAllByClassIdAndFilters(classId, shiftId, genderSectionId, sectionId, groupId, startRoll, endRoll);
+                .findAllByClassIdAndFilters(classId, routineAcademicYearId, shiftId, genderSectionId, sectionId, groupId, startRoll, endRoll);
         SessionDataBundle bundle = loadSessionData(sessions, classId, enrollments);
 
         List<ResultOverviewResponse.SubjectOverview> subjects = new ArrayList<>();
@@ -823,7 +826,7 @@ public class ResultService {
         Set<Integer> fourthSubjectIds = loadFourthSubjectIds(classId, groupId);
 
         List<Enrollment> enrollments = enrollmentRepository
-                .findAllByClassIdAndFilters(classId, shiftId, genderSectionId, sectionId, groupId, startRoll, endRoll);
+                .findAllByClassIdAndFilters(classId, academicYearId, shiftId, genderSectionId, sectionId, groupId, startRoll, endRoll);
         AnnualDataBundle bundle = loadAnnualData(sessions, classId, enrollments);
         List<Integer> orderedSubjectIds = bundle.sessionsBySubject.keySet().stream().sorted().collect(Collectors.toList());
 
@@ -878,8 +881,9 @@ public class ResultService {
         MarkingStructure structure = resolveMarkingStructure(examTypeId, classId, subjectId, groupId);
         Class examClass = structure.getExamClass();
 
+        Integer routineAcademicYearId = routine.getAcademicYear() != null ? routine.getAcademicYear().getId() : null;
         List<Enrollment> enrollments = enrollmentRepository
-                .findAllByClassIdAndFilters(classId, null, genderSectionId, sectionId, groupId, null, null);
+                .findAllByClassIdAndFilters(classId, routineAcademicYearId, null, genderSectionId, sectionId, groupId, null, null);
         List<Long> enrollmentIds = enrollments.stream().map(Enrollment::getId).collect(Collectors.toList());
 
         List<StudentMark> marks = studentMarkRepository
@@ -938,8 +942,9 @@ public class ResultService {
         List<Grade> sortedGrades = loadSortedGrades(examClass);
         Set<Integer> defaultFourthSubjectIds = loadFourthSubjectIds(classId, groupId);
 
+        Integer routineAcademicYearId = routine.getAcademicYear() != null ? routine.getAcademicYear().getId() : null;
         List<Enrollment> allEnrollments = enrollmentRepository
-                .findAllByClassIdAndFilters(classId, shiftId, null, null, groupId, null, null);
+                .findAllByClassIdAndFilters(classId, routineAcademicYearId, shiftId, null, null, groupId, null, null);
         SessionDataBundle bundle = loadSessionData(sessions, classId, allEnrollments);
 
         Map<Long, Integer> overrideMap = loadOverrideMap(allEnrollments);
@@ -1147,8 +1152,9 @@ public class ResultService {
         List<Grade> sortedGrades = loadSortedGrades(examClass);
         Set<Integer> fourthSubjectIds = loadFourthSubjectIds(classId, groupId);
 
+        Integer routineAcademicYearId = routine.getAcademicYear() != null ? routine.getAcademicYear().getId() : null;
         List<Enrollment> enrollments = enrollmentRepository
-                .findAllByClassIdAndFilters(classId, shiftId, genderSectionId, sectionId, groupId, startRoll, endRoll);
+                .findAllByClassIdAndFilters(classId, routineAcademicYearId, shiftId, genderSectionId, sectionId, groupId, startRoll, endRoll);
         SessionDataBundle bundle = loadSessionData(sessions, classId, enrollments);
 
         List<RoutineStatsResponse.SubjectStats> subjectStatsList = new ArrayList<>();
@@ -1208,7 +1214,7 @@ public class ResultService {
         Set<Integer> fourthSubjectIds = loadFourthSubjectIds(classId, groupId);
 
         List<Enrollment> enrollments = enrollmentRepository
-                .findAllByClassIdAndFilters(classId, shiftId, genderSectionId, sectionId, groupId, startRoll, endRoll);
+                .findAllByClassIdAndFilters(classId, academicYearId, shiftId, genderSectionId, sectionId, groupId, startRoll, endRoll);
         AnnualDataBundle bundle = loadAnnualData(sessions, classId, enrollments);
         List<Integer> orderedSubjectIds = bundle.sessionsBySubject.keySet().stream().sorted().collect(Collectors.toList());
 
