@@ -72,8 +72,9 @@ public class StudentMarkService {
         response.setTotalMarks(structure.getTotalMarks());
         response.setComponents(componentInfos);
 
+        Integer routineAcademicYearId = routine.getAcademicYear() != null ? routine.getAcademicYear().getId() : null;
         List<Enrollment> allEnrollments = enrollmentRepository
-                .findAllByClassIdAndFilters(classId, null, genderSectionId, sectionId, groupId, null, null);
+                .findAllByClassIdAndFilters(classId, routineAcademicYearId, null, genderSectionId, sectionId, groupId, null, null);
 
         if (allEnrollments.isEmpty()) {
             response.setStudents(new ArrayList<>());

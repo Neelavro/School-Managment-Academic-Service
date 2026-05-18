@@ -44,7 +44,7 @@ public class StudentFourthSubjectOverrideService {
 
     public ApiResponse<List<StudentFourthSubjectOverrideDto.Response>> getByClass(Integer classId) {
         List<Long> enrollmentIds = enrollmentRepository
-                .findAllByClassIdAndFilters(classId, null, null, null, null, null, null)
+                .findAllByClassIdAndFilters(classId, null, null, null, null, null, null, null)
                 .stream().map(e -> e.getId()).collect(Collectors.toList());
         List<StudentFourthSubjectOverrideDto.Response> result = repository.findByEnrollmentIdIn(enrollmentIds)
                 .stream().map(StudentFourthSubjectOverrideDto.Response::from).collect(Collectors.toList());
