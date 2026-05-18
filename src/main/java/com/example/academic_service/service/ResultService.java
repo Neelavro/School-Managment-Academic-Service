@@ -287,8 +287,13 @@ public class ResultService {
 
             row.setSubjectResults(subjectResults);
             row.setTotalMarks(grandTotal);
-            if (!mandatoryGpas.isEmpty()) row.setOverallGpa(round2(computeOverallGpa(mandatoryGpas, fourthGpa)));
+            row.setOverallGpa(overallPassed && !mandatoryGpas.isEmpty()
+                    ? round2(computeOverallGpa(mandatoryGpas, fourthGpa)) : 0.0);
             row.setPassed(overallPassed);
+            if (!overallPassed) {
+                merit.setClassRank(0); merit.setGenderSectionRank(0);
+                merit.setSectionRank(0); merit.setGroupRank(0);
+            }
             return row;
         }).collect(Collectors.toList());
 
@@ -459,8 +464,13 @@ public class ResultService {
                 row.setTotalMarksScaled(grandTotalRaw.multiply(BigDecimal.valueOf(100))
                         .divide(BigDecimal.valueOf(grandMaxRaw), 2, RoundingMode.HALF_UP));
             }
-            if (!mandatoryGpas.isEmpty()) row.setOverallGpa(round2(computeOverallGpa(mandatoryGpas, fourthGpa)));
+            row.setOverallGpa(overallPassed && !mandatoryGpas.isEmpty()
+                    ? round2(computeOverallGpa(mandatoryGpas, fourthGpa)) : 0.0);
             row.setPassed(overallPassed);
+            if (!overallPassed) {
+                merit.setClassRank(0); merit.setGenderSectionRank(0);
+                merit.setSectionRank(0); merit.setGroupRank(0);
+            }
             return row;
         }).collect(Collectors.toList());
 
@@ -558,7 +568,8 @@ public class ResultService {
         response.setUseGpaForResult(Boolean.TRUE.equals(examClass.getUseGpaForResult()));
         response.setSubjectResults(subjectResults);
         response.setTotalMarks(grandTotal);
-        if (!mandatoryGpas.isEmpty()) response.setOverallGpa(round2(computeOverallGpa(mandatoryGpas, fourthGpa)));
+        response.setOverallGpa(overallPassed && !mandatoryGpas.isEmpty()
+                ? round2(computeOverallGpa(mandatoryGpas, fourthGpa)) : 0.0);
         response.setPassed(overallPassed);
         return response;
     }
@@ -645,7 +656,8 @@ public class ResultService {
             response.setTotalMarksScaled(grandTotalRaw.multiply(BigDecimal.valueOf(100))
                     .divide(BigDecimal.valueOf(grandMaxRaw), 2, RoundingMode.HALF_UP));
         }
-        if (!mandatoryGpas.isEmpty()) response.setOverallGpa(round2(computeOverallGpa(mandatoryGpas, fourthGpa)));
+        response.setOverallGpa(overallPassed && !mandatoryGpas.isEmpty()
+                ? round2(computeOverallGpa(mandatoryGpas, fourthGpa)) : 0.0);
         response.setPassed(overallPassed);
         return response;
     }
@@ -709,7 +721,8 @@ public class ResultService {
                 entry.setTotalMarksScaled(totalRaw.multiply(BigDecimal.valueOf(100))
                         .divide(BigDecimal.valueOf(totalMax), 2, RoundingMode.HALF_UP));
             }
-            if (!mandatoryGpas.isEmpty()) entry.setOverallGpa(round2(computeOverallGpa(mandatoryGpas, fourthGpa)));
+            entry.setOverallGpa(passed && !mandatoryGpas.isEmpty()
+                    ? round2(computeOverallGpa(mandatoryGpas, fourthGpa)) : 0.0);
             entry.setPassed(passed);
             return entry;
         }).collect(Collectors.toList());
@@ -719,7 +732,13 @@ public class ResultService {
                 Comparator.reverseOrder()));
 
         int rank = 1;
-        for (MeritListResponse.MeritEntry entry : entries) entry.setRank(rank++);
+        for (MeritListResponse.MeritEntry entry : entries) {
+            if (entry.isPassed()) {
+                entry.setRank(rank++);
+            } else {
+                entry.setRank(0);
+            }
+        }
 
         MeritListResponse response = new MeritListResponse();
         response.setAcademicYearId(academicYearId);
@@ -1082,10 +1101,19 @@ public class ResultService {
             report.setPassed(overallPassed);
             report.setFailedSubjectCount(failedCount);
 
-            if (!mandatoryGpas.isEmpty()) {
+            if (overallPassed && !mandatoryGpas.isEmpty()) {
                 double sum = mandatoryGpas.stream().mapToDouble(Double::doubleValue).sum();
                 report.setGpaWithout4th(round2(Math.min(5.0, sum / mandatoryGpas.size())));
                 report.setOverallGpa(round2(computeOverallGpa(mandatoryGpas, fourthGpa)));
+            } else {
+                report.setGpaWithout4th(0.0);
+                report.setOverallGpa(0.0);
+            }
+            if (!overallPassed) {
+                report.setClassRank(0);
+                report.setGenderSectionRank(0);
+                report.setSectionRank(0);
+                report.setGroupRank(0);
             }
             return report;
         }).collect(Collectors.toList());

@@ -391,7 +391,7 @@ public class ProgressReportPdfService {
 
     private String infoRow(String label, String value, String lblClass, String valClass) {
         return "<tr><td class=\"" + lblClass + "\" style=\"width:38mm;\">" + label + "</td>"
-                + "<td class=\"" + valClass + "\">: " + value + "</td></tr>";
+                + "<td class=\"" + valClass + "\" style=\"white-space:nowrap;overflow:hidden;\">: " + value + "</td></tr>";
     }
 
     private String resultSummaryRow(String label, String value, String lblClass, String valClass) {
