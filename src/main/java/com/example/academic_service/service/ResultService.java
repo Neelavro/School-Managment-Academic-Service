@@ -103,7 +103,7 @@ public class ResultService {
                 row.setMarksObtained(total);
                 row.setMaxMarks(structure.getTotalMarks());
 
-                Grade grade = resolveGrade(total.doubleValue(), sortedGrades);
+                Grade grade = resolveGradeByPercentage(total, structure.getTotalMarks(), sortedGrades);
                 if (grade != null) {
                     row.setGradeName(grade.getName());
                     row.setGpaValue(grade.getGpaValue());
@@ -175,7 +175,7 @@ public class ResultService {
                 BigDecimal total = sumComponentMarks(components, compMarks);
 
                 if (appeared) {
-                    Grade grade = resolveGrade(total.doubleValue(), sortedGrades);
+                    Grade grade = resolveGradeByPercentage(total, structure.getTotalMarks(), sortedGrades);
                     if (!isFourth) {
                         grandTotal = grandTotal.add(total);
                         if (grade != null) mandatoryGpas.add(grade.getGpaValue());
@@ -269,7 +269,7 @@ public class ResultService {
 
                 if (appeared) {
                     sr.setMarksObtained(total);
-                    Grade grade = resolveGrade(total.doubleValue(), sortedGrades);
+                    Grade grade = resolveGradeByPercentage(total, structure.getTotalMarks(), sortedGrades);
                     if (grade != null) { sr.setGradeName(grade.getName()); sr.setGpaValue(grade.getGpaValue()); }
                     sr.setPassed(isSubjectPassed(total, structure.getPassMarks(), grade));
                     if (!isFourth) {
@@ -538,7 +538,7 @@ public class ResultService {
 
             if (appeared) {
                 sr.setMarksObtained(total);
-                Grade grade = resolveGrade(total.doubleValue(), sortedGrades);
+                Grade grade = resolveGradeByPercentage(total, structure.getTotalMarks(), sortedGrades);
                 if (grade != null) { sr.setGradeName(grade.getName()); sr.setGpaValue(grade.getGpaValue()); }
                 sr.setPassed(isSubjectPassed(total, structure.getPassMarks(), grade));
 
@@ -780,7 +780,7 @@ public class ResultService {
                         .getOrDefault(s.getSubject().getId(), Collections.emptyMap());
                 if (compMarks.isEmpty()) continue;
                 BigDecimal total = sumComponentMarks(components, compMarks);
-                Grade grade = resolveGrade(total.doubleValue(), sortedGrades);
+                Grade grade = resolveGradeByPercentage(total, structure.getTotalMarks(), sortedGrades);
                 agg.add(total.doubleValue(), grade != null ? grade.getName() : "F",
                         isSubjectPassed(total, structure.getPassMarks(), grade));
             }
@@ -900,7 +900,7 @@ public class ResultService {
         for (Long eid : enrollmentIds) {
             if (!appearedSet.contains(eid)) continue;
             BigDecimal total = totalByEnrollment.getOrDefault(eid, BigDecimal.ZERO);
-            Grade grade = resolveGrade(total.doubleValue(), sortedGrades);
+            Grade grade = resolveGradeByPercentage(total, structure.getTotalMarks(), sortedGrades);
             boolean subjectPassed = isSubjectPassed(total, structure.getPassMarks(), grade);
             agg.add(total.doubleValue(), grade != null ? grade.getName() : "F", subjectPassed);
         }
@@ -1079,7 +1079,7 @@ public class ResultService {
 
                 if (appeared) {
                     sr.setTotalMarks(total);
-                    Grade grade = resolveGrade(total.doubleValue(), sortedGrades);
+                    Grade grade = resolveGradeByPercentage(total, structure.getTotalMarks(), sortedGrades);
                     if (grade != null) { sr.setGradeName(grade.getName()); sr.setGpaValue(grade.getGpaValue()); }
                     sr.setPassed(isSubjectPassed(total, structure.getPassMarks(), grade));
                     if (!isFourth) {
@@ -1164,7 +1164,7 @@ public class ResultService {
                         .getOrDefault(s.getSubject().getId(), Collections.emptyMap());
                 if (compMarks.isEmpty()) continue;
                 BigDecimal total = sumComponentMarks(components, compMarks);
-                Grade grade = resolveGrade(total.doubleValue(), sortedGrades);
+                Grade grade = resolveGradeByPercentage(total, structure.getTotalMarks(), sortedGrades);
                 agg.add(total.doubleValue(), grade != null ? grade.getName() : "F",
                         isSubjectPassed(total, structure.getPassMarks(), grade));
             }
@@ -1273,6 +1273,15 @@ public class ResultService {
     }
 
     // ─── PRIVATE HELPERS ─────────────────────────────────────────────────────────
+
+    // Grade policy ranges are 0-100 percentages, so raw marks must be scaled first.
+    private Grade resolveGradeByPercentage(BigDecimal obtained, int totalMax, List<Grade> sortedGradesDesc) {
+        if (totalMax <= 0) return resolveGrade(0, sortedGradesDesc);
+        double pct = obtained.multiply(BigDecimal.valueOf(100))
+                .divide(BigDecimal.valueOf(totalMax), 4, RoundingMode.HALF_UP)
+                .doubleValue();
+        return resolveGrade(pct, sortedGradesDesc);
+    }
 
     private Grade resolveGrade(double marks, List<Grade> sortedGradesDesc) {
         if (sortedGradesDesc.isEmpty()) return null;

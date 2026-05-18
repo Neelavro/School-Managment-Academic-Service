@@ -24,6 +24,7 @@ public class TeacherPeriodDutyResponseDto {
     private String dayOfWeek;
     private String startTime;
     private String endTime;
+    private String roomName;
 
     public static TeacherPeriodDutyResponseDto from(TeacherPeriodDuty d) {
         ClassRoutine r = d.getClassRoutine();
@@ -50,6 +51,7 @@ public class TeacherPeriodDutyResponseDto {
         dto.setDayOfWeek(r.getDayOfWeek().name());
         dto.setStartTime(r.getStartTime().toString());
         dto.setEndTime(r.getEndTime().toString());
+        if (r.getRoom() != null) dto.setRoomName(r.getRoom().getName());
         return dto;
     }
 }

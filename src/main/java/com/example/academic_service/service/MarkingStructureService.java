@@ -87,10 +87,11 @@ public class MarkingStructureService {
         structure.setLastModifiedAt(LocalDateTime.now());
         markingStructureRepository.save(structure);
 
-        // hard delete old components
+        // hard delete old components, flush before re-inserting to avoid unique constraint violation
         List<MarkingStructureComponent> existing =
                 markingStructureComponentRepository.findAllByMarkingStructureAndDeletedAtIsNull(structure);
         markingStructureComponentRepository.deleteAll(existing);
+        markingStructureComponentRepository.flush();
 
         saveComponents(structure, request.getComponents());
 
