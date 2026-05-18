@@ -108,8 +108,7 @@ public class ProgressReportPdfService {
                 + "<div class=\"logo-stack\">"
                 + "<div class=\"logo-wrap\">" + logoTag + "</div>"
                 + "<div class=\"stamp\">PROGRESS REPORT</div>"
-                + "<div class=\"stamp-sub\">" + nvl(data.getRoutineTitle(), "") + "</div>"
-                + "<div class=\"stamp-sub\">" + nvl(data.getAcademicYearName(), "") + "</div>"
+                + "<div class=\"stamp-sub\">" + joinNonBlank(" - ", nvl(data.getRoutineTitle(), ""), nvl(data.getAcademicYearName(), "")) + "</div>"
                 + "</div>"
                 + gradingHtml
                 + "</div>";
