@@ -123,7 +123,6 @@ public class ProgressReportPdfService {
                 + "<table>"
                 + infoRow("Name of Student", nvl(student.getStudentName(), "N/A"), "lbl-d", "v-blue")
                 + infoRow("Phone No.",       contactPhone, "lbl-g", "v-blue")
-                + infoRow("Year/Session",    nvl(data.getAcademicYearName(), "N/A"), "lbl-d", "v-blue")
                 + infoRow("Student ID",      nvl(student.getStudentSystemId(), "N/A"), "lbl-p", "v-blue")
                 + infoRow("Roll No.",        student.getClassRoll() != null ? String.valueOf(student.getClassRoll()) : "N/A", "lbl-p", "v-blue")
                 + infoRow("Class",           classLabel, "lbl-b", "v-blue")
