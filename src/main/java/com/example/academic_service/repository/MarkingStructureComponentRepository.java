@@ -12,6 +12,8 @@ import java.util.List;
 @Repository
 public interface MarkingStructureComponentRepository extends JpaRepository<MarkingStructureComponent, Integer> {
 
+    List<MarkingStructureComponent> findAllByMarkingStructure(MarkingStructure markingStructure);
+
     List<MarkingStructureComponent> findAllByMarkingStructureAndDeletedAtIsNull(MarkingStructure markingStructure);
 
     @Query("SELECT msc FROM MarkingStructureComponent msc WHERE msc.markingStructure IN :structures AND msc.deletedAt IS NULL")

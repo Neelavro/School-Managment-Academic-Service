@@ -18,6 +18,9 @@ public interface MarkingStructureRepository extends JpaRepository<MarkingStructu
     boolean existsByExamTypeAndExamClassAndSubjectAndGroupAndDeletedAtIsNull(
             ExamType examType, Class examClass, Subject subject, StudentGroup group);
 
+    Optional<MarkingStructure> findByExamTypeAndExamClassAndSubjectAndGroupAndDeletedAtIsNotNull(
+            ExamType examType, Class examClass, Subject subject, StudentGroup group);
+
     @Query(value = "SELECT * FROM marking_structure m WHERE " +
             "(:examTypeId IS NULL OR m.exam_type_id = :examTypeId) AND " +
             "(:classId IS NULL OR m.class_id = :classId) AND " +

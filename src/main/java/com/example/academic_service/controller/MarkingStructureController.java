@@ -41,6 +41,16 @@ public class MarkingStructureController {
         return ResponseEntity.ok(markingStructureService.update(id, request));
     }
 
+    @GetMapping("/{id}/has-marks")
+    public ResponseEntity<Map<String, Object>> hasMarks(@PathVariable Integer id) {
+        return ResponseEntity.ok(markingStructureService.hasMarks(id));
+    }
+
+    @DeleteMapping("/{id}/marks")
+    public ResponseEntity<Map<String, String>> clearMarks(@PathVariable Integer id) {
+        return ResponseEntity.ok(markingStructureService.clearMarks(id));
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Map<String, String>> delete(@PathVariable Integer id) {
         return ResponseEntity.ok(markingStructureService.delete(id));

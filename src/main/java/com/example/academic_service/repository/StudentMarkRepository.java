@@ -20,6 +20,10 @@ public interface StudentMarkRepository extends JpaRepository<StudentMark, Long> 
     List<StudentMark> findAllByEnrollmentIdInAndRoutineIdAndSubjectId(
             List<Long> enrollmentIds, Integer routineId, Integer subjectId);
 
+    boolean existsBySubjectIdAndExamComponentIdIn(Integer subjectId, List<Integer> examComponentIds);
+
+    void deleteBySubjectIdAndExamComponentIdIn(Integer subjectId, List<Integer> examComponentIds);
+
     @Query("SELECT sm FROM StudentMark sm WHERE sm.enrollmentId IN :enrollmentIds AND sm.routineId = :routineId")
     List<StudentMark> findAllByEnrollmentIdsAndRoutineId(
             @Param("enrollmentIds") List<Long> enrollmentIds,

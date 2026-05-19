@@ -13,6 +13,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -25,6 +27,7 @@ public class MarkingStructureService {
     private final SubjectRepository subjectRepository;
     private final StudentGroupRepository studentGroupRepository;
     private final ExamComponentRepository examComponentRepository;
+    private final StudentMarkRepository studentMarkRepository;
 
     @Transactional
     public Map<String, Object> create(MarkingStructureRequest request) {
@@ -49,6 +52,17 @@ public class MarkingStructureService {
         if (exists) {
             throw new RuntimeException("Marking structure already exists for this exam type, class, subject and group combination");
         }
+
+        // Hard-delete any soft-deleted record with same combination so the unique constraint is cleared
+        markingStructureRepository
+                .findByExamTypeAndExamClassAndSubjectAndGroupAndDeletedAtIsNotNull(examType, examClass, subject, group)
+                .ifPresent(softDeleted -> {
+                    markingStructureComponentRepository.deleteAll(
+                            markingStructureComponentRepository.findAllByMarkingStructure(softDeleted));
+                    markingStructureComponentRepository.flush();
+                    markingStructureRepository.delete(softDeleted);
+                    markingStructureRepository.flush();
+                });
 
         validateComponents(request.getComponents(), request.getTotalMarks());
 
@@ -80,6 +94,47 @@ public class MarkingStructureService {
         MarkingStructure structure = markingStructureRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new RuntimeException("Marking structure not found with id: " + id));
 
+        // handle group change
+        Integer newGroupId = request.getGroupId();
+        Integer currentGroupId = structure.getGroup() != null ? structure.getGroup().getId() : null;
+        if (!Objects.equals(newGroupId, currentGroupId)) {
+            // block if marks have already been entered using this structure's components
+            List<Integer> componentIds = markingStructureComponentRepository
+                    .findAllByMarkingStructureAndDeletedAtIsNull(structure).stream()
+                    .map(c -> c.getExamComponent().getId())
+                    .collect(Collectors.toList());
+            if (!componentIds.isEmpty() && studentMarkRepository
+                    .existsBySubjectIdAndExamComponentIdIn(structure.getSubject().getId(), componentIds)) {
+                throw new RuntimeException(
+                        "Cannot change group: marks have already been entered using this marking structure. " +
+                        "Please delete and recreate instead.");
+            }
+
+            StudentGroup newGroup = null;
+            if (newGroupId != null) {
+                newGroup = studentGroupRepository.findById(newGroupId)
+                        .orElseThrow(() -> new RuntimeException("Group not found with id: " + newGroupId));
+            }
+            boolean exists = markingStructureRepository
+                    .existsByExamTypeAndExamClassAndSubjectAndGroupAndDeletedAtIsNull(
+                            structure.getExamType(), structure.getExamClass(), structure.getSubject(), newGroup);
+            if (exists) {
+                throw new RuntimeException("A marking structure already exists for this exam type, class, subject and group combination");
+            }
+            final StudentGroup finalNewGroup = newGroup;
+            markingStructureRepository
+                    .findByExamTypeAndExamClassAndSubjectAndGroupAndDeletedAtIsNotNull(
+                            structure.getExamType(), structure.getExamClass(), structure.getSubject(), finalNewGroup)
+                    .ifPresent(softDeleted -> {
+                        markingStructureComponentRepository.deleteAll(
+                                markingStructureComponentRepository.findAllByMarkingStructure(softDeleted));
+                        markingStructureComponentRepository.flush();
+                        markingStructureRepository.delete(softDeleted);
+                        markingStructureRepository.flush();
+                    });
+            structure.setGroup(newGroup);
+        }
+
         validateComponents(request.getComponents(), request.getTotalMarks());
 
         structure.setTotalMarks(request.getTotalMarks());
@@ -96,6 +151,33 @@ public class MarkingStructureService {
         saveComponents(structure, request.getComponents());
 
         return Map.of("message", "Marking structure updated successfully", "data", toResponse(structure));
+    }
+
+    public Map<String, Object> hasMarks(Integer id) {
+        MarkingStructure structure = markingStructureRepository.findByIdAndDeletedAtIsNull(id)
+                .orElseThrow(() -> new RuntimeException("Marking structure not found with id: " + id));
+        List<Integer> componentIds = markingStructureComponentRepository
+                .findAllByMarkingStructureAndDeletedAtIsNull(structure).stream()
+                .map(c -> c.getExamComponent().getId())
+                .collect(Collectors.toList());
+        boolean has = !componentIds.isEmpty() && studentMarkRepository
+                .existsBySubjectIdAndExamComponentIdIn(structure.getSubject().getId(), componentIds);
+        return Map.of("hasMarks", has);
+    }
+
+    @Transactional
+    public Map<String, String> clearMarks(Integer id) {
+        MarkingStructure structure = markingStructureRepository.findByIdAndDeletedAtIsNull(id)
+                .orElseThrow(() -> new RuntimeException("Marking structure not found with id: " + id));
+        List<Integer> componentIds = markingStructureComponentRepository
+                .findAllByMarkingStructureAndDeletedAtIsNull(structure).stream()
+                .map(c -> c.getExamComponent().getId())
+                .collect(Collectors.toList());
+        if (!componentIds.isEmpty()) {
+            studentMarkRepository.deleteBySubjectIdAndExamComponentIdIn(
+                    structure.getSubject().getId(), componentIds);
+        }
+        return Map.of("message", "Marks cleared successfully");
     }
 
     @Transactional
@@ -215,6 +297,16 @@ public class MarkingStructureService {
                 skipped.add(subject.getName() + " already has a structure for this combination");
                 continue;
             }
+
+            markingStructureRepository
+                    .findByExamTypeAndExamClassAndSubjectAndGroupAndDeletedAtIsNotNull(examType, examClass, subject, group)
+                    .ifPresent(softDeleted -> {
+                        markingStructureComponentRepository.deleteAll(
+                                markingStructureComponentRepository.findAllByMarkingStructure(softDeleted));
+                        markingStructureComponentRepository.flush();
+                        markingStructureRepository.delete(softDeleted);
+                        markingStructureRepository.flush();
+                    });
 
             MarkingStructure structure = new MarkingStructure();
             structure.setExamType(examType);
