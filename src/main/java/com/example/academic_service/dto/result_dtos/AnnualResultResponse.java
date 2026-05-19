@@ -12,8 +12,17 @@ public class AnnualResultResponse {
     private String academicYearName;
     private String className;
     private boolean useGpaForResult;
+    private List<RoutineInfo> routines;
     private List<SubjectInfo> subjects;
     private List<StudentResultRow> students;
+
+    @Getter
+    @Setter
+    public static class RoutineInfo {
+        private Integer routineId;
+        private String routineTitle;
+        private String examTypeName;
+    }
 
     @Getter
     @Setter
@@ -65,5 +74,18 @@ public class AnnualResultResponse {
         private boolean passed;
         private boolean appeared;
         private boolean fourthSubject;
+        private List<RoutineBreakdown> routineBreakdowns;
+    }
+
+    @Getter
+    @Setter
+    public static class RoutineBreakdown {
+        private Integer routineId;
+        private BigDecimal marksObtained;
+        private Integer maxMarks;
+        private String gradeName;
+        private Double gpaValue;
+        private boolean passed;
+        private boolean appeared;
     }
 }

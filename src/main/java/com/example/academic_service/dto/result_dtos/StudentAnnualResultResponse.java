@@ -16,11 +16,20 @@ public class StudentAnnualResultResponse {
     private Integer academicYearId;
     private String academicYearName;
     private boolean useGpaForResult;
+    private List<RoutineInfo> routines;
     private List<SubjectResult> subjectResults;
     private BigDecimal totalMarksRaw;
     private BigDecimal totalMarksScaled;
     private Double overallGpa;
     private boolean passed;
+
+    @Getter
+    @Setter
+    public static class RoutineInfo {
+        private Integer routineId;
+        private String routineTitle;
+        private String examTypeName;
+    }
 
     @Getter
     @Setter
@@ -31,6 +40,19 @@ public class StudentAnnualResultResponse {
         private BigDecimal marksRaw;
         private Integer maxMarksRaw;
         private BigDecimal marksScaled;
+        private String gradeName;
+        private Double gpaValue;
+        private boolean passed;
+        private boolean appeared;
+        private List<RoutineBreakdown> routineBreakdowns;
+    }
+
+    @Getter
+    @Setter
+    public static class RoutineBreakdown {
+        private Integer routineId;
+        private BigDecimal marksObtained;
+        private Integer maxMarks;
         private String gradeName;
         private Double gpaValue;
         private boolean passed;

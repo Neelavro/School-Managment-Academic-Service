@@ -336,6 +336,19 @@ public class ResultService {
                 .collect(Collectors.toMap(s -> s.getSubject().getId(), s -> s.getSubject().getName(), (a, b) -> a));
         List<Integer> orderedSubjectIds = bundle.sessionsBySubject.keySet().stream().sorted().collect(Collectors.toList());
 
+        List<AnnualResultResponse.RoutineInfo> routineInfos = sessions.stream()
+                .map(ExamSession::getExamRoutine)
+                .collect(Collectors.toMap(ExamRoutine::getId, r -> r, (a, b) -> a))
+                .entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .map(entry -> {
+                    AnnualResultResponse.RoutineInfo ri = new AnnualResultResponse.RoutineInfo();
+                    ri.setRoutineId(entry.getValue().getId());
+                    ri.setRoutineTitle(entry.getValue().getTitle());
+                    ri.setExamTypeName(entry.getValue().getExamType().getName());
+                    return ri;
+                }).collect(Collectors.toList());
+
         // compute totals for every student in the class
         Map<Long, BigDecimal> totalScaledMap = new HashMap<>();
         Map<Long, Double> gpaMap = new HashMap<>();
@@ -440,6 +453,16 @@ public class ResultService {
                 sr.setMaxMarksRaw(asd.totalMax);
                 sr.setFourthSubject(isFourth);
                 sr.setAppeared(asd.appeared);
+                sr.setRoutineBreakdowns(asd.routineBreakdowns.stream().map(rbd -> {
+                    AnnualResultResponse.RoutineBreakdown rb = new AnnualResultResponse.RoutineBreakdown();
+                    rb.setRoutineId(rbd.routineId);
+                    rb.setMarksObtained(rbd.marksObtained);
+                    rb.setMaxMarks(rbd.maxMarks);
+                    rb.setAppeared(rbd.appeared);
+                    if (rbd.grade != null) { rb.setGradeName(rbd.grade.getName()); rb.setGpaValue(rbd.grade.getGpaValue()); }
+                    rb.setPassed(rbd.passed);
+                    return rb;
+                }).collect(Collectors.toList()));
 
                 if (asd.appeared && asd.totalMax > 0) {
                     sr.setMarksRaw(asd.totalObtained);
@@ -483,6 +506,7 @@ public class ResultService {
         response.setAcademicYearName(year.getYearName());
         response.setClassName(examClass.getName());
         response.setUseGpaForResult(Boolean.TRUE.equals(examClass.getUseGpaForResult()));
+        response.setRoutines(routineInfos);
         response.setSubjects(subjectInfos);
         response.setStudents(studentRows);
         return response;
@@ -603,6 +627,19 @@ public class ResultService {
         Map<Integer, String> subjectNameMap = sessions.stream()
                 .collect(Collectors.toMap(s -> s.getSubject().getId(), s -> s.getSubject().getName(), (a, b) -> a));
 
+        List<StudentAnnualResultResponse.RoutineInfo> studentRoutineInfos = sessions.stream()
+                .map(ExamSession::getExamRoutine)
+                .collect(Collectors.toMap(ExamRoutine::getId, r -> r, (a, b) -> a))
+                .entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .map(entry -> {
+                    StudentAnnualResultResponse.RoutineInfo ri = new StudentAnnualResultResponse.RoutineInfo();
+                    ri.setRoutineId(entry.getValue().getId());
+                    ri.setRoutineTitle(entry.getValue().getTitle());
+                    ri.setExamTypeName(entry.getValue().getExamType().getName());
+                    return ri;
+                }).collect(Collectors.toList());
+
         List<StudentAnnualResultResponse.SubjectResult> subjectResults = new ArrayList<>();
         List<Double> mandatoryGpas = new ArrayList<>();
         Double fourthGpa = null;
@@ -621,6 +658,16 @@ public class ResultService {
             sr.setFourthSubject(isFourth);
             sr.setMaxMarksRaw(asd.totalMax);
             sr.setAppeared(asd.appeared);
+            sr.setRoutineBreakdowns(asd.routineBreakdowns.stream().map(rbd -> {
+                StudentAnnualResultResponse.RoutineBreakdown rb = new StudentAnnualResultResponse.RoutineBreakdown();
+                rb.setRoutineId(rbd.routineId);
+                rb.setMarksObtained(rbd.marksObtained);
+                rb.setMaxMarks(rbd.maxMarks);
+                rb.setAppeared(rbd.appeared);
+                if (rbd.grade != null) { rb.setGradeName(rbd.grade.getName()); rb.setGpaValue(rbd.grade.getGpaValue()); }
+                rb.setPassed(rbd.passed);
+                return rb;
+            }).collect(Collectors.toList()));
 
             if (asd.appeared && asd.totalMax > 0) {
                 sr.setMarksRaw(asd.totalObtained);
@@ -652,6 +699,7 @@ public class ResultService {
         response.setAcademicYearId(academicYearId);
         response.setAcademicYearName(year.getYearName());
         response.setUseGpaForResult(Boolean.TRUE.equals(examClass.getUseGpaForResult()));
+        response.setRoutines(studentRoutineInfos);
         response.setSubjectResults(subjectResults);
         response.setTotalMarksRaw(grandTotalRaw);
         if (grandMaxRaw > 0) {
@@ -1547,6 +1595,16 @@ public class ResultService {
         BigDecimal scaled;
         Grade grade;
         boolean passed;
+        List<RoutineBreakdownData> routineBreakdowns = new ArrayList<>();
+
+        static class RoutineBreakdownData {
+            Integer routineId;
+            BigDecimal marksObtained;
+            int maxMarks;
+            Grade grade;
+            boolean passed;
+            boolean appeared;
+        }
     }
 
     private AnnualSubjectData computeAnnualSubjectData(Integer subjectId, AnnualDataBundle bundle, Long enrollmentId, List<Grade> sortedGrades) {
@@ -1557,6 +1615,8 @@ public class ResultService {
         boolean appeared = false;
         BigDecimal totalObtained = BigDecimal.ZERO;
         int totalMax = 0;
+        boolean anyRoutineFailed = false;
+        List<AnnualSubjectData.RoutineBreakdownData> routineBreakdowns = new ArrayList<>();
 
         for (ExamSession s : subjectSessions) {
             MarkingStructure structure = bundle.sessionStructureMap.get(s.getId());
@@ -1566,22 +1626,43 @@ public class ResultService {
                     .getOrDefault(enrollmentId, Collections.emptyMap())
                     .getOrDefault(markKey, Collections.emptyMap());
 
-            if (!compMarks.isEmpty()) appeared = true;
-            totalObtained = totalObtained.add(sumComponentMarks(components, compMarks));
-            totalMax += structure.getTotalMarks();
+            boolean routineAppeared = !compMarks.isEmpty();
+            BigDecimal routineObtained = sumComponentMarks(components, compMarks);
+            int routineMax = structure.getTotalMarks();
+
+            if (routineAppeared) appeared = true;
+            totalObtained = totalObtained.add(routineObtained);
+            totalMax += routineMax;
+
+            AnnualSubjectData.RoutineBreakdownData rbd = new AnnualSubjectData.RoutineBreakdownData();
+            rbd.routineId = s.getExamRoutine().getId();
+            rbd.marksObtained = routineObtained;
+            rbd.maxMarks = routineMax;
+            rbd.appeared = routineAppeared;
+
+            if (routineAppeared && routineMax > 0) {
+                BigDecimal routineScaled = routineObtained.multiply(BigDecimal.valueOf(100))
+                        .divide(BigDecimal.valueOf(routineMax), 2, RoundingMode.HALF_UP);
+                rbd.grade = resolveGrade(routineScaled.doubleValue(), sortedGrades);
+                rbd.passed = isSubjectPassed(routineScaled, structure.getPassMarks(), rbd.grade);
+                if (!rbd.passed) anyRoutineFailed = true;
+            }
+            routineBreakdowns.add(rbd);
         }
 
         AnnualSubjectData asd = new AnnualSubjectData();
         asd.appeared = appeared;
         asd.totalObtained = totalObtained;
         asd.totalMax = totalMax;
+        asd.routineBreakdowns = routineBreakdowns;
 
         if (appeared && totalMax > 0) {
             asd.scaled = totalObtained.multiply(BigDecimal.valueOf(100))
                     .divide(BigDecimal.valueOf(totalMax), 2, RoundingMode.HALF_UP);
             asd.grade = resolveGrade(asd.scaled.doubleValue(), sortedGrades);
             MarkingStructure refStructure = bundle.sessionStructureMap.get(subjectSessions.get(0).getId());
-            asd.passed = isSubjectPassed(asd.scaled, refStructure.getPassMarks(), asd.grade);
+            boolean aggregatePassed = isSubjectPassed(asd.scaled, refStructure.getPassMarks(), asd.grade);
+            asd.passed = aggregatePassed && !anyRoutineFailed;
         }
         return asd;
     }
