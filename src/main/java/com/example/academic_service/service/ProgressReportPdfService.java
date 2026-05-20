@@ -300,14 +300,14 @@ public class ProgressReportPdfService {
                 + resultSummaryRow("Result Status",       resultStatus, "lbl-r", "v-blue")
                 + resultSummaryRow("GPA (Without 4th)",   gpaNo4th,     "lbl-r", "v-blue")
                 + resultSummaryRow("Failed Subject(s)",   String.valueOf(student.getFailedSubjectCount()), "lbl-r", "v-blue")
-                + resultSummaryRow("Total Working Days",  "",           "lbl-r", "v-blue")
-                + resultSummaryRow("Total Present",       "",           "lbl-r", "v-blue")
-                + resultSummaryRow("Total Absent",        "",           "lbl-r", "v-blue")
                 + "</table>"
                 + "<table>"
-                + resultSummaryRow("Class Position",   classPos,  "lbl-p", "v-blue")
-                + resultSummaryRow("Shift Position",   shiftPos,  "lbl-p", "v-blue")
-                + resultSummaryRow("Section Position", secPos,    "lbl-p", "v-blue")
+                + resultSummaryRow("Class Position",      classPos,  "lbl-p", "v-blue")
+                + resultSummaryRow("Shift Position",      shiftPos,  "lbl-p", "v-blue")
+                + resultSummaryRow("Section Position",    secPos,    "lbl-p", "v-blue")
+                + resultSummaryRow("Total Working Days",  "",        "lbl-p", "v-blue")
+                + resultSummaryRow("Total Present",       "",        "lbl-p", "v-blue")
+                + resultSummaryRow("Total Absent",        "",        "lbl-p", "v-blue")
                 + "</table>"
                 + "</div>";
     }
@@ -391,7 +391,7 @@ public class ProgressReportPdfService {
     }
 
     private String infoRow(String label, String value, String lblClass, String valClass) {
-        return "<tr><td class=\"" + lblClass + "\" style=\"width:38mm;\">" + label + "</td>"
+        return "<tr><td class=\"" + lblClass + "\" style=\"width:38mm;white-space:nowrap;\">" + label + "</td>"
                 + "<td class=\"" + valClass + "\" style=\"white-space:nowrap;overflow:hidden;\">: " + value + "</td></tr>";
     }
 
