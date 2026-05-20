@@ -264,7 +264,7 @@ public class ProgressReportPdfService {
         String tfoot = "<tfoot>"
                 + "<tr>"
                 + "<td style=\"color:#0F6E56;\">Total Exam Marks</td>"
-                + "<td style=\"color:#013E5B;\">" + totalFull + "</td>"
+                + "<td style=\"color:#013E5B;text-align:center;\">" + totalFull + "</td>"
                 + "<td colspan=\"" + compColspan + "\" style=\"color:#0F6E56;text-align:center;\">Obtained Marks &amp; GPA</td>"
                 + "<td style=\"color:#C2185B;text-align:center;\">" + fmtMark(totalObtained) + "</td>"
                 + "<td style=\"color:#C2185B;text-align:center;\">" + overallGrade + "</td>"
