@@ -300,6 +300,9 @@ public class ProgressReportPdfService {
                 + resultSummaryRow("Result Status",       resultStatus, "lbl-r", "v-blue")
                 + resultSummaryRow("GPA (Without 4th)",   gpaNo4th,     "lbl-r", "v-blue")
                 + resultSummaryRow("Failed Subject(s)",   String.valueOf(student.getFailedSubjectCount()), "lbl-r", "v-blue")
+                + resultSummaryRow("Total Working Days",  "",           "lbl-r", "v-blue")
+                + resultSummaryRow("Total Present",       "",           "lbl-r", "v-blue")
+                + resultSummaryRow("Total Absent",        "",           "lbl-r", "v-blue")
                 + "</table>"
                 + "<table>"
                 + resultSummaryRow("Class Position",   classPos,  "lbl-p", "v-blue")
