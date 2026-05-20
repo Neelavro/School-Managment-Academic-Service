@@ -398,8 +398,8 @@ public class ProgressReportPdfService {
     }
 
     private String resultSummaryRow(String label, String value, String lblClass, String valClass) {
-        return "<tr><td class=\"" + lblClass + "\" style=\"font-weight:600;width:50%;\">" + label + "</td>"
-                + "<td class=\"" + valClass + "\" style=\"text-align:center;\">" + value + "</td></tr>";
+        return "<tr><td class=\"" + lblClass + "\" style=\"font-weight:600;width:50%;white-space:nowrap;\">" + label + "</td>"
+                + "<td class=\"" + valClass + "\" style=\"text-align:center;white-space:nowrap;\">" + value + "</td></tr>";
     }
 
     private String joinNonBlank(String sep, String... parts) {
@@ -458,7 +458,7 @@ public class ProgressReportPdfService {
                 + ".marks tbody td { padding: 3px 4px; text-align: center; }"
                 + ".marks tbody td.subject { text-align: left; }"
                 + ".marks tfoot td { padding: 4px; font-weight: 600; }"
-                + ".result-row { display: grid; grid-template-columns: 1fr 1fr 1fr; font-size: 9pt; margin-top: 2mm; }"
+                + ".result-row { display: grid; grid-template-columns: 1fr 1fr 1fr; font-size: 7.5pt; margin-top: 2mm; }"
                 + ".checks { margin-top: 2mm; font-size: 9pt; }"
                 + ".chk { display: inline-block; width: 9px; height: 9px; border: 0.8px solid #6B7280; vertical-align: middle; margin-right: 4px; }"
                 + ".chk-on { background: #013E5B; }"
