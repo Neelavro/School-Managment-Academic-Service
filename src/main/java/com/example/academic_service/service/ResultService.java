@@ -105,11 +105,18 @@ public class ResultService {
                 row.setMaxMarks(structure.getTotalMarks());
 
                 Grade grade = resolveGradeByPercentage(total, structure.getTotalMarks(), sortedGrades);
+                Map<Integer, BigDecimal> compMarkMap = new HashMap<>();
+                for (SessionResultResponse.ComponentMark cm : componentMarks) {
+                    if (cm.getMarksObtained() != null)
+                        compMarkMap.put(cm.getExamComponentId(), cm.getMarksObtained());
+                }
+                boolean passed = isSubjectPassed(total, structure.getPassMarks(), grade, components, compMarkMap);
+                if (!passed) grade = getFailGrade(sortedGrades);
                 if (grade != null) {
                     row.setGradeName(grade.getName());
                     row.setGpaValue(grade.getGpaValue());
                 }
-                row.setPassed(isSubjectPassed(total, structure.getPassMarks(), grade));
+                row.setPassed(passed);
             }
             return row;
         }).collect(Collectors.toList());
@@ -144,6 +151,7 @@ public class ResultService {
         Class examClass = sessions.get(0).getExamClass();
         List<Grade> sortedGrades = loadSortedGrades(examClass);
         Set<Integer> defaultFourthSubjectIds = loadFourthSubjectIds(classId, groupId);
+        Map<Integer, Integer> mergeGroupMap = loadMergeGroupMap(classId, groupId);
 
         Integer routineAcademicYearId = routine.getAcademicYear() != null ? routine.getAcademicYear().getId() : null;
         // load ALL class enrollments for rank computation
@@ -164,24 +172,47 @@ public class ResultService {
             Double fourthGpa = null;
             BigDecimal grandTotal = BigDecimal.ZERO;
             boolean overallPassed = true;
+            Map<Integer, BigDecimal> mgObtained = new HashMap<>();
+            Map<Integer, Integer> mgTotalMax = new HashMap<>();
+            Map<Integer, Integer> mgPassMarks = new HashMap<>();
+            Map<Integer, Boolean> mgAnyAppeared = new HashMap<>();
+            Map<Integer, Map<Integer, BigDecimal>> mgCompObtained = new HashMap<>();
+            Map<Integer, Map<Integer, Integer>> mgCompPassMarks = new HashMap<>();
 
             for (ExamSession s : sessions) {
                 if (!bundle.sessionStructureMap.containsKey(s.getId())) continue;
                 MarkingStructure structure = bundle.sessionStructureMap.get(s.getId());
                 List<MarkingStructureComponent> components = bundle.sessionComponentsMap.get(s.getId());
                 boolean isFourth = fourthSubjectIds.contains(s.getSubject().getId());
+                Integer mergeGroupId = isFourth ? null : mergeGroupMap.get(s.getSubject().getId());
                 Map<Integer, BigDecimal> compMarks = bundle.markMap
                         .getOrDefault(enrollment.getId(), Collections.emptyMap())
                         .getOrDefault(s.getSubject().getId(), Collections.emptyMap());
                 boolean appeared = !compMarks.isEmpty();
                 BigDecimal total = sumComponentMarks(components, compMarks);
 
-                if (appeared) {
+                if (mergeGroupId != null) {
+                    if (appeared) grandTotal = grandTotal.add(total);
+                    mgObtained.merge(mergeGroupId, total, BigDecimal::add);
+                    mgTotalMax.merge(mergeGroupId, structure.getTotalMarks(), Integer::sum);
+                    if (structure.getPassMarks() != null) mgPassMarks.merge(mergeGroupId, structure.getPassMarks(), Integer::sum);
+                    mgAnyAppeared.merge(mergeGroupId, appeared, Boolean::logicalOr);
+                    for (MarkingStructureComponent comp : components) {
+                        if (comp.getPassMarks() != null && appeared) {
+                            int cid = comp.getExamComponent().getId();
+                            BigDecimal cm = compMarks.getOrDefault(cid, BigDecimal.ZERO);
+                            mgCompObtained.computeIfAbsent(mergeGroupId, k -> new HashMap<>()).merge(cid, cm, BigDecimal::add);
+                            mgCompPassMarks.computeIfAbsent(mergeGroupId, k -> new HashMap<>()).merge(cid, comp.getPassMarks(), Integer::sum);
+                        }
+                    }
+                } else if (appeared) {
                     Grade grade = resolveGradeByPercentage(total, structure.getTotalMarks(), sortedGrades);
+                    boolean passed = isSubjectPassed(total, structure.getPassMarks(), grade, components, compMarks);
+                    if (!passed) grade = getFailGrade(sortedGrades);
                     if (!isFourth) {
                         grandTotal = grandTotal.add(total);
                         if (grade != null) mandatoryGpas.add(grade.getGpaValue());
-                        if (!isSubjectPassed(total, structure.getPassMarks(), grade)) overallPassed = false;
+                        if (!passed) overallPassed = false;
                     } else if (grade != null && hasOverride) {
                         fourthGpa = grade.getGpaValue();
                     }
@@ -189,6 +220,9 @@ public class ResultService {
                     overallPassed = false;
                 }
             }
+
+            if (applyMergeGroupGpas(mgObtained, mgTotalMax, mgPassMarks, mgCompObtained, mgCompPassMarks, mgAnyAppeared, sortedGrades, mandatoryGpas) > 0)
+                overallPassed = false;
 
             totalMarksMap.put(enrollment.getId(), grandTotal);
             passedMap.put(enrollment.getId(), overallPassed);
@@ -251,12 +285,19 @@ public class ResultService {
             Double fourthGpa = null;
             BigDecimal grandTotal = BigDecimal.ZERO;
             boolean overallPassed = true;
+            Map<Integer, BigDecimal> mgObtained = new HashMap<>();
+            Map<Integer, Integer> mgTotalMax = new HashMap<>();
+            Map<Integer, Integer> mgPassMarks = new HashMap<>();
+            Map<Integer, Boolean> mgAnyAppeared = new HashMap<>();
+            Map<Integer, Map<Integer, BigDecimal>> mgCompObtained = new HashMap<>();
+            Map<Integer, Map<Integer, Integer>> mgCompPassMarks = new HashMap<>();
 
             for (ExamSession s : sessions) {
                 if (!bundle.sessionStructureMap.containsKey(s.getId())) continue;
                 MarkingStructure structure = bundle.sessionStructureMap.get(s.getId());
                 List<MarkingStructureComponent> components = bundle.sessionComponentsMap.get(s.getId());
                 boolean isFourth = fourthSubjectIds.contains(s.getSubject().getId());
+                Integer mergeGroupId = isFourth ? null : mergeGroupMap.get(s.getSubject().getId());
                 Map<Integer, BigDecimal> compMarks = bundle.markMap
                         .getOrDefault(enrollment.getId(), Collections.emptyMap())
                         .getOrDefault(s.getSubject().getId(), Collections.emptyMap());
@@ -272,19 +313,49 @@ public class ResultService {
                 if (appeared) {
                     sr.setMarksObtained(total);
                     Grade grade = resolveGradeByPercentage(total, structure.getTotalMarks(), sortedGrades);
+                    boolean passed = isSubjectPassed(total, structure.getPassMarks(), grade, components, compMarks);
+                    if (mergeGroupId == null && !passed) grade = getFailGrade(sortedGrades);
                     if (grade != null) { sr.setGradeName(grade.getName()); sr.setGpaValue(grade.getGpaValue()); }
-                    sr.setPassed(isSubjectPassed(total, structure.getPassMarks(), grade));
-                    if (!isFourth) {
+                    if (mergeGroupId == null) sr.setPassed(passed);
+                    if (mergeGroupId != null) {
+                        grandTotal = grandTotal.add(total);
+                        mgObtained.merge(mergeGroupId, total, BigDecimal::add);
+                        mgTotalMax.merge(mergeGroupId, structure.getTotalMarks(), Integer::sum);
+                        if (structure.getPassMarks() != null) mgPassMarks.merge(mergeGroupId, structure.getPassMarks(), Integer::sum);
+                        mgAnyAppeared.merge(mergeGroupId, true, Boolean::logicalOr);
+                        for (MarkingStructureComponent comp : components) {
+                            if (comp.getPassMarks() != null) {
+                                int cid = comp.getExamComponent().getId();
+                                BigDecimal cm = compMarks.getOrDefault(cid, BigDecimal.ZERO);
+                                mgCompObtained.computeIfAbsent(mergeGroupId, k -> new HashMap<>()).merge(cid, cm, BigDecimal::add);
+                                mgCompPassMarks.computeIfAbsent(mergeGroupId, k -> new HashMap<>()).merge(cid, comp.getPassMarks(), Integer::sum);
+                            }
+                        }
+                    } else if (!isFourth) {
                         grandTotal = grandTotal.add(total);
                         if (grade != null) mandatoryGpas.add(grade.getGpaValue());
-                        if (!sr.isPassed()) overallPassed = false;
+                        if (!passed) overallPassed = false;
                     } else if (grade != null && hasOverride) {
                         fourthGpa = grade.getGpaValue();
                     }
+                } else if (mergeGroupId != null) {
+                    mgObtained.merge(mergeGroupId, BigDecimal.ZERO, BigDecimal::add);
+                    mgTotalMax.merge(mergeGroupId, structure.getTotalMarks(), Integer::sum);
+                    if (structure.getPassMarks() != null) mgPassMarks.merge(mergeGroupId, structure.getPassMarks(), Integer::sum);
+                    mgAnyAppeared.merge(mergeGroupId, false, Boolean::logicalOr);
                 } else if (!isFourth) {
                     overallPassed = false;
                 }
                 subjectResults.add(sr);
+            }
+
+            if (applyMergeGroupGpas(mgObtained, mgTotalMax, mgPassMarks, mgCompObtained, mgCompPassMarks, mgAnyAppeared, sortedGrades, mandatoryGpas) > 0)
+                overallPassed = false;
+
+            Map<Integer, Boolean> mergePassMap = buildMergePassMap(mgObtained, mgTotalMax, mgPassMarks, mgCompObtained, mgCompPassMarks, mgAnyAppeared, sortedGrades);
+            for (RoutineResultResponse.SubjectResult sr : subjectResults) {
+                Integer mgId = mergeGroupMap.get(sr.getSubjectId());
+                if (mgId != null && sr.isAppeared()) sr.setPassed(mergePassMap.getOrDefault(mgId, false));
             }
 
             row.setSubjectResults(subjectResults);
@@ -325,6 +396,7 @@ public class ResultService {
         Class examClass = sessions.get(0).getExamClass();
         List<Grade> sortedGrades = loadSortedGrades(examClass);
         Set<Integer> defaultFourthSubjectIds = loadFourthSubjectIds(classId, groupId);
+        Map<Integer, Integer> mergeGroupMap = loadMergeGroupMap(classId, groupId);
 
         // load ALL class enrollments for rank computation
         List<Enrollment> allEnrollments = enrollmentRepository.findAllByClassIdAndFilters(classId, academicYearId, shiftId, null, null, groupId, null, null);
@@ -362,12 +434,28 @@ public class ResultService {
             BigDecimal grandTotalRaw = BigDecimal.ZERO;
             int grandMaxRaw = 0;
             boolean overallPassed = true;
+            Map<Integer, BigDecimal> mgObtained = new HashMap<>();
+            Map<Integer, Integer> mgTotalMax = new HashMap<>();
+            Map<Integer, Boolean> mgAnyAppeared = new HashMap<>();
 
             for (Integer subjectId : orderedSubjectIds) {
                 AnnualSubjectData asd = computeAnnualSubjectData(subjectId, bundle, enrollment.getId(), sortedGrades);
                 if (asd == null) continue;
                 boolean isFourth = fourthSubjectIds.contains(subjectId);
-                if (asd.appeared && asd.totalMax > 0) {
+                Integer mergeGroupId = isFourth ? null : mergeGroupMap.get(subjectId);
+                if (mergeGroupId != null) {
+                    if (asd.appeared && asd.totalMax > 0) {
+                        grandTotalRaw = grandTotalRaw.add(asd.totalObtained);
+                        grandMaxRaw += asd.totalMax;
+                        mgObtained.merge(mergeGroupId, asd.totalObtained, BigDecimal::add);
+                        mgTotalMax.merge(mergeGroupId, asd.totalMax, Integer::sum);
+                        mgAnyAppeared.merge(mergeGroupId, true, Boolean::logicalOr);
+                    } else {
+                        mgObtained.merge(mergeGroupId, BigDecimal.ZERO, BigDecimal::add);
+                        mgTotalMax.merge(mergeGroupId, asd.totalMax, Integer::sum);
+                        mgAnyAppeared.merge(mergeGroupId, false, Boolean::logicalOr);
+                    }
+                } else if (asd.appeared && asd.totalMax > 0) {
                     if (!isFourth) {
                         grandTotalRaw = grandTotalRaw.add(asd.totalObtained);
                         grandMaxRaw += asd.totalMax;
@@ -380,6 +468,9 @@ public class ResultService {
                     overallPassed = false;
                 }
             }
+
+            if (applyMergeGroupGpas(mgObtained, mgTotalMax, Collections.emptyMap(), new HashMap<>(), new HashMap<>(), mgAnyAppeared, sortedGrades, mandatoryGpas) > 0)
+                overallPassed = false;
 
             BigDecimal scaled = grandMaxRaw > 0
                     ? grandTotalRaw.multiply(BigDecimal.valueOf(100)).divide(BigDecimal.valueOf(grandMaxRaw), 2, RoundingMode.HALF_UP)
@@ -442,11 +533,15 @@ public class ResultService {
             BigDecimal grandTotalRaw = BigDecimal.ZERO;
             int grandMaxRaw = 0;
             boolean overallPassed = true;
+            Map<Integer, BigDecimal> mgObtained = new HashMap<>();
+            Map<Integer, Integer> mgTotalMax = new HashMap<>();
+            Map<Integer, Boolean> mgAnyAppeared = new HashMap<>();
 
             for (Integer subjectId : orderedSubjectIds) {
                 AnnualSubjectData asd = computeAnnualSubjectData(subjectId, bundle, enrollment.getId(), sortedGrades);
                 if (asd == null) continue;
                 boolean isFourth = fourthSubjectIds.contains(subjectId);
+                Integer mergeGroupId = isFourth ? null : mergeGroupMap.get(subjectId);
 
                 AnnualResultResponse.SubjectResult sr = new AnnualResultResponse.SubjectResult();
                 sr.setSubjectId(subjectId);
@@ -469,7 +564,13 @@ public class ResultService {
                     sr.setMarksScaled(asd.scaled);
                     if (asd.grade != null) { sr.setGradeName(asd.grade.getName()); sr.setGpaValue(asd.grade.getGpaValue()); }
                     sr.setPassed(asd.passed);
-                    if (!isFourth) {
+                    if (mergeGroupId != null) {
+                        grandTotalRaw = grandTotalRaw.add(asd.totalObtained);
+                        grandMaxRaw += asd.totalMax;
+                        mgObtained.merge(mergeGroupId, asd.totalObtained, BigDecimal::add);
+                        mgTotalMax.merge(mergeGroupId, asd.totalMax, Integer::sum);
+                        mgAnyAppeared.merge(mergeGroupId, true, Boolean::logicalOr);
+                    } else if (!isFourth) {
                         grandTotalRaw = grandTotalRaw.add(asd.totalObtained);
                         grandMaxRaw += asd.totalMax;
                         if (asd.grade != null) mandatoryGpas.add(asd.grade.getGpaValue());
@@ -477,10 +578,23 @@ public class ResultService {
                     } else if (asd.grade != null && hasOverride) {
                         fourthGpa = asd.grade.getGpaValue();
                     }
+                } else if (mergeGroupId != null) {
+                    mgObtained.merge(mergeGroupId, BigDecimal.ZERO, BigDecimal::add);
+                    mgTotalMax.merge(mergeGroupId, asd.totalMax, Integer::sum);
+                    mgAnyAppeared.merge(mergeGroupId, false, Boolean::logicalOr);
                 } else if (!isFourth) {
                     overallPassed = false;
                 }
                 subjectResults.add(sr);
+            }
+
+            if (applyMergeGroupGpas(mgObtained, mgTotalMax, Collections.emptyMap(), new HashMap<>(), new HashMap<>(), mgAnyAppeared, sortedGrades, mandatoryGpas) > 0)
+                overallPassed = false;
+
+            Map<Integer, Boolean> mergePassMap = buildMergePassMap(mgObtained, mgTotalMax, Collections.emptyMap(), new HashMap<>(), new HashMap<>(), mgAnyAppeared, sortedGrades);
+            for (AnnualResultResponse.SubjectResult sr : subjectResults) {
+                Integer mgId = mergeGroupMap.get(sr.getSubjectId());
+                if (mgId != null && sr.isAppeared()) sr.setPassed(mergePassMap.getOrDefault(mgId, false));
             }
 
             row.setSubjectResults(subjectResults);
@@ -529,6 +643,7 @@ public class ResultService {
         Class examClass = enrollment.getStudentClass();
         List<Grade> sortedGrades = loadSortedGrades(examClass);
         Set<Integer> defaultFourthSubjectIds = loadFourthSubjectIds(classId, groupId);
+        Map<Integer, Integer> mergeGroupMap = loadMergeGroupMap(classId, groupId);
         Map<Long, Integer> overrideMap = loadOverrideMap(List.of(enrollment));
         boolean hasOverride = overrideMap.containsKey(enrollment.getId());
         Set<Integer> fourthSubjectIds = resolveFourthSubjectIds(enrollment, overrideMap, defaultFourthSubjectIds);
@@ -540,12 +655,19 @@ public class ResultService {
         Double fourthGpa = null;
         BigDecimal grandTotal = BigDecimal.ZERO;
         boolean overallPassed = true;
+        Map<Integer, BigDecimal> mgObtained = new HashMap<>();
+        Map<Integer, Integer> mgTotalMax = new HashMap<>();
+        Map<Integer, Integer> mgPassMarks = new HashMap<>();
+        Map<Integer, Boolean> mgAnyAppeared = new HashMap<>();
+        Map<Integer, Map<Integer, BigDecimal>> mgCompObtained = new HashMap<>();
+        Map<Integer, Map<Integer, Integer>> mgCompPassMarks = new HashMap<>();
 
         for (ExamSession s : sessions) {
             if (!bundle.sessionStructureMap.containsKey(s.getId())) continue;
             MarkingStructure structure = bundle.sessionStructureMap.get(s.getId());
             List<MarkingStructureComponent> components = bundle.sessionComponentsMap.get(s.getId());
             boolean isFourth = fourthSubjectIds.contains(s.getSubject().getId());
+            Integer mergeGroupId = isFourth ? null : mergeGroupMap.get(s.getSubject().getId());
 
             Map<Integer, BigDecimal> compMarks = bundle.markMap
                     .getOrDefault(enrollmentId, Collections.emptyMap())
@@ -565,22 +687,50 @@ public class ResultService {
             if (appeared) {
                 sr.setMarksObtained(total);
                 Grade grade = resolveGradeByPercentage(total, structure.getTotalMarks(), sortedGrades);
+                boolean passed = isSubjectPassed(total, structure.getPassMarks(), grade, components, compMarks);
+                if (mergeGroupId == null && !passed) grade = getFailGrade(sortedGrades);
                 if (grade != null) { sr.setGradeName(grade.getName()); sr.setGpaValue(grade.getGpaValue()); }
-                sr.setPassed(isSubjectPassed(total, structure.getPassMarks(), grade));
-
-                if (!isFourth) {
+                if (mergeGroupId == null) sr.setPassed(passed);
+                if (mergeGroupId != null) {
+                    grandTotal = grandTotal.add(total);
+                    mgObtained.merge(mergeGroupId, total, BigDecimal::add);
+                    mgTotalMax.merge(mergeGroupId, structure.getTotalMarks(), Integer::sum);
+                    if (structure.getPassMarks() != null) mgPassMarks.merge(mergeGroupId, structure.getPassMarks(), Integer::sum);
+                    mgAnyAppeared.merge(mergeGroupId, true, Boolean::logicalOr);
+                    for (MarkingStructureComponent comp : components) {
+                        if (comp.getPassMarks() != null) {
+                            int cid = comp.getExamComponent().getId();
+                            BigDecimal cm = compMarks.getOrDefault(cid, BigDecimal.ZERO);
+                            mgCompObtained.computeIfAbsent(mergeGroupId, k -> new HashMap<>()).merge(cid, cm, BigDecimal::add);
+                            mgCompPassMarks.computeIfAbsent(mergeGroupId, k -> new HashMap<>()).merge(cid, comp.getPassMarks(), Integer::sum);
+                        }
+                    }
+                } else if (!isFourth) {
                     grandTotal = grandTotal.add(total);
                     if (grade != null) mandatoryGpas.add(grade.getGpaValue());
-                    if (!sr.isPassed()) overallPassed = false;
+                    if (!passed) overallPassed = false;
                 } else if (grade != null && hasOverride) {
                     fourthGpa = grade.getGpaValue();
                 }
+            } else if (mergeGroupId != null) {
+                mgObtained.merge(mergeGroupId, BigDecimal.ZERO, BigDecimal::add);
+                mgTotalMax.merge(mergeGroupId, structure.getTotalMarks(), Integer::sum);
+                if (structure.getPassMarks() != null) mgPassMarks.merge(mergeGroupId, structure.getPassMarks(), Integer::sum);
+                mgAnyAppeared.merge(mergeGroupId, false, Boolean::logicalOr);
             } else if (!isFourth) {
                 overallPassed = false;
             }
             subjectResults.add(sr);
         }
 
+        if (applyMergeGroupGpas(mgObtained, mgTotalMax, mgPassMarks, mgCompObtained, mgCompPassMarks, mgAnyAppeared, sortedGrades, mandatoryGpas) > 0)
+            overallPassed = false;
+
+        Map<Integer, Boolean> mergePassMap = buildMergePassMap(mgObtained, mgTotalMax, mgPassMarks, mgCompObtained, mgCompPassMarks, mgAnyAppeared, sortedGrades);
+        for (StudentRoutineResultResponse.SubjectResult sr : subjectResults) {
+            Integer mgId = mergeGroupMap.get(sr.getSubjectId());
+            if (mgId != null && sr.isAppeared()) sr.setPassed(mergePassMap.getOrDefault(mgId, false));
+        }
 
         StudentRoutineResultResponse response = new StudentRoutineResultResponse();
         response.setEnrollmentId(enrollmentId);
@@ -617,6 +767,7 @@ public class ResultService {
         Class examClass = enrollment.getStudentClass();
         List<Grade> sortedGrades = loadSortedGrades(examClass);
         Set<Integer> defaultFourthSubjectIds = loadFourthSubjectIds(classId, groupId);
+        Map<Integer, Integer> mergeGroupMap = loadMergeGroupMap(classId, groupId);
         Map<Long, Integer> overrideMap = loadOverrideMap(List.of(enrollment));
         boolean hasOverride = overrideMap.containsKey(enrollment.getId());
         Set<Integer> fourthSubjectIds = resolveFourthSubjectIds(enrollment, overrideMap, defaultFourthSubjectIds);
@@ -646,12 +797,16 @@ public class ResultService {
         BigDecimal grandTotalRaw = BigDecimal.ZERO;
         int grandMaxRaw = 0;
         boolean overallPassed = true;
+        Map<Integer, BigDecimal> mgObtained = new HashMap<>();
+        Map<Integer, Integer> mgTotalMax = new HashMap<>();
+        Map<Integer, Boolean> mgAnyAppeared = new HashMap<>();
 
         for (Integer subjectId : orderedSubjectIds) {
             AnnualSubjectData asd = computeAnnualSubjectData(subjectId, bundle, enrollmentId, sortedGrades);
             if (asd == null) continue;
 
             boolean isFourth = fourthSubjectIds.contains(subjectId);
+            Integer mergeGroupId = isFourth ? null : mergeGroupMap.get(subjectId);
             StudentAnnualResultResponse.SubjectResult sr = new StudentAnnualResultResponse.SubjectResult();
             sr.setSubjectId(subjectId);
             sr.setSubjectName(subjectNameMap.getOrDefault(subjectId, ""));
@@ -674,8 +829,13 @@ public class ResultService {
                 sr.setMarksScaled(asd.scaled);
                 if (asd.grade != null) { sr.setGradeName(asd.grade.getName()); sr.setGpaValue(asd.grade.getGpaValue()); }
                 sr.setPassed(asd.passed);
-
-                if (!isFourth) {
+                if (mergeGroupId != null) {
+                    grandTotalRaw = grandTotalRaw.add(asd.totalObtained);
+                    grandMaxRaw += asd.totalMax;
+                    mgObtained.merge(mergeGroupId, asd.totalObtained, BigDecimal::add);
+                    mgTotalMax.merge(mergeGroupId, asd.totalMax, Integer::sum);
+                    mgAnyAppeared.merge(mergeGroupId, true, Boolean::logicalOr);
+                } else if (!isFourth) {
                     grandTotalRaw = grandTotalRaw.add(asd.totalObtained);
                     grandMaxRaw += asd.totalMax;
                     if (asd.grade != null) mandatoryGpas.add(asd.grade.getGpaValue());
@@ -683,10 +843,23 @@ public class ResultService {
                 } else if (asd.grade != null && hasOverride) {
                     fourthGpa = asd.grade.getGpaValue();
                 }
+            } else if (mergeGroupId != null) {
+                mgObtained.merge(mergeGroupId, BigDecimal.ZERO, BigDecimal::add);
+                mgTotalMax.merge(mergeGroupId, asd.totalMax, Integer::sum);
+                mgAnyAppeared.merge(mergeGroupId, false, Boolean::logicalOr);
             } else if (!isFourth) {
                 overallPassed = false;
             }
             subjectResults.add(sr);
+        }
+
+        if (applyMergeGroupGpas(mgObtained, mgTotalMax, Collections.emptyMap(), new HashMap<>(), new HashMap<>(), mgAnyAppeared, sortedGrades, mandatoryGpas) > 0)
+            overallPassed = false;
+
+        Map<Integer, Boolean> mergePassMap = buildMergePassMap(mgObtained, mgTotalMax, Collections.emptyMap(), new HashMap<>(), new HashMap<>(), mgAnyAppeared, sortedGrades);
+        for (StudentAnnualResultResponse.SubjectResult sr : subjectResults) {
+            Integer mgId = mergeGroupMap.get(sr.getSubjectId());
+            if (mgId != null && sr.isAppeared()) sr.setPassed(mergePassMap.getOrDefault(mgId, false));
         }
 
 
@@ -725,6 +898,7 @@ public class ResultService {
         Class examClass = sessions.get(0).getExamClass();
         List<Grade> sortedGrades = loadSortedGrades(examClass);
         Set<Integer> defaultFourthSubjectIds = loadFourthSubjectIds(classId, groupId);
+        Map<Integer, Integer> mergeGroupMap = loadMergeGroupMap(classId, groupId);
 
         List<Enrollment> enrollments = enrollmentRepository
                 .findAllByClassIdAndFilters(classId, academicYearId, shiftId, genderSectionId, sectionId, groupId, startRoll, endRoll);
@@ -741,13 +915,29 @@ public class ResultService {
             List<Double> mandatoryGpas = new ArrayList<>();
             Double fourthGpa = null;
             boolean passed = true;
+            Map<Integer, BigDecimal> mgObtained = new HashMap<>();
+            Map<Integer, Integer> mgTotalMax = new HashMap<>();
+            Map<Integer, Boolean> mgAnyAppeared = new HashMap<>();
 
             for (Integer subjectId : orderedSubjectIds) {
                 AnnualSubjectData asd = computeAnnualSubjectData(subjectId, bundle, enrollment.getId(), sortedGrades);
                 if (asd == null) continue;
                 boolean isFourth = fourthSubjectIds.contains(subjectId);
+                Integer mergeGroupId = isFourth ? null : mergeGroupMap.get(subjectId);
 
-                if (asd.appeared && asd.totalMax > 0) {
+                if (mergeGroupId != null) {
+                    if (asd.appeared && asd.totalMax > 0) {
+                        totalRaw = totalRaw.add(asd.totalObtained);
+                        totalMax += asd.totalMax;
+                        mgObtained.merge(mergeGroupId, asd.totalObtained, BigDecimal::add);
+                        mgTotalMax.merge(mergeGroupId, asd.totalMax, Integer::sum);
+                        mgAnyAppeared.merge(mergeGroupId, true, Boolean::logicalOr);
+                    } else {
+                        mgObtained.merge(mergeGroupId, BigDecimal.ZERO, BigDecimal::add);
+                        mgTotalMax.merge(mergeGroupId, asd.totalMax, Integer::sum);
+                        mgAnyAppeared.merge(mergeGroupId, false, Boolean::logicalOr);
+                    }
+                } else if (asd.appeared && asd.totalMax > 0) {
                     if (!isFourth) {
                         totalRaw = totalRaw.add(asd.totalObtained);
                         totalMax += asd.totalMax;
@@ -760,6 +950,9 @@ public class ResultService {
                     passed = false;
                 }
             }
+
+            if (applyMergeGroupGpas(mgObtained, mgTotalMax, Collections.emptyMap(), new HashMap<>(), new HashMap<>(), mgAnyAppeared, sortedGrades, mandatoryGpas) > 0)
+                passed = false;
 
             MeritListResponse.MeritEntry entry = new MeritListResponse.MeritEntry();
             entry.setEnrollmentId(enrollment.getId());
@@ -989,6 +1182,7 @@ public class ResultService {
         Class examClass = sessions.get(0).getExamClass();
         List<Grade> sortedGrades = loadSortedGrades(examClass);
         Set<Integer> defaultFourthSubjectIds = loadFourthSubjectIds(classId, groupId);
+        Map<Integer, Integer> mergeGroupMap = loadMergeGroupMap(classId, groupId);
 
         Integer routineAcademicYearId = routine.getAcademicYear() != null ? routine.getAcademicYear().getId() : null;
         List<Enrollment> allEnrollments = enrollmentRepository
@@ -1111,12 +1305,19 @@ public class ResultService {
             BigDecimal grandTotal = BigDecimal.ZERO;
             boolean overallPassed = true;
             int failedCount = 0;
+            Map<Integer, BigDecimal> mgObtained = new HashMap<>();
+            Map<Integer, Integer> mgTotalMax = new HashMap<>();
+            Map<Integer, Integer> mgPassMarks = new HashMap<>();
+            Map<Integer, Boolean> mgAnyAppeared = new HashMap<>();
+            Map<Integer, Map<Integer, BigDecimal>> mgCompObtained = new HashMap<>();
+            Map<Integer, Map<Integer, Integer>> mgCompPassMarks = new HashMap<>();
 
             for (ExamSession s : sessions) {
                 if (!bundle.sessionStructureMap.containsKey(s.getId())) continue;
                 MarkingStructure structure = bundle.sessionStructureMap.get(s.getId());
                 List<MarkingStructureComponent> comps = bundle.sessionComponentsMap.get(s.getId());
                 boolean isFourth = fourthSubjectIds.contains(s.getSubject().getId());
+                Integer mergeGroupId = isFourth ? null : mergeGroupMap.get(s.getSubject().getId());
 
                 Map<Integer, BigDecimal> compMarks = bundle.markMap
                         .getOrDefault(enrollment.getId(), Collections.emptyMap())
@@ -1133,20 +1334,50 @@ public class ResultService {
                 if (appeared) {
                     sr.setTotalMarks(total);
                     Grade grade = resolveGradeByPercentage(total, structure.getTotalMarks(), sortedGrades);
+                    boolean passed = isSubjectPassed(total, structure.getPassMarks(), grade, comps, compMarks);
+                    if (mergeGroupId == null && !passed) grade = getFailGrade(sortedGrades);
                     if (grade != null) { sr.setGradeName(grade.getName()); sr.setGpaValue(grade.getGpaValue()); }
-                    sr.setPassed(isSubjectPassed(total, structure.getPassMarks(), grade));
-                    if (!isFourth) {
+                    if (mergeGroupId == null) sr.setPassed(passed);
+                    if (mergeGroupId != null) {
+                        grandTotal = grandTotal.add(total);
+                        mgObtained.merge(mergeGroupId, total, BigDecimal::add);
+                        mgTotalMax.merge(mergeGroupId, structure.getTotalMarks(), Integer::sum);
+                        if (structure.getPassMarks() != null) mgPassMarks.merge(mergeGroupId, structure.getPassMarks(), Integer::sum);
+                        mgAnyAppeared.merge(mergeGroupId, true, Boolean::logicalOr);
+                        for (MarkingStructureComponent comp : comps) {
+                            if (comp.getPassMarks() != null) {
+                                int cid = comp.getExamComponent().getId();
+                                BigDecimal cm = compMarks.getOrDefault(cid, BigDecimal.ZERO);
+                                mgCompObtained.computeIfAbsent(mergeGroupId, k -> new HashMap<>()).merge(cid, cm, BigDecimal::add);
+                                mgCompPassMarks.computeIfAbsent(mergeGroupId, k -> new HashMap<>()).merge(cid, comp.getPassMarks(), Integer::sum);
+                            }
+                        }
+                    } else if (!isFourth) {
                         grandTotal = grandTotal.add(total);
                         if (grade != null) mandatoryGpas.add(grade.getGpaValue());
-                        if (!sr.isPassed()) { overallPassed = false; failedCount++; }
+                        if (!passed) { overallPassed = false; failedCount++; }
                     } else if (grade != null && hasOverride) {
                         fourthGpa = grade.getGpaValue();
                     }
+                } else if (mergeGroupId != null) {
+                    mgObtained.merge(mergeGroupId, BigDecimal.ZERO, BigDecimal::add);
+                    mgTotalMax.merge(mergeGroupId, structure.getTotalMarks(), Integer::sum);
+                    if (structure.getPassMarks() != null) mgPassMarks.merge(mergeGroupId, structure.getPassMarks(), Integer::sum);
+                    mgAnyAppeared.merge(mergeGroupId, false, Boolean::logicalOr);
                 } else if (!isFourth) {
                     overallPassed = false;
                     failedCount++;
                 }
                 subjectResults.add(sr);
+            }
+
+            int mergedFailed = applyMergeGroupGpas(mgObtained, mgTotalMax, mgPassMarks, mgCompObtained, mgCompPassMarks, mgAnyAppeared, sortedGrades, mandatoryGpas);
+            if (mergedFailed > 0) { overallPassed = false; failedCount += mergedFailed; }
+
+            Map<Integer, Boolean> mergePassMap = buildMergePassMap(mgObtained, mgTotalMax, mgPassMarks, mgCompObtained, mgCompPassMarks, mgAnyAppeared, sortedGrades);
+            for (ProgressReportData.SubjectResult sr : subjectResults) {
+                Integer mgId = mergeGroupMap.get(sr.getSubjectId());
+                if (mgId != null && sr.isAppeared()) sr.setPassed(mergePassMap.getOrDefault(mgId, false));
             }
 
             report.setSubjectResults(subjectResults);
@@ -1364,6 +1595,24 @@ public class ResultService {
         return grade != null && grade.getGpaValue() > 0.0;
     }
 
+    private boolean anyComponentFailed(List<MarkingStructureComponent> components, Map<Integer, BigDecimal> compMarks) {
+        return components.stream()
+                .filter(c -> c.getPassMarks() != null)
+                .anyMatch(c -> compMarks.getOrDefault(c.getExamComponent().getId(), BigDecimal.ZERO)
+                        .compareTo(BigDecimal.valueOf(c.getPassMarks())) < 0);
+    }
+
+    private Grade getFailGrade(List<Grade> sortedGrades) {
+        return sortedGrades.isEmpty() ? null : sortedGrades.get(sortedGrades.size() - 1);
+    }
+
+    private boolean isSubjectPassed(BigDecimal total, Integer passMarks, Grade grade,
+                                    List<MarkingStructureComponent> components, Map<Integer, BigDecimal> compMarks) {
+        if (anyComponentFailed(components, compMarks)) return false;
+        if (passMarks != null) return total.compareTo(BigDecimal.valueOf(passMarks)) >= 0;
+        return grade != null && grade.getGpaValue() > 0.0;
+    }
+
     private List<Grade> loadSortedGrades(Class examClass) {
         if (examClass.getGradingPolicy() == null) return Collections.emptyList();
         List<Grade> grades = gradeRepository.findByGradingPolicyId(examClass.getGradingPolicy().getId());
@@ -1398,6 +1647,77 @@ public class ResultService {
                 .filter(g -> Boolean.TRUE.equals(g.getIsFourthSubject()))
                 .map(g -> g.getSubject().getId())
                 .collect(Collectors.toSet());
+    }
+
+    private Map<Integer, Integer> loadMergeGroupMap(Integer classId, Integer groupId) {
+        List<ClassSubjectGroup> groups = groupId != null
+                ? classSubjectGroupRepository.findSubjectsForStudent(classId, groupId)
+                : classSubjectGroupRepository.findByStudentClassIdAndIsActiveTrue(classId);
+        return groups.stream()
+                .filter(g -> g.getMergeGroupId() != null)
+                .collect(Collectors.toMap(
+                        g -> g.getSubject().getId(),
+                        ClassSubjectGroup::getMergeGroupId,
+                        (a, b) -> a));
+    }
+
+    // Returns combined pass/fail per merge group ID, using the same accumulated maps.
+    private Map<Integer, Boolean> buildMergePassMap(
+            Map<Integer, BigDecimal> mgObtained,
+            Map<Integer, Integer> mgTotalMax,
+            Map<Integer, Integer> mgPassMarks,
+            Map<Integer, Map<Integer, BigDecimal>> mgCompObtained,
+            Map<Integer, Map<Integer, Integer>> mgCompPassMarks,
+            Map<Integer, Boolean> mgAnyAppeared,
+            List<Grade> sortedGrades) {
+        Map<Integer, Boolean> result = new HashMap<>();
+        for (Integer gid : mgObtained.keySet()) {
+            if (!mgAnyAppeared.getOrDefault(gid, false)) { result.put(gid, false); continue; }
+            Map<Integer, Integer> compPass = mgCompPassMarks.getOrDefault(gid, Collections.emptyMap());
+            Map<Integer, BigDecimal> compObt = mgCompObtained.getOrDefault(gid, Collections.emptyMap());
+            boolean anyCompFail = compPass.entrySet().stream()
+                    .anyMatch(e -> compObt.getOrDefault(e.getKey(), BigDecimal.ZERO)
+                            .compareTo(BigDecimal.valueOf(e.getValue())) < 0);
+            if (anyCompFail) { result.put(gid, false); continue; }
+            BigDecimal combined = mgObtained.get(gid);
+            int combinedMax = mgTotalMax.getOrDefault(gid, 0);
+            if (combinedMax == 0) continue;
+            Integer combinedPass = mgPassMarks.isEmpty() ? null : mgPassMarks.get(gid);
+            Grade grade = resolveGradeByPercentage(combined, combinedMax, sortedGrades);
+            result.put(gid, isSubjectPassed(combined, combinedPass, grade));
+        }
+        return result;
+    }
+
+    // Processes accumulated merge group marks and appends merged GPAs to mandatoryGpas.
+    // Returns the number of failed (or not-appeared) merge groups.
+    private int applyMergeGroupGpas(
+            Map<Integer, BigDecimal> mgObtained,
+            Map<Integer, Integer> mgTotalMax,
+            Map<Integer, Integer> mgPassMarks,
+            Map<Integer, Map<Integer, BigDecimal>> mgCompObtained,
+            Map<Integer, Map<Integer, Integer>> mgCompPassMarks,
+            Map<Integer, Boolean> mgAnyAppeared,
+            List<Grade> sortedGrades,
+            List<Double> mandatoryGpas) {
+        int failed = 0;
+        for (Integer gid : mgObtained.keySet()) {
+            if (!mgAnyAppeared.getOrDefault(gid, false)) { failed++; continue; }
+            Map<Integer, Integer> compPass = mgCompPassMarks.getOrDefault(gid, Collections.emptyMap());
+            Map<Integer, BigDecimal> compObt = mgCompObtained.getOrDefault(gid, Collections.emptyMap());
+            boolean anyCompFail = compPass.entrySet().stream()
+                    .anyMatch(e -> compObt.getOrDefault(e.getKey(), BigDecimal.ZERO)
+                            .compareTo(BigDecimal.valueOf(e.getValue())) < 0);
+            if (anyCompFail) { failed++; continue; }
+            BigDecimal combined = mgObtained.get(gid);
+            int combinedMax = mgTotalMax.getOrDefault(gid, 0);
+            if (combinedMax == 0) continue;
+            Integer combinedPass = mgPassMarks.isEmpty() ? null : mgPassMarks.get(gid);
+            Grade grade = resolveGradeByPercentage(combined, combinedMax, sortedGrades);
+            if (grade != null) mandatoryGpas.add(grade.getGpaValue());
+            if (!isSubjectPassed(combined, combinedPass, grade)) failed++;
+        }
+        return failed;
     }
 
     private MarkingStructure resolveMarkingStructure(Integer examTypeId, Integer classId, Integer subjectId, Integer groupId) {
@@ -1644,7 +1964,8 @@ public class ResultService {
                 BigDecimal routineScaled = routineObtained.multiply(BigDecimal.valueOf(100))
                         .divide(BigDecimal.valueOf(routineMax), 2, RoundingMode.HALF_UP);
                 rbd.grade = resolveGrade(routineScaled.doubleValue(), sortedGrades);
-                rbd.passed = isSubjectPassed(routineScaled, structure.getPassMarks(), rbd.grade);
+                rbd.passed = isSubjectPassed(routineScaled, structure.getPassMarks(), rbd.grade, components, compMarks);
+                if (!rbd.passed) rbd.grade = getFailGrade(sortedGrades);
                 if (!rbd.passed) anyRoutineFailed = true;
             }
             routineBreakdowns.add(rbd);
@@ -1661,8 +1982,9 @@ public class ResultService {
                     .divide(BigDecimal.valueOf(totalMax), 2, RoundingMode.HALF_UP);
             asd.grade = resolveGrade(asd.scaled.doubleValue(), sortedGrades);
             MarkingStructure refStructure = bundle.sessionStructureMap.get(subjectSessions.get(0).getId());
-            boolean aggregatePassed = isSubjectPassed(asd.scaled, refStructure.getPassMarks(), asd.grade);
-            asd.passed = aggregatePassed && !anyRoutineFailed;
+            boolean aggregatePassed = !anyRoutineFailed && isSubjectPassed(asd.scaled, refStructure.getPassMarks(), asd.grade);
+            asd.passed = aggregatePassed;
+            if (!asd.passed) asd.grade = getFailGrade(sortedGrades);
         }
         return asd;
     }

@@ -38,4 +38,7 @@ public class ClassSubjectGroup {
 
     @Column(name = "is_fourth_subject")
     private Boolean isFourthSubject = false;
+
+    @Column(name = "merge_group_id")
+    private Integer mergeGroupId;
 }

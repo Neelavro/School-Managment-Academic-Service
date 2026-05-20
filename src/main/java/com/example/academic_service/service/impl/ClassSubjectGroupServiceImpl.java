@@ -73,6 +73,7 @@ public class ClassSubjectGroupServiceImpl implements ClassSubjectGroupService {
         assignment.setSubject(subject);
         assignment.setStudentGroup(studentGroup);
         assignment.setIsFourthSubject(dto.getIsFourthSubject() != null && dto.getIsFourthSubject());
+        assignment.setMergeGroupId(dto.getMergeGroupId());
 
         return ApiResponse.success("Subject assigned successfully", repository.save(assignment));
     }
@@ -114,6 +115,17 @@ public class ClassSubjectGroupServiceImpl implements ClassSubjectGroupService {
         if (assignment == null) return ApiResponse.error("Assignment not found");
         if (dto.getIsFourthSubject() != null)
             assignment.setIsFourthSubject(dto.getIsFourthSubject());
+
+        if (dto.getMergeGroupId() != null) {
+            if (Boolean.TRUE.equals(assignment.getIsFourthSubject()))
+                return ApiResponse.error("Fourth subjects cannot be merged");
+            ClassSubjectGroup target = repository.findById(dto.getMergeGroupId()).orElse(null);
+            if (target == null) return ApiResponse.error("Merge target not found");
+            if (Boolean.TRUE.equals(target.getIsFourthSubject()))
+                return ApiResponse.error("Cannot merge with a fourth subject");
+        }
+
+        assignment.setMergeGroupId(dto.getMergeGroupId());
         return ApiResponse.success("Assignment updated successfully", repository.save(assignment));
     }
 

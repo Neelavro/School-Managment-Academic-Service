@@ -7785,3 +7785,9 @@
        add constraint if not exists FK_ted_room
        foreign key (room_id)
        references room (id);
+
+    alter table class_subject_group
+       add column is_fourth_subject bit default 0;
+
+    alter table class_subject_group
+       add column merge_group_id integer;
