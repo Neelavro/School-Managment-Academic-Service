@@ -297,17 +297,19 @@ public class ProgressReportPdfService {
 
         return "<div class=\"result-row\">"
                 + "<table>"
-                + resultSummaryRow("Result Status",       resultStatus, "lbl-r", "v-blue")
-                + resultSummaryRow("GPA (Without 4th)",   gpaNo4th,     "lbl-r", "v-blue")
-                + resultSummaryRow("Failed Subject(s)",   String.valueOf(student.getFailedSubjectCount()), "lbl-r", "v-blue")
+                + resultSummaryRow("Result Status",     resultStatus, "lbl-r", "v-blue")
+                + resultSummaryRow("GPA (Without 4th)", gpaNo4th,     "lbl-r", "v-blue")
+                + resultSummaryRow("Failed Subject(s)", String.valueOf(student.getFailedSubjectCount()), "lbl-r", "v-blue")
                 + "</table>"
                 + "<table>"
-                + resultSummaryRow("Class Position",      classPos,  "lbl-p", "v-blue")
-                + resultSummaryRow("Shift Position",      shiftPos,  "lbl-p", "v-blue")
-                + resultSummaryRow("Section Position",    secPos,    "lbl-p", "v-blue")
-                + resultSummaryRow("Total Working Days",  "",        "lbl-p", "v-blue")
-                + resultSummaryRow("Total Present",       "",        "lbl-p", "v-blue")
-                + resultSummaryRow("Total Absent",        "",        "lbl-p", "v-blue")
+                + resultSummaryRow("Class Position",   classPos, "lbl-p", "v-blue")
+                + resultSummaryRow("Shift Position",   shiftPos, "lbl-p", "v-blue")
+                + resultSummaryRow("Section Position", secPos,   "lbl-p", "v-blue")
+                + "</table>"
+                + "<table>"
+                + resultSummaryRow("Total Working Days", "", "lbl-g", "v-blue")
+                + resultSummaryRow("Total Present",      "", "lbl-g", "v-blue")
+                + resultSummaryRow("Total Absent",       "", "lbl-g", "v-blue")
                 + "</table>"
                 + "</div>";
     }
@@ -456,7 +458,7 @@ public class ProgressReportPdfService {
                 + ".marks tbody td { padding: 3px 4px; text-align: center; }"
                 + ".marks tbody td.subject { text-align: left; }"
                 + ".marks tfoot td { padding: 4px; font-weight: 600; }"
-                + ".result-row { display: grid; grid-template-columns: 1fr 1fr; font-size: 9pt; margin-top: 2mm; }"
+                + ".result-row { display: grid; grid-template-columns: 1fr 1fr 1fr; font-size: 9pt; margin-top: 2mm; }"
                 + ".checks { margin-top: 2mm; font-size: 9pt; }"
                 + ".chk { display: inline-block; width: 9px; height: 9px; border: 0.8px solid #6B7280; vertical-align: middle; margin-right: 4px; }"
                 + ".chk-on { background: #013E5B; }"
