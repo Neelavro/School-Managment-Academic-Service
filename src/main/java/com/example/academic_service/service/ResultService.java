@@ -1252,6 +1252,7 @@ public class ResultService {
             si.setTotalMarks(ms.getTotalMarks());
             si.setHighestMarks(highestBySession.getOrDefault(s.getId(), BigDecimal.ZERO));
             si.setComponentMaxMarks(compMaxMarks);
+            si.setMergeGroupId(mergeGroupMap.get(s.getSubject().getId()));
             subjectInfos.add(si);
         }
 

@@ -133,7 +133,7 @@ public class ProgressReportPdfService {
                 + "</div>";
 
         // Marks table
-        String marksHtml = buildMarksTable(data, student);
+        String marksHtml = buildMarksTable(data, student, gradingTable);
 
         // Result summary
         String resultHtml = buildResultSummary(student);
@@ -175,27 +175,33 @@ public class ProgressReportPdfService {
                 + "</div>";
     }
 
-    private String buildMarksTable(ProgressReportData data, ProgressReportData.StudentReport student) {
+    private String buildMarksTable(ProgressReportData data, ProgressReportData.StudentReport student,
+                                   List<Grade> gradingTable) {
         List<ProgressReportData.ComponentInfo> components = data.getComponents();
         List<ProgressReportData.SubjectInfo>   subjects   = data.getSubjects();
 
-        // Map subjectId -> SubjectResult for this student
         Map<Integer, ProgressReportData.SubjectResult> resultMap = new HashMap<>();
         for (ProgressReportData.SubjectResult sr : student.getSubjectResults()) {
             resultMap.put(sr.getSubjectId(), sr);
         }
 
-        // Compute column widths that always sum to 100%
-        int fixedCols   = 6; // subject + full + highest + total + grade + gpa
-        int compCols    = components.size();
-        int totalCols   = fixedCols + compCols;
-        int subjectPct  = 26;
-        int remaining   = 100 - subjectPct;
-        int eachOther   = remaining / (totalCols - 1);
-        int subjectRemainder = 100 - subjectPct - eachOther * (totalCols - 1);
+        // Group merged subjects by mergeGroupId (preserving encounter order)
+        Map<Integer, List<ProgressReportData.SubjectInfo>> byMergeGroup = new LinkedHashMap<>();
+        for (ProgressReportData.SubjectInfo si : subjects) {
+            if (si.getMergeGroupId() != null) {
+                byMergeGroup.computeIfAbsent(si.getMergeGroupId(), k -> new ArrayList<>()).add(si);
+            }
+        }
+
+        int fixedCols  = 6;
+        int compCols   = components.size();
+        int totalCols  = fixedCols + compCols;
+        int subjectPct = 26;
+        int eachOther  = (100 - subjectPct) / (totalCols - 1);
+        int remainder  = 100 - subjectPct - eachOther * (totalCols - 1);
 
         StringBuilder colgroup = new StringBuilder("<colgroup>");
-        colgroup.append("<col style=\"width:").append(subjectPct + subjectRemainder).append("%\">");
+        colgroup.append("<col style=\"width:").append(subjectPct + remainder).append("%\">");
         for (int i = 1; i < totalCols; i++) colgroup.append("<col style=\"width:").append(eachOther).append("%\">");
         colgroup.append("</colgroup>");
 
@@ -220,39 +226,88 @@ public class ProgressReportPdfService {
                 + "</tr>"
                 + "</thead>";
 
-        // Build rows — group mandatory subjects separately from 4th
         StringBuilder tbody = new StringBuilder("<tbody>");
-        BigDecimal totalFull    = BigDecimal.ZERO;
+        BigDecimal totalFull     = BigDecimal.ZERO;
         BigDecimal totalObtained = BigDecimal.ZERO;
+        Set<Integer> processedMergeGroups = new HashSet<>();
 
         for (ProgressReportData.SubjectInfo si : subjects) {
-            ProgressReportData.SubjectResult sr = resultMap.get(si.getSubjectId());
-            boolean appeared = sr != null && sr.isAppeared();
+            Integer mgId = si.getMergeGroupId();
 
-            String totalCell  = appeared && sr.getTotalMarks() != null ? fmtMark(sr.getTotalMarks()) : "—";
-            String gradeCell  = appeared && sr.getGradeName() != null ? sr.getGradeName() : "—";
-            String gpaCell    = appeared && sr.getGpaValue()  != null ? fmtGpa(sr.getGpaValue()) : "—";
-            String highCell   = fmtMark(si.getHighestMarks());
+            if (mgId != null) {
+                if (processedMergeGroups.contains(mgId)) continue;
+                processedMergeGroups.add(mgId);
 
-            tbody.append("<tr>");
-            tbody.append("<td class=\"subject\">").append(si.getSubjectName())
-                    .append(si.isFourthSubject() ? " (4<sup>th</sup>)" : "").append("</td>");
-            tbody.append("<td>").append(si.getTotalMarks()).append("</td>");
-            tbody.append("<td>").append(highCell).append("</td>");
+                List<ProgressReportData.SubjectInfo> pair = byMergeGroup.get(mgId);
+                int rowCount = pair.size();
 
-            for (ProgressReportData.ComponentInfo c : components) {
-                BigDecimal cm = sr != null ? sr.getComponentMarks().get(c.getComponentId()) : null;
-                tbody.append("<td>").append(cm != null ? fmtMark(cm) : "—").append("</td>");
-            }
+                // Compute combined obtained/full for the merged group grade
+                BigDecimal combinedObtained = BigDecimal.ZERO;
+                int combinedFull = 0;
+                for (ProgressReportData.SubjectInfo msi : pair) {
+                    ProgressReportData.SubjectResult msr = resultMap.get(msi.getSubjectId());
+                    if (msr != null && msr.isAppeared() && msr.getTotalMarks() != null)
+                        combinedObtained = combinedObtained.add(msr.getTotalMarks());
+                    if (msi.getTotalMarks() != null) combinedFull += msi.getTotalMarks();
+                }
+                String combinedGrade = resolveMergedGrade(combinedObtained, combinedFull, gradingTable);
+                String combinedGpa   = resolveMergedGpa(combinedObtained, combinedFull, gradingTable);
 
-            tbody.append("<td>").append(totalCell).append("</td>");
-            tbody.append("<td>").append(gradeCell).append("</td>");
-            tbody.append("<td>").append(gpaCell).append("</td>");
-            tbody.append("</tr>");
+                for (int i = 0; i < rowCount; i++) {
+                    ProgressReportData.SubjectInfo msi = pair.get(i);
+                    ProgressReportData.SubjectResult msr = resultMap.get(msi.getSubjectId());
+                    boolean appeared = msr != null && msr.isAppeared();
+                    String totalCell = appeared && msr.getTotalMarks() != null ? fmtMark(msr.getTotalMarks()) : "—";
+                    String highCell  = fmtMark(msi.getHighestMarks());
 
-            if (!si.isFourthSubject()) {
-                totalFull = totalFull.add(BigDecimal.valueOf(si.getTotalMarks() != null ? si.getTotalMarks() : 0));
-                if (appeared && sr.getTotalMarks() != null) totalObtained = totalObtained.add(sr.getTotalMarks());
+                    String rowStyle = i == 0 ? " class=\"merged-first\"" : " class=\"merged-last\"";
+                    tbody.append("<tr").append(rowStyle).append(">");
+                    tbody.append("<td class=\"subject\">").append(msi.getSubjectName()).append("</td>");
+                    tbody.append("<td>").append(msi.getTotalMarks()).append("</td>");
+                    tbody.append("<td>").append(highCell).append("</td>");
+                    for (ProgressReportData.ComponentInfo c : components) {
+                        BigDecimal cm = msr != null ? msr.getComponentMarks().get(c.getComponentId()) : null;
+                        tbody.append("<td>").append(cm != null ? fmtMark(cm) : "—").append("</td>");
+                    }
+                    tbody.append("<td>").append(totalCell).append("</td>");
+                    if (i == 0) {
+                        tbody.append("<td rowspan=\"").append(rowCount).append("\" class=\"merged-grade\">").append(combinedGrade).append("</td>");
+                        tbody.append("<td rowspan=\"").append(rowCount).append("\" class=\"merged-grade\">").append(combinedGpa).append("</td>");
+                    }
+                    tbody.append("</tr>");
+
+                    if (!msi.isFourthSubject()) {
+                        totalFull = totalFull.add(BigDecimal.valueOf(msi.getTotalMarks() != null ? msi.getTotalMarks() : 0));
+                        if (appeared && msr.getTotalMarks() != null) totalObtained = totalObtained.add(msr.getTotalMarks());
+                    }
+                }
+
+            } else {
+                ProgressReportData.SubjectResult sr = resultMap.get(si.getSubjectId());
+                boolean appeared = sr != null && sr.isAppeared();
+                String totalCell = appeared && sr.getTotalMarks() != null ? fmtMark(sr.getTotalMarks()) : "—";
+                String gradeCell = appeared && sr.getGradeName() != null ? sr.getGradeName() : "—";
+                String gpaCell   = appeared && sr.getGpaValue()  != null ? fmtGpa(sr.getGpaValue()) : "—";
+                String highCell  = fmtMark(si.getHighestMarks());
+
+                tbody.append("<tr>");
+                tbody.append("<td class=\"subject\">").append(si.getSubjectName())
+                        .append(si.isFourthSubject() ? " (4<sup>th</sup>)" : "").append("</td>");
+                tbody.append("<td>").append(si.getTotalMarks()).append("</td>");
+                tbody.append("<td>").append(highCell).append("</td>");
+                for (ProgressReportData.ComponentInfo c : components) {
+                    BigDecimal cm = sr != null ? sr.getComponentMarks().get(c.getComponentId()) : null;
+                    tbody.append("<td>").append(cm != null ? fmtMark(cm) : "—").append("</td>");
+                }
+                tbody.append("<td>").append(totalCell).append("</td>");
+                tbody.append("<td>").append(gradeCell).append("</td>");
+                tbody.append("<td>").append(gpaCell).append("</td>");
+                tbody.append("</tr>");
+
+                if (!si.isFourthSubject()) {
+                    totalFull = totalFull.add(BigDecimal.valueOf(si.getTotalMarks() != null ? si.getTotalMarks() : 0));
+                    if (appeared && sr.getTotalMarks() != null) totalObtained = totalObtained.add(sr.getTotalMarks());
+                }
             }
         }
         tbody.append("</tbody>");
@@ -273,6 +328,30 @@ public class ProgressReportPdfService {
                 + "</tfoot>";
 
         return "<table class=\"marks\">" + colgroup + thead + tbody + tfoot + "</table>";
+    }
+
+    private String resolveMergedGrade(BigDecimal obtained, int fullMarks, List<Grade> gradingTable) {
+        if (fullMarks <= 0 || gradingTable.isEmpty()) return "—";
+        double pct = obtained.multiply(BigDecimal.valueOf(100))
+                .divide(BigDecimal.valueOf(fullMarks), 4, java.math.RoundingMode.HALF_UP)
+                .doubleValue();
+        return gradingTable.stream()
+                .filter(g -> pct >= g.getMinMark())
+                .findFirst()
+                .map(Grade::getName)
+                .orElse("F");
+    }
+
+    private String resolveMergedGpa(BigDecimal obtained, int fullMarks, List<Grade> gradingTable) {
+        if (fullMarks <= 0 || gradingTable.isEmpty()) return "—";
+        double pct = obtained.multiply(BigDecimal.valueOf(100))
+                .divide(BigDecimal.valueOf(fullMarks), 4, java.math.RoundingMode.HALF_UP)
+                .doubleValue();
+        return gradingTable.stream()
+                .filter(g -> pct >= g.getMinMark())
+                .findFirst()
+                .map(g -> fmtGpa(g.getGpaValue()))
+                .orElse("0.00");
     }
 
     private String resolveGradeNameFromGpa(Double gpa, ProgressReportData data) {
@@ -457,6 +536,7 @@ public class ProgressReportPdfService {
                 + ".marks thead th { padding: 4px; }"
                 + ".marks tbody td { padding: 3px 4px; text-align: center; }"
                 + ".marks tbody td.subject { text-align: left; }"
+                + ".marks tbody td.merged-grade { vertical-align: middle; font-weight: 600; background: #FAF3E0; }"
                 + ".marks tfoot td { padding: 4px; font-weight: 600; }"
                 + ".result-row { display: grid; grid-template-columns: 1fr 1fr 1fr; font-size: 7.5pt; margin-top: 2mm; }"
                 + ".checks { margin-top: 2mm; font-size: 9pt; }"

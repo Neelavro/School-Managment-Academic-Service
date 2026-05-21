@@ -39,6 +39,7 @@ public class ProgressReportData {
         private Integer totalMarks;
         private BigDecimal highestMarks;
         private Map<Integer, Integer> componentMaxMarks; // componentId -> maxMarks
+        private Integer mergeGroupId;
     }
 
     @Getter
