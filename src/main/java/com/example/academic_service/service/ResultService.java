@@ -314,9 +314,9 @@ public class ResultService {
                     sr.setMarksObtained(total);
                     Grade grade = resolveGradeByPercentage(total, structure.getTotalMarks(), sortedGrades);
                     boolean passed = isSubjectPassed(total, structure.getPassMarks(), grade, components, compMarks);
-                    if (mergeGroupId == null && !passed) grade = getFailGrade(sortedGrades);
+                    if (!passed) grade = getFailGrade(sortedGrades);
                     if (grade != null) { sr.setGradeName(grade.getName()); sr.setGpaValue(grade.getGpaValue()); }
-                    if (mergeGroupId == null) sr.setPassed(passed);
+                    sr.setPassed(passed);
                     if (mergeGroupId != null) {
                         grandTotal = grandTotal.add(total);
                         mgObtained.merge(mergeGroupId, total, BigDecimal::add);
@@ -351,12 +351,6 @@ public class ResultService {
 
             if (applyMergeGroupGpas(mgObtained, mgTotalMax, mgPassMarks, mgCompObtained, mgCompPassMarks, mgAnyAppeared, sortedGrades, mandatoryGpas) > 0)
                 overallPassed = false;
-
-            Map<Integer, Boolean> mergePassMap = buildMergePassMap(mgObtained, mgTotalMax, mgPassMarks, mgCompObtained, mgCompPassMarks, mgAnyAppeared, sortedGrades);
-            for (RoutineResultResponse.SubjectResult sr : subjectResults) {
-                Integer mgId = mergeGroupMap.get(sr.getSubjectId());
-                if (mgId != null && sr.isAppeared()) sr.setPassed(mergePassMap.getOrDefault(mgId, false));
-            }
 
             row.setSubjectResults(subjectResults);
             row.setTotalMarks(grandTotal);
@@ -688,9 +682,9 @@ public class ResultService {
                 sr.setMarksObtained(total);
                 Grade grade = resolveGradeByPercentage(total, structure.getTotalMarks(), sortedGrades);
                 boolean passed = isSubjectPassed(total, structure.getPassMarks(), grade, components, compMarks);
-                if (mergeGroupId == null && !passed) grade = getFailGrade(sortedGrades);
+                if (!passed) grade = getFailGrade(sortedGrades);
                 if (grade != null) { sr.setGradeName(grade.getName()); sr.setGpaValue(grade.getGpaValue()); }
-                if (mergeGroupId == null) sr.setPassed(passed);
+                sr.setPassed(passed);
                 if (mergeGroupId != null) {
                     grandTotal = grandTotal.add(total);
                     mgObtained.merge(mergeGroupId, total, BigDecimal::add);
@@ -725,12 +719,6 @@ public class ResultService {
 
         if (applyMergeGroupGpas(mgObtained, mgTotalMax, mgPassMarks, mgCompObtained, mgCompPassMarks, mgAnyAppeared, sortedGrades, mandatoryGpas) > 0)
             overallPassed = false;
-
-        Map<Integer, Boolean> mergePassMap = buildMergePassMap(mgObtained, mgTotalMax, mgPassMarks, mgCompObtained, mgCompPassMarks, mgAnyAppeared, sortedGrades);
-        for (StudentRoutineResultResponse.SubjectResult sr : subjectResults) {
-            Integer mgId = mergeGroupMap.get(sr.getSubjectId());
-            if (mgId != null && sr.isAppeared()) sr.setPassed(mergePassMap.getOrDefault(mgId, false));
-        }
 
         StudentRoutineResultResponse response = new StudentRoutineResultResponse();
         response.setEnrollmentId(enrollmentId);
@@ -1335,9 +1323,9 @@ public class ResultService {
                     sr.setTotalMarks(total);
                     Grade grade = resolveGradeByPercentage(total, structure.getTotalMarks(), sortedGrades);
                     boolean passed = isSubjectPassed(total, structure.getPassMarks(), grade, comps, compMarks);
-                    if (mergeGroupId == null && !passed) grade = getFailGrade(sortedGrades);
+                    if (!passed) grade = getFailGrade(sortedGrades);
                     if (grade != null) { sr.setGradeName(grade.getName()); sr.setGpaValue(grade.getGpaValue()); }
-                    if (mergeGroupId == null) sr.setPassed(passed);
+                    sr.setPassed(passed);
                     if (mergeGroupId != null) {
                         grandTotal = grandTotal.add(total);
                         mgObtained.merge(mergeGroupId, total, BigDecimal::add);
@@ -1373,12 +1361,6 @@ public class ResultService {
 
             int mergedFailed = applyMergeGroupGpas(mgObtained, mgTotalMax, mgPassMarks, mgCompObtained, mgCompPassMarks, mgAnyAppeared, sortedGrades, mandatoryGpas);
             if (mergedFailed > 0) { overallPassed = false; failedCount += mergedFailed; }
-
-            Map<Integer, Boolean> mergePassMap = buildMergePassMap(mgObtained, mgTotalMax, mgPassMarks, mgCompObtained, mgCompPassMarks, mgAnyAppeared, sortedGrades);
-            for (ProgressReportData.SubjectResult sr : subjectResults) {
-                Integer mgId = mergeGroupMap.get(sr.getSubjectId());
-                if (mgId != null && sr.isAppeared()) sr.setPassed(mergePassMap.getOrDefault(mgId, false));
-            }
 
             report.setSubjectResults(subjectResults);
             report.setTotalMarks(grandTotal);
