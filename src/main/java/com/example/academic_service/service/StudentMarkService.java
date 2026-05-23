@@ -139,6 +139,10 @@ public class StudentMarkService {
             row.setStudentSystemId(enrollment.getStudentSystemId());
             row.setNameEnglish(enrollment.getStudent() != null ? enrollment.getStudent().getNameEnglish() : null);
             row.setClassRoll(enrollment.getClassRoll());
+            if (enrollment.getStudentGroup() != null) {
+                row.setGroupId(enrollment.getStudentGroup().getId());
+                row.setGroupName(enrollment.getStudentGroup().getGroupName());
+            }
 
             Map<Integer, BigDecimal> studentMarks = markMap.getOrDefault(enrollment.getId(), new HashMap<>());
 

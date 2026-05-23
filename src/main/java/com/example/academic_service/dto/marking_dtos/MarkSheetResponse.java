@@ -33,6 +33,8 @@ public class MarkSheetResponse {
         private String studentSystemId;
         private String nameEnglish;
         private Integer classRoll;
+        private Integer groupId;
+        private String groupName;
         private List<MarkEntry> marks;
         private BigDecimal total;
         private String status; // null / "PRESENT" / "ABSENT" / "EXPELLED"
