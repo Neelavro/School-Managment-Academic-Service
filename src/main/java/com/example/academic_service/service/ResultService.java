@@ -144,14 +144,16 @@ public class ResultService {
         ExamRoutine routine = examRoutineRepository.findById(examRoutineId)
                 .orElseThrow(() -> new RuntimeException("Exam routine not found: " + examRoutineId));
 
-        List<ExamSession> sessions = deduplicateBySubject(examSessionRepository
+        List<ExamSession> rawSessions = deduplicateBySubject(examSessionRepository
                 .findForRoutineAndClassWithGroupFilter(examRoutineId, classId, groupId));
-        if (sessions.isEmpty()) throw new RuntimeException("No exam sessions found for this routine and class");
+        if (rawSessions.isEmpty()) throw new RuntimeException("No exam sessions found for this routine and class");
 
-        Class examClass = sessions.get(0).getExamClass();
+        Class examClass = rawSessions.get(0).getExamClass();
         List<Grade> sortedGrades = loadSortedGrades(examClass);
         Set<Integer> defaultFourthSubjectIds = loadFourthSubjectIds(classId, groupId);
         Map<Integer, Integer> mergeGroupMap = loadMergeGroupMap(classId, groupId);
+        Map<Integer, Integer> mergeOrderMap = loadMergeOrderMap(classId, groupId);
+        final List<ExamSession> sessions = sortSessionsByMergeOrder(rawSessions, mergeGroupMap, mergeOrderMap);
 
         Integer routineAcademicYearId = routine.getAcademicYear() != null ? routine.getAcademicYear().getId() : null;
         // load ALL class enrollments for rank computation
@@ -159,6 +161,8 @@ public class ResultService {
         SessionDataBundle bundle = loadSessionData(sessions, classId, allEnrollments);
 
         Map<Long, Integer> overrideMap = loadOverrideMap(allEnrollments);
+        Map<Long, Set<Integer>> compulsoryMap = loadCompulsoryMap(allEnrollments);
+        Set<Integer> includedFourthSubjectIds = buildIncludedFourthSubjectIds(overrideMap, compulsoryMap);
 
         // compute totals for every student in the class
         Map<Long, BigDecimal> totalMarksMap = new HashMap<>();
@@ -166,8 +170,7 @@ public class ResultService {
         Map<Long, Boolean> passedMap = new HashMap<>();
 
         for (Enrollment enrollment : allEnrollments) {
-            boolean hasOverride = overrideMap.containsKey(enrollment.getId());
-            Set<Integer> fourthSubjectIds = resolveFourthSubjectIds(enrollment, overrideMap, defaultFourthSubjectIds);
+            Set<Integer> fourthSubjectIds = buildStudentFourthSet(enrollment.getId(), overrideMap, compulsoryMap);
             List<Double> mandatoryGpas = new ArrayList<>();
             Double fourthGpa = null;
             BigDecimal grandTotal = BigDecimal.ZERO;
@@ -181,6 +184,7 @@ public class ResultService {
 
             for (ExamSession s : sessions) {
                 if (!bundle.sessionStructureMap.containsKey(s.getId())) continue;
+                if (defaultFourthSubjectIds.contains(s.getSubject().getId()) && !fourthSubjectIds.contains(s.getSubject().getId())) continue;
                 MarkingStructure structure = bundle.sessionStructureMap.get(s.getId());
                 List<MarkingStructureComponent> components = bundle.sessionComponentsMap.get(s.getId());
                 boolean isFourth = fourthSubjectIds.contains(s.getSubject().getId());
@@ -213,7 +217,7 @@ public class ResultService {
                         grandTotal = grandTotal.add(total);
                         if (grade != null) mandatoryGpas.add(grade.getGpaValue());
                         if (!passed) overallPassed = false;
-                    } else if (grade != null && hasOverride) {
+                    } else if (grade != null && s.getSubject().getId().equals(overrideMap.get(enrollment.getId()))) {
                         fourthGpa = grade.getGpaValue();
                     }
                 } else if (!isFourth) {
@@ -236,6 +240,7 @@ public class ResultService {
         // build subject infos (group-level default for the column header)
         List<RoutineResultResponse.SubjectInfo> subjectInfos = sessions.stream()
                 .filter(s -> bundle.sessionStructureMap.containsKey(s.getId()))
+                .filter(s -> !defaultFourthSubjectIds.contains(s.getSubject().getId()) || includedFourthSubjectIds.contains(s.getSubject().getId()))
                 .map(s -> {
                     MarkingStructure ms = bundle.sessionStructureMap.get(s.getId());
                     RoutineResultResponse.SubjectInfo si = new RoutineResultResponse.SubjectInfo();
@@ -254,8 +259,7 @@ public class ResultService {
 
         // build student rows for filtered enrollments
         List<RoutineResultResponse.StudentResultRow> studentRows = filteredEnrollments.stream().map(enrollment -> {
-            boolean hasOverride = overrideMap.containsKey(enrollment.getId());
-            Set<Integer> fourthSubjectIds = resolveFourthSubjectIds(enrollment, overrideMap, defaultFourthSubjectIds);
+            Set<Integer> fourthSubjectIds = buildStudentFourthSet(enrollment.getId(), overrideMap, compulsoryMap);
             RoutineResultResponse.StudentResultRow row = new RoutineResultResponse.StudentResultRow();
             row.setEnrollmentId(enrollment.getId());
             row.setStudentSystemId(enrollment.getStudentSystemId());
@@ -294,6 +298,7 @@ public class ResultService {
 
             for (ExamSession s : sessions) {
                 if (!bundle.sessionStructureMap.containsKey(s.getId())) continue;
+                if (defaultFourthSubjectIds.contains(s.getSubject().getId()) && !fourthSubjectIds.contains(s.getSubject().getId())) continue;
                 MarkingStructure structure = bundle.sessionStructureMap.get(s.getId());
                 List<MarkingStructureComponent> components = bundle.sessionComponentsMap.get(s.getId());
                 boolean isFourth = fourthSubjectIds.contains(s.getSubject().getId());
@@ -335,7 +340,7 @@ public class ResultService {
                         grandTotal = grandTotal.add(total);
                         if (grade != null) mandatoryGpas.add(grade.getGpaValue());
                         if (!passed) overallPassed = false;
-                    } else if (grade != null && hasOverride) {
+                    } else if (grade != null && s.getSubject().getId().equals(overrideMap.get(enrollment.getId()))) {
                         fourthGpa = grade.getGpaValue();
                     }
                 } else if (mergeGroupId != null) {
@@ -391,16 +396,23 @@ public class ResultService {
         List<Grade> sortedGrades = loadSortedGrades(examClass);
         Set<Integer> defaultFourthSubjectIds = loadFourthSubjectIds(classId, groupId);
         Map<Integer, Integer> mergeGroupMap = loadMergeGroupMap(classId, groupId);
+        Map<Integer, Integer> mergeOrderMap = loadMergeOrderMap(classId, groupId);
 
         // load ALL class enrollments for rank computation
         List<Enrollment> allEnrollments = enrollmentRepository.findAllByClassIdAndFilters(classId, academicYearId, shiftId, null, null, groupId, null, null);
         AnnualDataBundle bundle = loadAnnualData(sessions, classId, allEnrollments);
 
         Map<Long, Integer> overrideMap = loadOverrideMap(allEnrollments);
+        Map<Long, Set<Integer>> compulsoryMap = loadCompulsoryMap(allEnrollments);
+        Set<Integer> includedFourthSubjectIds = buildIncludedFourthSubjectIds(overrideMap, compulsoryMap);
 
         Map<Integer, String> subjectNameMap = sessions.stream()
                 .collect(Collectors.toMap(s -> s.getSubject().getId(), s -> s.getSubject().getName(), (a, b) -> a));
-        List<Integer> orderedSubjectIds = bundle.sessionsBySubject.keySet().stream().sorted().collect(Collectors.toList());
+        List<Integer> orderedSubjectIds = sortSubjectIdsByMergeOrder(
+                bundle.sessionsBySubject.keySet().stream()
+                        .filter(sid -> !defaultFourthSubjectIds.contains(sid) || includedFourthSubjectIds.contains(sid))
+                        .sorted().collect(Collectors.toList()),
+                mergeGroupMap, mergeOrderMap);
 
         List<AnnualResultResponse.RoutineInfo> routineInfos = sessions.stream()
                 .map(ExamSession::getExamRoutine)
@@ -421,8 +433,7 @@ public class ResultService {
         Map<Long, Boolean> passedMap = new HashMap<>();
 
         for (Enrollment enrollment : allEnrollments) {
-            boolean hasOverride = overrideMap.containsKey(enrollment.getId());
-            Set<Integer> fourthSubjectIds = resolveFourthSubjectIds(enrollment, overrideMap, defaultFourthSubjectIds);
+            Set<Integer> fourthSubjectIds = buildStudentFourthSet(enrollment.getId(), overrideMap, compulsoryMap);
             List<Double> mandatoryGpas = new ArrayList<>();
             Double fourthGpa = null;
             BigDecimal grandTotalRaw = BigDecimal.ZERO;
@@ -433,6 +444,7 @@ public class ResultService {
             Map<Integer, Boolean> mgAnyAppeared = new HashMap<>();
 
             for (Integer subjectId : orderedSubjectIds) {
+                if (defaultFourthSubjectIds.contains(subjectId) && !fourthSubjectIds.contains(subjectId)) continue;
                 AnnualSubjectData asd = computeAnnualSubjectData(subjectId, bundle, enrollment.getId(), sortedGrades);
                 if (asd == null) continue;
                 boolean isFourth = fourthSubjectIds.contains(subjectId);
@@ -455,7 +467,7 @@ public class ResultService {
                         grandMaxRaw += asd.totalMax;
                         if (asd.grade != null) mandatoryGpas.add(asd.grade.getGpaValue());
                         if (!asd.passed) overallPassed = false;
-                    } else if (asd.grade != null && hasOverride) {
+                    } else if (asd.grade != null && subjectId.equals(overrideMap.get(enrollment.getId()))) {
                         fourthGpa = asd.grade.getGpaValue();
                     }
                 } else if (!isFourth) {
@@ -495,8 +507,7 @@ public class ResultService {
                 .collect(Collectors.toList());
 
         List<AnnualResultResponse.StudentResultRow> studentRows = filteredEnrollments.stream().map(enrollment -> {
-            boolean hasOverride = overrideMap.containsKey(enrollment.getId());
-            Set<Integer> fourthSubjectIds = resolveFourthSubjectIds(enrollment, overrideMap, defaultFourthSubjectIds);
+            Set<Integer> fourthSubjectIds = buildStudentFourthSet(enrollment.getId(), overrideMap, compulsoryMap);
             AnnualResultResponse.StudentResultRow row = new AnnualResultResponse.StudentResultRow();
             row.setEnrollmentId(enrollment.getId());
             row.setStudentSystemId(enrollment.getStudentSystemId());
@@ -532,6 +543,7 @@ public class ResultService {
             Map<Integer, Boolean> mgAnyAppeared = new HashMap<>();
 
             for (Integer subjectId : orderedSubjectIds) {
+                if (defaultFourthSubjectIds.contains(subjectId) && !fourthSubjectIds.contains(subjectId)) continue;
                 AnnualSubjectData asd = computeAnnualSubjectData(subjectId, bundle, enrollment.getId(), sortedGrades);
                 if (asd == null) continue;
                 boolean isFourth = fourthSubjectIds.contains(subjectId);
@@ -569,7 +581,7 @@ public class ResultService {
                         grandMaxRaw += asd.totalMax;
                         if (asd.grade != null) mandatoryGpas.add(asd.grade.getGpaValue());
                         if (!asd.passed) overallPassed = false;
-                    } else if (asd.grade != null && hasOverride) {
+                    } else if (asd.grade != null && subjectId.equals(overrideMap.get(enrollment.getId()))) {
                         fourthGpa = asd.grade.getGpaValue();
                     }
                 } else if (mergeGroupId != null) {
@@ -631,16 +643,17 @@ public class ResultService {
         Integer classId = enrollment.getStudentClass().getId();
         Integer groupId = enrollment.getStudentGroup() != null ? enrollment.getStudentGroup().getId() : null;
 
-        List<ExamSession> sessions = deduplicateBySubject(examSessionRepository
-                .findForRoutineAndClassWithGroupFilter(examRoutineId, classId, groupId));
-
         Class examClass = enrollment.getStudentClass();
         List<Grade> sortedGrades = loadSortedGrades(examClass);
         Set<Integer> defaultFourthSubjectIds = loadFourthSubjectIds(classId, groupId);
         Map<Integer, Integer> mergeGroupMap = loadMergeGroupMap(classId, groupId);
+        Map<Integer, Integer> mergeOrderMap = loadMergeOrderMap(classId, groupId);
         Map<Long, Integer> overrideMap = loadOverrideMap(List.of(enrollment));
-        boolean hasOverride = overrideMap.containsKey(enrollment.getId());
-        Set<Integer> fourthSubjectIds = resolveFourthSubjectIds(enrollment, overrideMap, defaultFourthSubjectIds);
+        Map<Long, Set<Integer>> compulsoryMap = loadCompulsoryMap(List.of(enrollment));
+        Set<Integer> fourthSubjectIds = buildStudentFourthSet(enrollment.getId(), overrideMap, compulsoryMap);
+        final List<ExamSession> sessions = sortSessionsByMergeOrder(
+                deduplicateBySubject(examSessionRepository.findForRoutineAndClassWithGroupFilter(examRoutineId, classId, groupId)),
+                mergeGroupMap, mergeOrderMap);
 
         SessionDataBundle bundle = loadSessionData(sessions, classId, List.of(enrollment));
 
@@ -658,6 +671,7 @@ public class ResultService {
 
         for (ExamSession s : sessions) {
             if (!bundle.sessionStructureMap.containsKey(s.getId())) continue;
+            if (defaultFourthSubjectIds.contains(s.getSubject().getId()) && !fourthSubjectIds.contains(s.getSubject().getId())) continue;
             MarkingStructure structure = bundle.sessionStructureMap.get(s.getId());
             List<MarkingStructureComponent> components = bundle.sessionComponentsMap.get(s.getId());
             boolean isFourth = fourthSubjectIds.contains(s.getSubject().getId());
@@ -703,7 +717,7 @@ public class ResultService {
                     grandTotal = grandTotal.add(total);
                     if (grade != null) mandatoryGpas.add(grade.getGpaValue());
                     if (!passed) overallPassed = false;
-                } else if (grade != null && hasOverride) {
+                } else if (grade != null && s.getSubject().getId().equals(overrideMap.get(enrollment.getId()))) {
                     fourthGpa = grade.getGpaValue();
                 }
             } else if (mergeGroupId != null) {
@@ -756,12 +770,17 @@ public class ResultService {
         List<Grade> sortedGrades = loadSortedGrades(examClass);
         Set<Integer> defaultFourthSubjectIds = loadFourthSubjectIds(classId, groupId);
         Map<Integer, Integer> mergeGroupMap = loadMergeGroupMap(classId, groupId);
+        Map<Integer, Integer> mergeOrderMap = loadMergeOrderMap(classId, groupId);
         Map<Long, Integer> overrideMap = loadOverrideMap(List.of(enrollment));
-        boolean hasOverride = overrideMap.containsKey(enrollment.getId());
-        Set<Integer> fourthSubjectIds = resolveFourthSubjectIds(enrollment, overrideMap, defaultFourthSubjectIds);
+        Map<Long, Set<Integer>> compulsoryMap = loadCompulsoryMap(List.of(enrollment));
+        Set<Integer> fourthSubjectIds = buildStudentFourthSet(enrollment.getId(), overrideMap, compulsoryMap);
 
         AnnualDataBundle bundle = loadAnnualData(sessions, classId, List.of(enrollment));
-        List<Integer> orderedSubjectIds = bundle.sessionsBySubject.keySet().stream().sorted().collect(Collectors.toList());
+        List<Integer> orderedSubjectIds = sortSubjectIdsByMergeOrder(
+                bundle.sessionsBySubject.keySet().stream()
+                        .filter(sid -> !defaultFourthSubjectIds.contains(sid) || fourthSubjectIds.contains(sid))
+                        .sorted().collect(Collectors.toList()),
+                mergeGroupMap, mergeOrderMap);
 
         Map<Integer, String> subjectNameMap = sessions.stream()
                 .collect(Collectors.toMap(s -> s.getSubject().getId(), s -> s.getSubject().getName(), (a, b) -> a));
@@ -828,7 +847,7 @@ public class ResultService {
                     grandMaxRaw += asd.totalMax;
                     if (asd.grade != null) mandatoryGpas.add(asd.grade.getGpaValue());
                     if (!asd.passed) overallPassed = false;
-                } else if (asd.grade != null && hasOverride) {
+                } else if (asd.grade != null && subjectId.equals(overrideMap.get(enrollment.getId()))) {
                     fourthGpa = asd.grade.getGpaValue();
                 }
             } else if (mergeGroupId != null) {
@@ -894,10 +913,10 @@ public class ResultService {
         List<Integer> orderedSubjectIds = bundle.sessionsBySubject.keySet().stream().sorted().collect(Collectors.toList());
 
         Map<Long, Integer> overrideMap = loadOverrideMap(enrollments);
+        Map<Long, Set<Integer>> compulsoryMap = loadCompulsoryMap(enrollments);
 
         List<MeritListResponse.MeritEntry> entries = enrollments.stream().map(enrollment -> {
-            boolean hasOverride = overrideMap.containsKey(enrollment.getId());
-            Set<Integer> fourthSubjectIds = resolveFourthSubjectIds(enrollment, overrideMap, defaultFourthSubjectIds);
+            Set<Integer> fourthSubjectIds = buildStudentFourthSet(enrollment.getId(), overrideMap, compulsoryMap);
             BigDecimal totalRaw = BigDecimal.ZERO;
             int totalMax = 0;
             List<Double> mandatoryGpas = new ArrayList<>();
@@ -908,6 +927,7 @@ public class ResultService {
             Map<Integer, Boolean> mgAnyAppeared = new HashMap<>();
 
             for (Integer subjectId : orderedSubjectIds) {
+                if (defaultFourthSubjectIds.contains(subjectId) && !fourthSubjectIds.contains(subjectId)) continue;
                 AnnualSubjectData asd = computeAnnualSubjectData(subjectId, bundle, enrollment.getId(), sortedGrades);
                 if (asd == null) continue;
                 boolean isFourth = fourthSubjectIds.contains(subjectId);
@@ -931,7 +951,7 @@ public class ResultService {
                         totalMax += asd.totalMax;
                         if (asd.grade != null) mandatoryGpas.add(asd.grade.getGpaValue());
                         if (!asd.passed) passed = false;
-                    } else if (asd.grade != null && hasOverride) {
+                    } else if (asd.grade != null && subjectId.equals(overrideMap.get(enrollment.getId()))) {
                         fourthGpa = asd.grade.getGpaValue();
                     }
                 } else if (!isFourth) {
@@ -1163,14 +1183,16 @@ public class ResultService {
         ExamRoutine routine = examRoutineRepository.findById(examRoutineId)
                 .orElseThrow(() -> new RuntimeException("Exam routine not found: " + examRoutineId));
 
-        List<ExamSession> sessions = deduplicateBySubject(examSessionRepository
+        List<ExamSession> rawSessions = deduplicateBySubject(examSessionRepository
                 .findForRoutineAndClassWithGroupFilter(examRoutineId, classId, groupId));
-        if (sessions.isEmpty()) throw new RuntimeException("No exam sessions found for this routine and class");
+        if (rawSessions.isEmpty()) throw new RuntimeException("No exam sessions found for this routine and class");
 
-        Class examClass = sessions.get(0).getExamClass();
+        Class examClass = rawSessions.get(0).getExamClass();
         List<Grade> sortedGrades = loadSortedGrades(examClass);
         Set<Integer> defaultFourthSubjectIds = loadFourthSubjectIds(classId, groupId);
         Map<Integer, Integer> mergeGroupMap = loadMergeGroupMap(classId, groupId);
+        Map<Integer, Integer> mergeOrderMap = loadMergeOrderMap(classId, groupId);
+        final List<ExamSession> sessions = sortSessionsByMergeOrder(rawSessions, mergeGroupMap, mergeOrderMap);
 
         Integer routineAcademicYearId = routine.getAcademicYear() != null ? routine.getAcademicYear().getId() : null;
         List<Enrollment> allEnrollments = enrollmentRepository
@@ -1178,6 +1200,8 @@ public class ResultService {
         SessionDataBundle bundle = loadSessionData(sessions, classId, allEnrollments);
 
         Map<Long, Integer> overrideMap = loadOverrideMap(allEnrollments);
+        Map<Long, Set<Integer>> compulsoryMap = loadCompulsoryMap(allEnrollments);
+        Set<Integer> includedFourthSubjectIds = buildIncludedFourthSubjectIds(overrideMap, compulsoryMap);
 
         // collect unique components ordered by orderIndex
         Map<Integer, ProgressReportData.ComponentInfo> componentMap = new LinkedHashMap<>();
@@ -1200,10 +1224,11 @@ public class ResultService {
         // compute total marks for rank computation (mandatory subjects only, per-student override)
         Map<Long, BigDecimal> totalMarksMap = new HashMap<>();
         for (Enrollment enrollment : allEnrollments) {
-            Set<Integer> fourthSubjectIds = resolveFourthSubjectIds(enrollment, overrideMap, defaultFourthSubjectIds);
+            Set<Integer> fourthSubjectIds = buildStudentFourthSet(enrollment.getId(), overrideMap, compulsoryMap);
             BigDecimal grandTotal = BigDecimal.ZERO;
             for (ExamSession s : sessions) {
                 if (!bundle.sessionStructureMap.containsKey(s.getId())) continue;
+                if (defaultFourthSubjectIds.contains(s.getSubject().getId()) && !fourthSubjectIds.contains(s.getSubject().getId())) continue;
                 if (fourthSubjectIds.contains(s.getSubject().getId())) continue;
                 List<MarkingStructureComponent> comps = bundle.sessionComponentsMap.get(s.getId());
                 Map<Integer, BigDecimal> compMarks = bundle.markMap
@@ -1237,6 +1262,7 @@ public class ResultService {
         List<ProgressReportData.SubjectInfo> subjectInfos = new ArrayList<>();
         for (ExamSession s : sessions) {
             if (!bundle.sessionStructureMap.containsKey(s.getId())) continue;
+            if (defaultFourthSubjectIds.contains(s.getSubject().getId()) && !includedFourthSubjectIds.contains(s.getSubject().getId())) continue;
             MarkingStructure ms = bundle.sessionStructureMap.get(s.getId());
             List<MarkingStructureComponent> comps = bundle.sessionComponentsMap.getOrDefault(s.getId(), Collections.emptyList());
 
@@ -1263,8 +1289,7 @@ public class ResultService {
 
         // build student reports
         List<ProgressReportData.StudentReport> studentReports = filteredEnrollments.stream().map(enrollment -> {
-            boolean hasOverride = overrideMap.containsKey(enrollment.getId());
-            Set<Integer> fourthSubjectIds = resolveFourthSubjectIds(enrollment, overrideMap, defaultFourthSubjectIds);
+            Set<Integer> fourthSubjectIds = buildStudentFourthSet(enrollment.getId(), overrideMap, compulsoryMap);
             ProgressReportData.StudentReport report = new ProgressReportData.StudentReport();
             report.setEnrollmentId(enrollment.getId());
             report.setStudentSystemId(enrollment.getStudentSystemId());
@@ -1303,6 +1328,7 @@ public class ResultService {
 
             for (ExamSession s : sessions) {
                 if (!bundle.sessionStructureMap.containsKey(s.getId())) continue;
+                if (defaultFourthSubjectIds.contains(s.getSubject().getId()) && !fourthSubjectIds.contains(s.getSubject().getId())) continue;
                 MarkingStructure structure = bundle.sessionStructureMap.get(s.getId());
                 List<MarkingStructureComponent> comps = bundle.sessionComponentsMap.get(s.getId());
                 boolean isFourth = fourthSubjectIds.contains(s.getSubject().getId());
@@ -1345,7 +1371,7 @@ public class ResultService {
                         grandTotal = grandTotal.add(total);
                         if (grade != null) mandatoryGpas.add(grade.getGpaValue());
                         if (!passed) { overallPassed = false; failedCount++; }
-                    } else if (grade != null && hasOverride) {
+                    } else if (grade != null && s.getSubject().getId().equals(overrideMap.get(enrollment.getId()))) {
                         fourthGpa = grade.getGpaValue();
                     }
                 } else if (mergeGroupId != null) {
@@ -1603,23 +1629,48 @@ public class ResultService {
         return grades;
     }
 
-    // Batch-load override map for a list of enrollments: enrollmentId -> overridden subjectId
+    // Batch-load override map for a list of enrollments: enrollmentId -> overridden subjectId (GPA bonus subject)
     private Map<Long, Integer> loadOverrideMap(List<Enrollment> enrollments) {
         List<Long> ids = enrollments.stream().map(Enrollment::getId).collect(Collectors.toList());
-        return studentFourthSubjectOverrideRepository.findByEnrollmentIdIn(ids).stream()
-                .collect(Collectors.toMap(
-                        o -> o.getEnrollmentId(),
-                        o -> o.getSubject().getId()));
+        Map<Long, Integer> map = new HashMap<>();
+        for (StudentFourthSubjectOverride o : studentFourthSubjectOverrideRepository.findByEnrollmentIdIn(ids)) {
+            if (o.getSubject() != null) {
+                map.put(o.getEnrollmentId(), o.getSubject().getId());
+            }
+        }
+        return map;
     }
 
-    // Per-enrollment resolution with group-level cache to avoid repeated DB hits
-    private Set<Integer> resolveFourthSubjectIds(Enrollment enrollment,
-                                                  Map<Long, Integer> overrideMap,
-                                                  Set<Integer> classFourthIds) {
-        Integer override = overrideMap.get(enrollment.getId());
-        if (override != null) return Set.of(override);
-        // No override — treat all possible 4th subjects as skipped (not mandatory, no bonus GPA)
-        return classFourthIds;
+    private Map<Long, Set<Integer>> loadCompulsoryMap(List<Enrollment> enrollments) {
+        List<Long> enrollmentIds = enrollments.stream().map(Enrollment::getId).collect(Collectors.toList());
+        List<StudentFourthSubjectOverride> overrides = studentFourthSubjectOverrideRepository.findByEnrollmentIdIn(enrollmentIds);
+        Map<Long, Set<Integer>> map = new HashMap<>();
+        for (StudentFourthSubjectOverride o : overrides) {
+            if (o.getCompulsorySubjects() != null && !o.getCompulsorySubjects().isEmpty()) {
+                map.put(o.getEnrollmentId(), o.getCompulsorySubjects().stream()
+                        .map(s -> s.getId())
+                        .collect(Collectors.toSet()));
+            }
+        }
+        return map;
+    }
+
+    private Set<Integer> buildStudentFourthSet(Long enrollmentId,
+                                                Map<Long, Integer> overrideMap,
+                                                Map<Long, Set<Integer>> compulsoryMap) {
+        Set<Integer> result = new HashSet<>();
+        Integer override = overrideMap.get(enrollmentId);
+        if (override != null) result.add(override);
+        Set<Integer> compulsory = compulsoryMap.get(enrollmentId);
+        if (compulsory != null) result.addAll(compulsory);
+        return result;
+    }
+
+    private Set<Integer> buildIncludedFourthSubjectIds(Map<Long, Integer> overrideMap,
+                                                        Map<Long, Set<Integer>> compulsoryMap) {
+        Set<Integer> result = new HashSet<>(overrideMap.values());
+        for (Set<Integer> s : compulsoryMap.values()) result.addAll(s);
+        return result;
     }
 
     private Set<Integer> loadFourthSubjectIds(Integer classId, Integer groupId) {
@@ -1642,6 +1693,57 @@ public class ResultService {
                         g -> g.getSubject().getId(),
                         ClassSubjectGroup::getMergeGroupId,
                         (a, b) -> a));
+    }
+
+    private Map<Integer, Integer> loadMergeOrderMap(Integer classId, Integer groupId) {
+        List<ClassSubjectGroup> groups = groupId != null
+                ? classSubjectGroupRepository.findSubjectsForStudent(classId, groupId)
+                : classSubjectGroupRepository.findByStudentClassIdAndIsActiveTrue(classId);
+        return groups.stream()
+                .collect(Collectors.toMap(
+                        g -> g.getSubject().getId(),
+                        g -> g.getMergeOrderIndex() != null ? g.getMergeOrderIndex() : 0,
+                        (a, b) -> a));
+    }
+
+    private List<ExamSession> sortSessionsByMergeOrder(List<ExamSession> sessions,
+                                                        Map<Integer, Integer> mergeGroupMap,
+                                                        Map<Integer, Integer> mergeOrderMap) {
+        Map<Integer, Integer> originalIdx = new HashMap<>();
+        Map<Integer, Integer> mgFirstPos = new HashMap<>();
+        for (int i = 0; i < sessions.size(); i++) {
+            ExamSession s = sessions.get(i);
+            originalIdx.put(s.getId(), i);
+            Integer mgId = mergeGroupMap.get(s.getSubject().getId());
+            if (mgId != null) mgFirstPos.putIfAbsent(mgId, i);
+        }
+        List<ExamSession> sorted = new ArrayList<>(sessions);
+        sorted.sort(Comparator.comparingInt(s -> {
+            Integer mgId = mergeGroupMap.get(s.getSubject().getId());
+            if (mgId == null) return originalIdx.getOrDefault(s.getId(), 0) * 1000;
+            return mgFirstPos.getOrDefault(mgId, 0) * 1000 + mergeOrderMap.getOrDefault(s.getSubject().getId(), 0);
+        }));
+        return sorted;
+    }
+
+    private List<Integer> sortSubjectIdsByMergeOrder(List<Integer> subjectIds,
+                                                      Map<Integer, Integer> mergeGroupMap,
+                                                      Map<Integer, Integer> mergeOrderMap) {
+        Map<Integer, Integer> originalIdx = new HashMap<>();
+        Map<Integer, Integer> mgFirstPos = new HashMap<>();
+        for (int i = 0; i < subjectIds.size(); i++) {
+            Integer sid = subjectIds.get(i);
+            originalIdx.put(sid, i);
+            Integer mgId = mergeGroupMap.get(sid);
+            if (mgId != null) mgFirstPos.putIfAbsent(mgId, i);
+        }
+        List<Integer> sorted = new ArrayList<>(subjectIds);
+        sorted.sort(Comparator.comparingInt(sid -> {
+            Integer mgId = mergeGroupMap.get(sid);
+            if (mgId == null) return originalIdx.getOrDefault(sid, 0) * 1000;
+            return mgFirstPos.getOrDefault(mgId, 0) * 1000 + mergeOrderMap.getOrDefault(sid, 0);
+        }));
+        return sorted;
     }
 
     // Returns combined pass/fail per merge group ID, using the same accumulated maps.

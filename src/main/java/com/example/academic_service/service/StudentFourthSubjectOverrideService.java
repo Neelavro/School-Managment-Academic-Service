@@ -3,6 +3,7 @@ package com.example.academic_service.service;
 import com.example.academic_service.dto.ApiResponse;
 import com.example.academic_service.dto.StudentFourthSubjectOverrideDto;
 import com.example.academic_service.entity.StudentFourthSubjectOverride;
+import com.example.academic_service.entity.Subject;
 import com.example.academic_service.repository.EnrollmentRepository;
 import com.example.academic_service.repository.StudentFourthSubjectOverrideRepository;
 import com.example.academic_service.repository.SubjectRepository;
@@ -10,7 +11,9 @@ import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -25,13 +28,29 @@ public class StudentFourthSubjectOverrideService {
     public ApiResponse<StudentFourthSubjectOverrideDto.Response> setOverride(StudentFourthSubjectOverrideDto.Request request) {
         enrollmentRepository.findById(request.getEnrollmentId())
                 .orElseThrow(() -> new RuntimeException("Enrollment not found: " + request.getEnrollmentId()));
-        var subject = subjectRepository.findById(request.getSubjectId())
-                .orElseThrow(() -> new RuntimeException("Subject not found: " + request.getSubjectId()));
 
         StudentFourthSubjectOverride override = repository.findByEnrollmentId(request.getEnrollmentId())
                 .orElse(new StudentFourthSubjectOverride());
         override.setEnrollmentId(request.getEnrollmentId());
-        override.setSubject(subject);
+
+        if (request.getSubjectId() != null) {
+            Subject subject = subjectRepository.findById(request.getSubjectId())
+                    .orElseThrow(() -> new RuntimeException("Subject not found: " + request.getSubjectId()));
+            override.setSubject(subject);
+        } else {
+            override.setSubject(null);
+        }
+
+        Set<Subject> compulsory = new HashSet<>();
+        if (request.getCompulsorySubjectIds() != null) {
+            for (Integer sid : request.getCompulsorySubjectIds()) {
+                Subject s = subjectRepository.findById(sid)
+                        .orElseThrow(() -> new RuntimeException("Subject not found: " + sid));
+                compulsory.add(s);
+            }
+        }
+        override.setCompulsorySubjects(compulsory);
+
         repository.save(override);
         return ApiResponse.success("Override saved", StudentFourthSubjectOverrideDto.Response.from(override));
     }

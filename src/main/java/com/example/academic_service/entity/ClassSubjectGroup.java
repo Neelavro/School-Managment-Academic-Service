@@ -41,4 +41,7 @@ public class ClassSubjectGroup {
 
     @Column(name = "merge_group_id")
     private Integer mergeGroupId;
+
+    @Column(name = "merge_order_index")
+    private Integer mergeOrderIndex = 0;
 }

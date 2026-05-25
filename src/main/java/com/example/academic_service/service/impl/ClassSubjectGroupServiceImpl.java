@@ -115,6 +115,8 @@ public class ClassSubjectGroupServiceImpl implements ClassSubjectGroupService {
         if (assignment == null) return ApiResponse.error("Assignment not found");
         if (dto.getIsFourthSubject() != null)
             assignment.setIsFourthSubject(dto.getIsFourthSubject());
+        if (dto.getMergeOrderIndex() != null)
+            assignment.setMergeOrderIndex(dto.getMergeOrderIndex());
 
         if (dto.getMergeGroupId() != null) {
             if (Boolean.TRUE.equals(assignment.getIsFourthSubject()))

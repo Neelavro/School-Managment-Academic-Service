@@ -18,4 +18,6 @@ public class ClassSubjectGroupRequestDto {
     private Boolean isFourthSubject = false;
 
     private Integer mergeGroupId;
+
+    private Integer mergeOrderIndex;
 }
