@@ -83,25 +83,35 @@ public class StudentMarkService {
 
         List<Long> allEnrollmentIds = allEnrollments.stream().map(Enrollment::getId).collect(Collectors.toList());
 
-        // build override map: enrollmentId -> overridden fourth subject id
-        Map<Long, Integer> fourthSubjectOverrides = studentFourthSubjectOverrideRepository
-                .findByEnrollmentIdIn(allEnrollmentIds).stream()
+        // build override maps: optional override and compulsory subjects per enrollment
+        List<StudentFourthSubjectOverride> overrides = studentFourthSubjectOverrideRepository
+                .findByEnrollmentIdIn(allEnrollmentIds);
+
+        Map<Long, Integer> fourthSubjectOverrides = overrides.stream()
+                .filter(o -> o.getSubject() != null)
+                .collect(Collectors.toMap(StudentFourthSubjectOverride::getEnrollmentId, o -> o.getSubject().getId()));
+
+        Map<Long, Set<Integer>> compulsorySubjectMap = overrides.stream()
                 .collect(Collectors.toMap(
                         StudentFourthSubjectOverride::getEnrollmentId,
-                        o -> o.getSubject().getId()));
+                        o -> o.getCompulsorySubjects().stream().map(s -> s.getId()).collect(Collectors.toSet()),
+                        (a, b) -> { a.addAll(b); return a; }));
 
-        // fourth subject ids for this class/group
-        Set<Integer> groupFourthSubjectIds = classSubjectGroupRepository
-                .findSubjectsForStudent(classId, groupId).stream()
+        // use class-level fourth subject ids (not group-specific) to determine if this subject
+        // is a fourth subject at all — group-specific configs would miss other groups
+        Set<Integer> classFourthSubjectIds = classSubjectGroupRepository
+                .findByStudentClassIdAndIsActiveTrue(classId).stream()
                 .filter(g -> Boolean.TRUE.equals(g.getIsFourthSubject()))
                 .map(g -> g.getSubject().getId())
                 .collect(Collectors.toSet());
 
-        // if this subject is a fourth subject, only show students whose override matches
-        boolean isSubjectFourth = groupFourthSubjectIds.contains(subjectId);
+        // if this subject is a fourth subject, only show students who have it assigned
+        // (either as their optional override or as a compulsory subject)
+        boolean isSubjectFourth = classFourthSubjectIds.contains(subjectId);
         List<Enrollment> enrollments = isSubjectFourth
                 ? allEnrollments.stream()
-                        .filter(e -> subjectId.equals(fourthSubjectOverrides.get(e.getId())))
+                        .filter(e -> subjectId.equals(fourthSubjectOverrides.get(e.getId()))
+                                || compulsorySubjectMap.getOrDefault(e.getId(), Collections.emptySet()).contains(subjectId))
                         .collect(Collectors.toList())
                 : allEnrollments;
 
