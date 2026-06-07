@@ -1674,10 +1674,7 @@ public class ResultService {
     }
 
     private Set<Integer> loadFourthSubjectIds(Integer classId, Integer groupId) {
-        List<ClassSubjectGroup> groups = groupId != null
-                ? classSubjectGroupRepository.findSubjectsForStudent(classId, groupId)
-                : classSubjectGroupRepository.findByStudentClassIdAndIsActiveTrue(classId);
-        return groups.stream()
+        return classSubjectGroupRepository.findByStudentClassIdAndIsActiveTrue(classId).stream()
                 .filter(g -> Boolean.TRUE.equals(g.getIsFourthSubject()))
                 .map(g -> g.getSubject().getId())
                 .collect(Collectors.toSet());
