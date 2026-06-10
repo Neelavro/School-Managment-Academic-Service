@@ -104,7 +104,8 @@ public class MarkingStructureService {
                     .map(c -> c.getExamComponent().getId())
                     .collect(Collectors.toList());
             if (!componentIds.isEmpty() && studentMarkRepository
-                    .existsBySubjectIdAndExamComponentIdIn(structure.getSubject().getId(), componentIds)) {
+                    .existsBySubjectIdAndExamComponentIdInAndClassId(
+                            structure.getSubject().getId(), componentIds, structure.getExamClass().getId())) {
                 throw new RuntimeException(
                         "Cannot change group: marks have already been entered using this marking structure. " +
                         "Please delete and recreate instead.");
@@ -161,7 +162,8 @@ public class MarkingStructureService {
                 .map(c -> c.getExamComponent().getId())
                 .collect(Collectors.toList());
         boolean has = !componentIds.isEmpty() && studentMarkRepository
-                .existsBySubjectIdAndExamComponentIdIn(structure.getSubject().getId(), componentIds);
+                .existsBySubjectIdAndExamComponentIdInAndClassId(
+                        structure.getSubject().getId(), componentIds, structure.getExamClass().getId());
         return Map.of("hasMarks", has);
     }
 
@@ -174,8 +176,8 @@ public class MarkingStructureService {
                 .map(c -> c.getExamComponent().getId())
                 .collect(Collectors.toList());
         if (!componentIds.isEmpty()) {
-            studentMarkRepository.deleteBySubjectIdAndExamComponentIdIn(
-                    structure.getSubject().getId(), componentIds);
+            studentMarkRepository.deleteBySubjectIdAndExamComponentIdInAndClassId(
+                    structure.getSubject().getId(), componentIds, structure.getExamClass().getId());
         }
         return Map.of("message", "Marks cleared successfully");
     }

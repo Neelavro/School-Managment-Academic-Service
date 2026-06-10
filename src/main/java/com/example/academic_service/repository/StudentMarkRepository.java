@@ -2,6 +2,7 @@ package com.example.academic_service.repository;
 
 import com.example.academic_service.entity.StudentMark;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -22,7 +23,24 @@ public interface StudentMarkRepository extends JpaRepository<StudentMark, Long> 
 
     boolean existsBySubjectIdAndExamComponentIdIn(Integer subjectId, List<Integer> examComponentIds);
 
+    @Query("SELECT CASE WHEN COUNT(sm) > 0 THEN TRUE ELSE FALSE END FROM StudentMark sm " +
+           "WHERE sm.subjectId = :subjectId AND sm.examComponent.id IN :componentIds " +
+           "AND sm.enrollmentId IN (SELECT e.id FROM Enrollment e WHERE e.studentClass.id = :classId)")
+    boolean existsBySubjectIdAndExamComponentIdInAndClassId(
+            @Param("subjectId") Integer subjectId,
+            @Param("componentIds") List<Integer> componentIds,
+            @Param("classId") Integer classId);
+
     void deleteBySubjectIdAndExamComponentIdIn(Integer subjectId, List<Integer> examComponentIds);
+
+    @Modifying
+    @Query("DELETE FROM StudentMark sm WHERE sm.subjectId = :subjectId " +
+           "AND sm.examComponent.id IN :componentIds " +
+           "AND sm.enrollmentId IN (SELECT e.id FROM Enrollment e WHERE e.studentClass.id = :classId)")
+    void deleteBySubjectIdAndExamComponentIdInAndClassId(
+            @Param("subjectId") Integer subjectId,
+            @Param("componentIds") List<Integer> componentIds,
+            @Param("classId") Integer classId);
 
     @Query("SELECT sm FROM StudentMark sm WHERE sm.enrollmentId IN :enrollmentIds AND sm.routineId = :routineId")
     List<StudentMark> findAllByEnrollmentIdsAndRoutineId(
