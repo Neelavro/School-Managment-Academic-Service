@@ -26,14 +26,14 @@ public class ClassTeacherService {
     }
 
     public Map<String, Object> assign(Long staffId, Long sectionId, Integer academicYearId) {
-        if (classTeacherRepository.existsBySectionIdAndAcademicYearId(sectionId, academicYearId)) {
+        if (classTeacherRepository.existsBySectionIdAndAcademicYearId(sectionId.intValue(), academicYearId)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "This section already has a class teacher for this academic year");
         }
 
         Staff staff = staffRepository.findById(staffId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Staff not found"));
-        Section section = sectionRepository.findById(sectionId)
+        Section section = sectionRepository.findById(sectionId.intValue())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Section not found"));
         AcademicYear year = academicYearRepository.findById(academicYearId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Academic year not found"));
