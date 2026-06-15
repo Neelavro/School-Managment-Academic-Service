@@ -26,7 +26,7 @@ public class ClassTeacherService {
     }
 
     public Map<String, Object> assign(Long staffId, Long sectionId, Integer academicYearId) {
-        if (classTeacherRepository.existsBySectionIdAndAcademicYearId(Math.toIntExact(sectionId), academicYearId)) {
+        if (classTeacherRepository.existsBySectionIdAndAcademicYearId(sectionId, academicYearId)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "This section already has a class teacher for this academic year");
         }
