@@ -10,7 +10,12 @@ import com.example.academic_service.repository.ExamRoutineRepository;
 import com.example.academic_service.repository.ExamSessionRepository;
 import com.example.academic_service.repository.ExamTypeRepository;
 import com.example.academic_service.repository.ResultPublicationRepository;
+import com.example.academic_service.entity.AuditActionType;
+import com.example.academic_service.entity.Submodule;
+import com.example.academic_service.service.AuditLogService;
+import com.example.academic_service.service.CacheWarmingService;
 import com.example.academic_service.service.ExamRoutineService;
+import com.example.academic_service.util.AuditHelper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -28,6 +33,8 @@ public class ExamRoutineServiceImpl implements ExamRoutineService {
     private final AcademicYearRepository academicYearRepository;
     private final ExamSessionRepository examSessionRepository;
     private final ResultPublicationRepository resultPublicationRepository;
+    private final CacheWarmingService cacheWarmingService;
+    private final AuditLogService auditLogService;
 
     @Override
     public ApiResponse<ExamRoutine> create(ExamRoutineRequestDto dto) {
@@ -48,6 +55,7 @@ public class ExamRoutineServiceImpl implements ExamRoutineService {
         routine.setAcademicYear(academicYear);
         routine.setRoutineStartDate(dto.getRoutineStartDate());
         routine.setRoutineEndDate(dto.getRoutineEndDate());
+        routine.setConsiderForAnnualResult(dto.getConsiderForAnnualResult() != null ? dto.getConsiderForAnnualResult() : true);
         return ApiResponse.success("Exam routine created successfully", examRoutineRepository.save(routine));
     }
 
@@ -74,6 +82,7 @@ public class ExamRoutineServiceImpl implements ExamRoutineService {
         routine.setAcademicYear(academicYear);
         routine.setRoutineStartDate(dto.getRoutineStartDate());
         routine.setRoutineEndDate(dto.getRoutineEndDate());
+        routine.setConsiderForAnnualResult(dto.getConsiderForAnnualResult() != null ? dto.getConsiderForAnnualResult() : true);
         routine.setLastModifiedAt(LocalDateTime.now());
         return ApiResponse.success("Exam routine updated successfully", examRoutineRepository.save(routine));
     }
@@ -243,6 +252,11 @@ public class ExamRoutineServiceImpl implements ExamRoutineService {
         resultPublicationRepository.save(pub);
 
         routine.setResultPublished(true);
+        Integer academicYearId = routine.getAcademicYear() != null ? routine.getAcademicYear().getId() : null;
+        if (academicYearId != null) cacheWarmingService.warmStudentResultCache(routineId, academicYearId);
+        auditLogService.log(AuditHelper.getUserId(), AuditHelper.getIp(),
+            AuditActionType.UPDATE, Submodule.EXAM_ROUTINES, "ExamRoutine", routineId.toString(),
+            "Published results for routine: " + routine.getTitle());
         return ApiResponse.success("Results published successfully", routine);
     }
 
@@ -260,6 +274,11 @@ public class ExamRoutineServiceImpl implements ExamRoutineService {
         resultPublicationRepository.save(pub);
 
         routine.setResultPublished(false);
+        Integer academicYearId = routine.getAcademicYear() != null ? routine.getAcademicYear().getId() : null;
+        if (academicYearId != null) cacheWarmingService.evictStudentResultCache(routineId, academicYearId);
+        auditLogService.log(AuditHelper.getUserId(), AuditHelper.getIp(),
+            AuditActionType.UPDATE, Submodule.EXAM_ROUTINES, "ExamRoutine", routineId.toString(),
+            "Unpublished results for routine: " + routine.getTitle());
         return ApiResponse.success("Results unpublished successfully", routine);
     }
 }

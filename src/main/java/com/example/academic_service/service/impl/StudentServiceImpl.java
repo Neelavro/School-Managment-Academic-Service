@@ -6,10 +6,16 @@ import com.example.academic_service.entity.StudentStatus;
 import com.example.academic_service.repository.GenderRepository;
 import com.example.academic_service.repository.StudentRepository;
 import com.example.academic_service.repository.StudentStatusRepository;
+import com.example.academic_service.entity.AuditActionType;
+import com.example.academic_service.entity.Submodule;
+import com.example.academic_service.service.AuditLogService;
 import com.example.academic_service.service.StudentService;
+import com.example.academic_service.util.AuditHelper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+
+import java.util.Map;
 
 import java.util.List;
 
@@ -21,6 +27,7 @@ public class StudentServiceImpl implements StudentService {
     private final GenderRepository genderRepository;
     private final StudentStatusRepository studentStatusRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AuditLogService auditLogService;
 
     private String generateStudentSystemId() {
         String yearPrefix = String.valueOf(java.time.Year.now().getValue());
@@ -62,7 +69,12 @@ public class StudentServiceImpl implements StudentService {
             student.setStudentStatus(studentStatusRepository.getReferenceById(student.getStudentStatus().getId()));
         }
 
-        return studentRepository.save(student);
+        Student saved = studentRepository.save(student);
+        auditLogService.log(AuditHelper.getUserId(), AuditHelper.getIp(),
+            AuditActionType.CREATE, Submodule.STUDENTS, "Student", saved.getId().toString(),
+            "Created student: " + saved.getNameEnglish() + " (" + saved.getStudentSystemId() + ")",
+            null, AuditHelper.toJson(studentSnapshot(saved)));
+        return saved;
     }
 
     @Override
@@ -91,6 +103,7 @@ public class StudentServiceImpl implements StudentService {
     public Student updateStudent(Long id, Student student) {
         return studentRepository.findById(id)
                 .map(existing -> {
+                    String before = AuditHelper.toJson(studentSnapshot(existing));
                     mapSimpleFields(student, existing);
                     assignOrUpdateStudentSystemId(student, existing);
 
@@ -101,7 +114,12 @@ public class StudentServiceImpl implements StudentService {
                         existing.setStudentStatus(studentStatusRepository.getReferenceById(student.getStudentStatus().getId()));
                     }
 
-                    return studentRepository.save(existing);
+                    Student saved = studentRepository.save(existing);
+                    auditLogService.log(AuditHelper.getUserId(), AuditHelper.getIp(),
+                        AuditActionType.UPDATE, Submodule.STUDENTS, "Student", id.toString(),
+                        "Updated student: " + saved.getNameEnglish() + " (" + saved.getStudentSystemId() + ")",
+                        before, AuditHelper.toJson(studentSnapshot(saved)));
+                    return saved;
                 })
                 .orElse(null);
     }
@@ -156,8 +174,13 @@ public class StudentServiceImpl implements StudentService {
     public void deleteStudent(Long id) {
         Student student = studentRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Student not found"));
+        String before = AuditHelper.toJson(studentSnapshot(student));
         student.setIsActive(false);
         studentRepository.save(student);
+        auditLogService.log(AuditHelper.getUserId(), AuditHelper.getIp(),
+            AuditActionType.DELETE, Submodule.STUDENTS, "Student", id.toString(),
+            "Deactivated student: " + student.getNameEnglish() + " (" + student.getStudentSystemId() + ")",
+            before, null);
     }
 
     private void mapSimpleFields(Student src, Student dest) {
@@ -190,5 +213,18 @@ public class StudentServiceImpl implements StudentService {
         if (src.getNationality()            != null) dest.setNationality(src.getNationality());
         if (src.getClassRoll()              != null) dest.setClassRoll(src.getClassRoll());
         dest.setIsActive(true);
+    }
+
+    private Map<String, Object> studentSnapshot(Student s) {
+        return Map.of(
+            "id", s.getId() != null ? s.getId() : "",
+            "studentSystemId", s.getStudentSystemId() != null ? s.getStudentSystemId() : "",
+            "nameEnglish", s.getNameEnglish() != null ? s.getNameEnglish() : "",
+            "nameBangla", s.getNameBangla() != null ? s.getNameBangla() : "",
+            "fatherPhone", s.getFatherPhone() != null ? s.getFatherPhone() : "",
+            "motherPhone", s.getMotherPhone() != null ? s.getMotherPhone() : "",
+            "dob", s.getDob() != null ? s.getDob().toString() : "",
+            "isActive", s.getIsActive() != null ? s.getIsActive() : false
+        );
     }
 }

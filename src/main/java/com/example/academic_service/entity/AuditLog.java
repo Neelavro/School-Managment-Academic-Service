@@ -44,6 +44,12 @@ public class AuditLog {
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 
+    @Column(name = "before_value", columnDefinition = "LONGTEXT")
+    private String beforeValue;
+
+    @Column(name = "after_value", columnDefinition = "LONGTEXT")
+    private String afterValue;
+
     @Column(name = "timestamp", nullable = false)
     private LocalDateTime timestamp;
 }

@@ -19,5 +19,7 @@ public enum Submodule {
     // User Management
     ACCESS_ROLES, SYSTEM_USERS,
     // Administration
-    ADMIN_MANAGEMENT
+    ADMIN_MANAGEMENT,
+    // Attendance
+    CLASS_TEACHER, ATTENDANCE
 }

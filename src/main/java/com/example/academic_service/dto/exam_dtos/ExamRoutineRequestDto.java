@@ -17,4 +17,5 @@ public class ExamRoutineRequestDto {
 
     private LocalDate routineStartDate;
     private LocalDate routineEndDate;
+    private Boolean considerForAnnualResult = true;
 }

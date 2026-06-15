@@ -2,6 +2,7 @@ package com.example.academic_service.service;
 
 import com.example.academic_service.entity.*;
 import com.example.academic_service.repository.*;
+import com.example.academic_service.util.AuditHelper;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -21,6 +22,7 @@ public class SystemUserService {
     private final StaffRepository staffRepository;
     private final FbacRoleService fbacRoleService;
     private final PasswordEncoder passwordEncoder;
+    private final AuditLogService auditLogService;
 
     // Returns users with their assigned roles attached as a response map
     public List<Map<String, Object>> getAll() {
@@ -100,8 +102,10 @@ public class SystemUserService {
         user.setHasAdminPortal(hasAdminPortal);
         user.setCreatedAt(LocalDateTime.now());
         SystemUser saved = userRepository.save(user);
-
         assignRoles(saved, fbacRoleIds);
+        auditLogService.log(AuditHelper.getUserId(), AuditHelper.getIp(),
+            AuditActionType.CREATE, Submodule.SYSTEM_USERS, "SystemUser", saved.getId().toString(),
+            "Granted system access to staffId=" + staffId + ", phone=" + phone + ", type=" + userType);
         return saved;
     }
 
@@ -143,12 +147,18 @@ public class SystemUserService {
         u.setIsSuspended(true);
         userRoleRepository.deleteBySystemUserId(userId);
         userRepository.save(u);
+        auditLogService.log(AuditHelper.getUserId(), AuditHelper.getIp(),
+            AuditActionType.UPDATE, Submodule.SYSTEM_USERS, "SystemUser", userId.toString(),
+            "Suspended system user userId=" + userId);
     }
 
     public void reinstate(Long userId) {
         SystemUser u = getById(userId);
         u.setIsSuspended(false);
         userRepository.save(u);
+        auditLogService.log(AuditHelper.getUserId(), AuditHelper.getIp(),
+            AuditActionType.UPDATE, Submodule.SYSTEM_USERS, "SystemUser", userId.toString(),
+            "Reinstated system user userId=" + userId);
     }
 
     public void forcePasswordReset(Long userId) {

@@ -51,5 +51,17 @@ AND (:endRoll IS NULL OR e.classRoll <= :endRoll)
             @Param("endRoll") Integer endRoll
     );
 
+    List<Enrollment> findByAcademicYearIdAndIsActiveTrue(Integer academicYearId);
 
+    @Query("""
+SELECT e FROM Enrollment e
+WHERE e.section.id = :sectionId
+AND e.academicYear.id = :academicYearId
+AND e.isActive = true
+ORDER BY e.classRoll ASC
+""")
+    List<Enrollment> findBySectionAndYear(
+            @Param("sectionId") Long sectionId,
+            @Param("academicYearId") Integer academicYearId
+    );
 }

@@ -7791,3 +7791,24 @@
 
     alter table class_subject_group
        add column merge_group_id integer;
+
+    -- Attendance module
+    create table if not exists class_teacher (
+        id bigint not null auto_increment,
+        staff_id bigint not null,
+        section_id bigint not null,
+        academic_year_id integer not null,
+        created_at datetime(6),
+        primary key (id),
+        unique key uq_class_teacher (section_id, academic_year_id)
+    ) engine=InnoDB;
+
+    create table if not exists attendance (
+        id bigint not null auto_increment,
+        enrollment_id bigint not null,
+        date date not null,
+        created_at datetime(6),
+        primary key (id),
+        unique key uq_attendance (enrollment_id, date),
+        index idx_att_date (date)
+    ) engine=InnoDB;

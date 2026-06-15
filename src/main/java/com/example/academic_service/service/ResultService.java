@@ -7,6 +7,7 @@ import com.example.academic_service.entity.Section;
 import com.example.academic_service.entity.StudentGroup;
 import com.example.academic_service.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -634,6 +635,7 @@ public class ResultService {
 
     // ─── STUDENT ROUTINE RESULT ──────────────────────────────────────────────────
 
+    @Cacheable(value = "studentResult", key = "#enrollmentId + ':' + #examRoutineId")
     public StudentRoutineResultResponse getStudentRoutineResult(Long enrollmentId, Integer examRoutineId) {
         Enrollment enrollment = enrollmentRepository.findById(enrollmentId)
                 .orElseThrow(() -> new RuntimeException("Enrollment not found: " + enrollmentId));
@@ -691,6 +693,16 @@ public class ResultService {
             sr.setMaxMarks(structure.getTotalMarks());
             sr.setPassMarks(structure.getPassMarks());
             sr.setAppeared(appeared);
+
+            List<StudentRoutineResultResponse.ComponentMark> componentMarks = new ArrayList<>();
+            for (MarkingStructureComponent comp : components) {
+                StudentRoutineResultResponse.ComponentMark cm = new StudentRoutineResultResponse.ComponentMark();
+                cm.setComponentName(comp.getExamComponent().getName());
+                cm.setMax(comp.getMaxMarks());
+                cm.setObtained(appeared ? compMarks.get(comp.getExamComponent().getId()) : null);
+                componentMarks.add(cm);
+            }
+            sr.setComponents(componentMarks);
 
             if (appeared) {
                 sr.setMarksObtained(total);

@@ -50,6 +50,9 @@ public class ExamRoutine {
     @Column(name = "routine_end_date")
     private LocalDate routineEndDate;
 
+    @Column(name = "consider_for_annual_result", nullable = false)
+    private Boolean considerForAnnualResult = true;
+
     @Transient
     private Boolean resultPublished = false;
 }

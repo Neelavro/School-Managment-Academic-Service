@@ -4,6 +4,9 @@ import com.example.academic_service.dto.marking_dtos.*;
 import com.example.academic_service.entity.*;
 import com.example.academic_service.repository.*;
 
+import com.example.academic_service.entity.AuditActionType;
+import com.example.academic_service.entity.Submodule;
+import com.example.academic_service.util.AuditHelper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,6 +28,7 @@ public class StudentMarkService {
     private final ExamComponentRepository examComponentRepository;
     private final StudentFourthSubjectOverrideRepository studentFourthSubjectOverrideRepository;
     private final ClassSubjectGroupRepository classSubjectGroupRepository;
+    private final AuditLogService auditLogService;
 
     public Map<String, Object> getMarkSheet(
             Integer routineId,
@@ -278,6 +282,14 @@ public class StudentMarkService {
         }
 
         studentMarkRepository.saveAll(toSave);
+
+        auditLogService.log(
+            AuditHelper.getUserId(), AuditHelper.getIp(),
+            AuditActionType.UPDATE, Submodule.MARK_ENTRY,
+            "MarkEntry", routineId + "-" + subjectId + "-" + classId,
+            "Saved " + toSave.size() + " mark(s) — routineId=" + routineId
+                + ", subjectId=" + subjectId + ", classId=" + classId
+        );
 
         return Map.of(
                 "message", toSave.size() + " mark(s) saved successfully",

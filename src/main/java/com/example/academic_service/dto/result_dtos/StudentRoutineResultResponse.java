@@ -35,5 +35,14 @@ public class StudentRoutineResultResponse {
         private Double gpaValue;
         private boolean passed;
         private boolean appeared;
+        private List<ComponentMark> components;
+    }
+
+    @Getter
+    @Setter
+    public static class ComponentMark {
+        private String componentName;
+        private BigDecimal obtained;
+        private Integer max;
     }
 }

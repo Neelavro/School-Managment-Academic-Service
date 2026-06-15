@@ -2,11 +2,15 @@ package com.example.academic_service.service;
 
 import com.example.academic_service.entity.*;
 import com.example.academic_service.repository.*;
+import com.example.academic_service.util.AuditHelper;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 import java.time.LocalDateTime;
 import java.time.Year;
@@ -20,6 +24,7 @@ public class StaffService {
     private final StaffEmergencyContactRepository emergencyContactRepository;
     private final StaffDocumentRepository documentRepository;
     private final DesignationRepository designationRepository;
+    private final AuditLogService auditLogService;
 
     private String generateStaffSystemId() {
         String prefix = "STF" + Year.now().getValue();
@@ -61,6 +66,10 @@ public class StaffService {
         if (contacts != null) {
             contacts.forEach(c -> { c.setStaff(saved); emergencyContactRepository.save(c); });
         }
+        auditLogService.log(AuditHelper.getUserId(), AuditHelper.getIp(),
+            AuditActionType.CREATE, Submodule.HR_STAFF, "Staff", saved.getId().toString(),
+            "Created staff: " + saved.getNameEnglish() + " (" + saved.getStaffSystemId() + ")",
+            null, AuditHelper.toJson(staffSnapshot(saved)));
         return saved;
     }
 
@@ -82,18 +91,28 @@ public class StaffService {
         if (req.getCurrentDesignation() != null && req.getCurrentDesignation().getId() != null)
             existing.setCurrentDesignation(designationRepository.findById(req.getCurrentDesignation().getId())
                     .orElseThrow(() -> new IllegalArgumentException("Designation not found: " + req.getCurrentDesignation().getId())));
+        String before = AuditHelper.toJson(staffSnapshot(existing));
         Staff saved = staffRepository.save(existing);
         if (contacts != null) {
             emergencyContactRepository.deleteByStaffId(id);
             contacts.forEach(c -> { c.setStaff(saved); emergencyContactRepository.save(c); });
         }
+        auditLogService.log(AuditHelper.getUserId(), AuditHelper.getIp(),
+            AuditActionType.UPDATE, Submodule.HR_STAFF, "Staff", id.toString(),
+            "Updated staff: " + saved.getNameEnglish() + " (" + saved.getStaffSystemId() + ")",
+            before, AuditHelper.toJson(staffSnapshot(saved)));
         return saved;
     }
 
     public void deactivate(Long id) {
         Staff s = getById(id);
+        String before = AuditHelper.toJson(staffSnapshot(s));
         s.setIsActive(false);
         staffRepository.save(s);
+        auditLogService.log(AuditHelper.getUserId(), AuditHelper.getIp(),
+            AuditActionType.DELETE, Submodule.HR_STAFF, "Staff", id.toString(),
+            "Deactivated staff: " + s.getNameEnglish() + " (" + s.getStaffSystemId() + ")",
+            before, null);
     }
 
     public List<StaffEmergencyContact> getEmergencyContacts(Long staffId) {
@@ -115,5 +134,19 @@ public class StaffService {
 
     public void deleteDocument(Long documentId) {
         documentRepository.deleteById(documentId);
+    }
+
+    private Map<String, Object> staffSnapshot(Staff s) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("id", s.getId());
+        m.put("staffSystemId", s.getStaffSystemId());
+        m.put("nameEnglish", s.getNameEnglish());
+        m.put("nameBangla", s.getNameBangla());
+        m.put("phone", s.getPhone());
+        m.put("email", s.getEmail());
+        m.put("employeeType", s.getEmployeeType() != null ? s.getEmployeeType().name() : null);
+        m.put("designation", s.getCurrentDesignation() != null ? s.getCurrentDesignation().getName() : null);
+        m.put("isActive", s.getIsActive());
+        return m;
     }
 }
