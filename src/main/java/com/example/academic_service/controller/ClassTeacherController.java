@@ -14,7 +14,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Map;
 
-@RestController
+// @RestController — disabled on production-full-system
 @RequestMapping("/api/class-teachers")
 @RequiredArgsConstructor
 public class ClassTeacherController {

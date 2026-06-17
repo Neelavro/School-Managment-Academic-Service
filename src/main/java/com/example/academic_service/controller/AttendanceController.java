@@ -17,7 +17,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
-@RestController
+// @RestController — disabled on production-full-system
 @RequestMapping("/api/attendance")
 @RequiredArgsConstructor
 public class AttendanceController {
