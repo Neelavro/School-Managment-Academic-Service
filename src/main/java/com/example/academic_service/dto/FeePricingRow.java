@@ -25,7 +25,7 @@ import java.math.BigDecimal;
 @NoArgsConstructor
 @AllArgsConstructor
 public class FeePricingRow {
-    private Long classId;
+    private Integer classId;
     private String className;
     private BigDecimal amount;
 }

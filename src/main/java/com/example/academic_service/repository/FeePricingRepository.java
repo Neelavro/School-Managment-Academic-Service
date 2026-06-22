@@ -10,7 +10,7 @@ import java.util.Optional;
 @Repository
 public interface FeePricingRepository extends JpaRepository<FeePricing, Long> {
     List<FeePricing> findByFeeCategoryId(Long feeCategoryId);
-    Optional<FeePricing> findByFeeCategoryIdAndClassId(Long feeCategoryId, Long classId);
+    Optional<FeePricing> findByFeeCategoryIdAndClassId(Long feeCategoryId, Integer classId);
     long countByFeeCategoryId(Long feeCategoryId);
-    void deleteByFeeCategoryIdAndClassId(Long feeCategoryId, Long classId);
+    void deleteByFeeCategoryIdAndClassId(Long feeCategoryId, Integer classId);
 }

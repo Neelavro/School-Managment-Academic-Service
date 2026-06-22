@@ -130,12 +130,12 @@ public class InvoiceService {
         }
 
         // Candidate enrollments — pushed to the DB.
-        List<Long> classIds = req.getClassIds() != null ? req.getClassIds() : List.of();
+        List<Integer> classIds = req.getClassIds() != null ? req.getClassIds() : List.of();
         boolean classIdsEmpty = classIds.isEmpty();
         List<Enrollment> candidates = enrollmentRepo.findInvoiceCandidates(
                 req.getAcademicYearId(),
                 classIdsEmpty,
-                classIdsEmpty ? List.of(-1L) : classIds  // dummy non-empty list satisfies JPQL IN
+                classIdsEmpty ? List.of(-1) : classIds  // dummy non-empty list satisfies JPQL IN
         );
 
         if (candidates.isEmpty()) {
@@ -149,9 +149,9 @@ public class InvoiceService {
                 invoiceRepo.findEnrollmentsAlreadyInvoiced(period, candidateIds));
 
         // Preload pricing once.
-        Map<Long, Map<Long, BigDecimal>> pricingByCategoryThenClass = new HashMap<>();
+        Map<Long, Map<Integer, BigDecimal>> pricingByCategoryThenClass = new HashMap<>();
         for (FeeCategory c : activeCategories) {
-            Map<Long, BigDecimal> byClass = new HashMap<>();
+            Map<Integer, BigDecimal> byClass = new HashMap<>();
             for (FeePricing p : pricingRepo.findByFeeCategoryId(c.getId())) {
                 if (Boolean.TRUE.equals(p.getIsActive())) {
                     byClass.put(p.getClassId(), p.getAmount());
@@ -209,7 +209,7 @@ public class InvoiceService {
             LocalDate issuedDate,
             LocalDate dueDate,
             List<FeeCategory> activeCategories,
-            Map<Long, Map<Long, BigDecimal>> pricingByCategoryThenClass,
+            Map<Long, Map<Integer, BigDecimal>> pricingByCategoryThenClass,
             String generatedBy) {
 
         // Re-check existence inside the tx — guards against concurrent batches.
@@ -218,7 +218,7 @@ public class InvoiceService {
             return CreateInvoiceOutcome.NO_FEES; // treated as skipped; outer caller already counted skipped
         }
 
-        Long classId = enrollment.getStudentClass() != null
+        Integer classId = enrollment.getStudentClass() != null
                 ? enrollment.getStudentClass().getId() : null;
         if (classId == null) {
             throw new IllegalStateException("Enrollment has no class assigned");
