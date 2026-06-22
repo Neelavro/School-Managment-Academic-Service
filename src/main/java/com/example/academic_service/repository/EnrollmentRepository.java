@@ -70,7 +70,7 @@ AND (:endRoll IS NULL OR e.classRoll <= :endRoll)
     List<Enrollment> findInvoiceCandidates(
             @Param("academicYearId") Integer academicYearId,
             @Param("classIdsEmpty") boolean classIdsEmpty,
-            @Param("classIds") List<Long> classIds);
+            @Param("classIds") List<Integer> classIds);
 
     @Query("""
 SELECT e FROM Enrollment e

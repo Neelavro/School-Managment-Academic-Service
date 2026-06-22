@@ -32,7 +32,7 @@ public class FeePricing {
     private Long feeCategoryId;
 
     @Column(name = "class_id", nullable = false)
-    private Long classId;
+    private Integer classId;
 
     @Column(name = "amount", nullable = false, precision = 15, scale = 2)
     private BigDecimal amount;

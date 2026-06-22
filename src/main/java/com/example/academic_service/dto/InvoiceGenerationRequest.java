@@ -20,5 +20,5 @@ public class InvoiceGenerationRequest {
     private Integer academicYearId;
 
     /** Optional class ids filter. Null/empty = all classes. */
-    private List<Long> classIds;
+    private List<Integer> classIds;
 }

@@ -36,7 +36,7 @@ public class FeePricingService {
         }
         List<Class> classes = classRepo.findAll();
         List<FeePricing> existing = pricingRepo.findByFeeCategoryId(feeCategoryId);
-        Map<Long, BigDecimal> amountByClass = new HashMap<>();
+        Map<Integer, BigDecimal> amountByClass = new HashMap<>();
         for (FeePricing p : existing) amountByClass.put(p.getClassId(), p.getAmount());
 
         return classes.stream()
@@ -71,7 +71,7 @@ public class FeePricingService {
         }
 
         // Load all existing rows once for this category, key by classId.
-        Map<Long, FeePricing> existingByClass = new HashMap<>();
+        Map<Integer, FeePricing> existingByClass = new HashMap<>();
         for (FeePricing p : pricingRepo.findByFeeCategoryId(feeCategoryId)) {
             existingByClass.put(p.getClassId(), p);
         }
