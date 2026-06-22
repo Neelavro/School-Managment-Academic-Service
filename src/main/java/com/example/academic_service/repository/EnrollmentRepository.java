@@ -53,6 +53,25 @@ AND (:endRoll IS NULL OR e.classRoll <= :endRoll)
 
     List<Enrollment> findByAcademicYearIdAndIsActiveTrue(Integer academicYearId);
 
+    /**
+     * Used by Accounting → Invoice generation.
+     * Returns only active enrollments with both a class and academic year assigned.
+     * Optional filters: academic year, set of class ids.
+     * Pass classIdsEmpty=true and an empty (but non-null) list when no class filter is wanted —
+     * JPQL does not allow empty IN clauses, so we gate it with a boolean.
+     */
+    @Query("""
+        SELECT e FROM Enrollment e
+        WHERE e.isActive = true
+          AND e.studentClass IS NOT NULL
+          AND (:academicYearId IS NULL OR e.academicYear.id = :academicYearId)
+          AND (:classIdsEmpty = true OR e.studentClass.id IN :classIds)
+    """)
+    List<Enrollment> findInvoiceCandidates(
+            @Param("academicYearId") Integer academicYearId,
+            @Param("classIdsEmpty") boolean classIdsEmpty,
+            @Param("classIds") List<Long> classIds);
+
     @Query("""
 SELECT e FROM Enrollment e
 WHERE e.section.id = :sectionId

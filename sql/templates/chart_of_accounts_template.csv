@@ -1,0 +1,17 @@
+account_code,account_name,account_type,parent_code,is_group,description
+1000,Assets,ASSET,,TRUE,Top-level assets
+1100,Current Assets,ASSET,1000,TRUE,
+1110,Cash in Hand,ASSET,1100,FALSE,Main cash box
+1120,Bank,ASSET,1100,TRUE,Bank accounts group
+1121,Bank - DBBL,ASSET,1120,FALSE,
+1130,Accounts Receivable - Students,ASSET,1100,FALSE,Dues from students
+1140,Online Payment Gateway Clearing,ASSET,1100,FALSE,SSLCommerz clearing account
+2000,Liabilities,LIABILITY,,TRUE,Top-level liabilities
+2100,Payable to Platform,LIABILITY,2000,FALSE,Owed to SaaS provider
+3000,Income,INCOME,,TRUE,Top-level income
+3100,Tuition Fee,INCOME,3000,FALSE,
+3200,Exam Fee,INCOME,3000,FALSE,
+3300,Library Fee,INCOME,3000,FALSE,
+4000,Expenses,EXPENSE,,TRUE,Top-level expenses
+4100,Salaries,EXPENSE,4000,FALSE,Teacher and staff salaries
+4200,Software/Platform Fee,EXPENSE,4000,FALSE,Per-transaction SaaS fee

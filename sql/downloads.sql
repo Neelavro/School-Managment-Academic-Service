@@ -1,0 +1,28 @@
+-- ============================================================================
+-- academic_service — Downloads section
+-- ============================================================================
+-- This file is intentionally empty. The "Downloads" sidebar section has
+-- 4 items, none of which have their own backing tables — they're all PDF
+-- generators reading data from existing tables.
+--
+--   Sidebar item       Reads from
+--   ─────────────────  ───────────────────────────────────────────────────
+--   Student ID Card    student, student_image, enrollment, class
+--   Admit Card         enrollment, exam_routine, exam_session,
+--                      exam_class_room_assignment
+--   Progress Report    student_mark, marking_structure, grades, enrollment
+--   Seat Plan          exam_class_room_assignment, enrollment
+--
+-- Nothing to run here. File kept for completeness so future-you knows the
+-- section was reviewed and intentionally has no schema.
+-- ============================================================================
+
+-- ============================================================================
+-- Verification block — what this file did
+-- ============================================================================
+-- Tables created                : 0
+-- Foreign keys added            : 0
+-- Junction tables               : 0
+-- Reason                        : All Downloads items are PDF generators
+--                                  over existing tables; no new schema needed.
+-- ============================================================================
