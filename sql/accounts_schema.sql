@@ -306,11 +306,14 @@ CREATE TABLE IF NOT EXISTS payment_failures (
 -- ============================================================================
 -- Align fee_pricing.class_id type with class.id (INT).
 -- Class entity uses Integer; fee_pricing was originally declared BIGINT.
--- Safe to run on a fresh DB or an existing deployment (BIGINT → INT).
 -- The FK must be dropped + recreated because MySQL won't let you change the
 -- type of a column that's part of an FK constraint.
--- Requires MySQL 8.0.19+ for the IF EXISTS clause on DROP FOREIGN KEY.
-ALTER TABLE fee_pricing DROP FOREIGN KEY IF EXISTS fk_fee_pricing_class;
+--
+-- Runs unconditionally — only safe on first execution of this file because
+-- the CREATE TABLE above always creates the FK with this exact name. If you
+-- re-run the whole file later, the CREATE TABLE IF NOT EXISTS is a no-op
+-- but these ALTERs would error. In that case, just skip this block.
+ALTER TABLE fee_pricing DROP FOREIGN KEY fk_fee_pricing_class;
 ALTER TABLE fee_pricing MODIFY COLUMN class_id INT NOT NULL;
 ALTER TABLE fee_pricing
     ADD CONSTRAINT fk_fee_pricing_class FOREIGN KEY (class_id)
