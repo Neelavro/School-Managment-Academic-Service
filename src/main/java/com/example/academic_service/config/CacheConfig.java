@@ -23,6 +23,13 @@ public class CacheConfig {
                         .maximumSize(2000)
                         .expireAfterWrite(10, TimeUnit.DAYS)
                         .build());
+        // Platform metrics snapshot — recomputed at most once per minute
+        // so repeated polls don't hammer the DB.
+        manager.registerCustomCache("platformMetrics",
+                Caffeine.newBuilder()
+                        .maximumSize(1)
+                        .expireAfterWrite(60, TimeUnit.SECONDS)
+                        .build());
         return manager;
     }
 }
