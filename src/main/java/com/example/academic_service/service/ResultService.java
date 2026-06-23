@@ -1206,6 +1206,29 @@ public class ResultService {
                 .findForRoutineAndClassWithGroupFilter(examRoutineId, classId, groupId));
         if (rawSessions.isEmpty()) throw new RuntimeException("No exam sessions found for this routine and class");
 
+        // Curriculum filter: only subjects declared in class_subject_group for
+        // this group (or as compulsory, group=NULL) make it through. Stops
+        // exam_session rows from leaking subjects into the wrong group's
+        // report card (e.g. AGRICULTURE tagged compulsory in the session but
+        // declared in csg only for Humanities should not appear on a Science
+        // student's card). The filter is conditional on the class actually
+        // having a csg curriculum — if csg is empty we leave sessions alone
+        // to preserve old behaviour.
+        Set<Integer> curriculumSubjectIds = classSubjectGroupRepository
+                .findByStudentClassIdAndIsActiveTrue(classId).stream()
+                .filter(csg -> csg.getStudentGroup() == null
+                        || (groupId != null && csg.getStudentGroup().getId().equals(groupId)))
+                .map(csg -> csg.getSubject().getId())
+                .collect(Collectors.toSet());
+        if (!curriculumSubjectIds.isEmpty()) {
+            rawSessions = rawSessions.stream()
+                    .filter(s -> curriculumSubjectIds.contains(s.getSubject().getId()))
+                    .collect(Collectors.toList());
+            if (rawSessions.isEmpty()) {
+                throw new RuntimeException("No exam sessions found for this routine and class");
+            }
+        }
+
         Class examClass = rawSessions.get(0).getExamClass();
         List<Grade> sortedGrades = loadSortedGrades(examClass);
         Set<Integer> defaultFourthSubjectIds = loadFourthSubjectIds(classId, groupId);
@@ -1455,6 +1478,76 @@ public class ResultService {
         result.setSubjects(subjectInfos);
         result.setStudents(studentReports);
         return result;
+    }
+
+    /**
+     * Progress-report partition. Returns the data already split per group so
+     * the PDF service can render Science students with Science subjects, then
+     * Humanities students with Humanities subjects, etc. — no shared subject
+     * list with blanks across groups.
+     *
+     * - When a groupId is passed, returns a single-element list containing
+     *   the result for that group (same as a direct getProgressReportData
+     *   call).
+     * - When groupId is null, partitions the class by student_group_id and
+     *   calls getProgressReportData once per group, plus once for any
+     *   no-group bucket. Each ProgressReportData carries the curriculum-
+     *   filtered subjects list relevant to its group.
+     *
+     * Used only by ProgressReportPdfService — other consumers stick with
+     * getProgressReportData.
+     */
+    public List<ProgressReportData> getProgressReportDataPartitioned(
+            Integer examRoutineId, Integer classId, Integer shiftId,
+            Integer genderSectionId, Long sectionId, Integer groupId,
+            Integer startRoll, Integer endRoll) {
+
+        if (groupId != null) {
+            return List.of(getProgressReportData(examRoutineId, classId, shiftId,
+                    genderSectionId, sectionId, groupId, startRoll, endRoll));
+        }
+
+        // Discover the distinct groups present in the class. We need both the
+        // group ids AND whether there's a no-group bucket. Order preserved
+        // so the PDF renders groups consistently across downloads.
+        ExamRoutine routine = examRoutineRepository.findById(examRoutineId)
+                .orElseThrow(() -> new RuntimeException("Exam routine not found: " + examRoutineId));
+        Integer academicYearId = routine.getAcademicYear() != null ? routine.getAcademicYear().getId() : null;
+        List<Enrollment> allEnrollments = enrollmentRepository
+                .findAllByClassIdAndFilters(classId, academicYearId, shiftId, null, null, null, null, null);
+
+        LinkedHashSet<Integer> distinctGroups = new LinkedHashSet<>();
+        boolean hasNoGroupBucket = false;
+        for (Enrollment e : allEnrollments) {
+            if (e.getStudentGroup() != null) distinctGroups.add(e.getStudentGroup().getId());
+            else hasNoGroupBucket = true;
+        }
+
+        List<ProgressReportData> partitions = new ArrayList<>();
+        for (Integer gId : distinctGroups) {
+            try {
+                partitions.add(getProgressReportData(examRoutineId, classId, shiftId,
+                        genderSectionId, sectionId, gId, startRoll, endRoll));
+            } catch (RuntimeException ignored) {
+                // No sessions for this group — skip rather than fail the
+                // whole PDF.
+            }
+        }
+        if (hasNoGroupBucket) {
+            try {
+                ProgressReportData data = getProgressReportData(examRoutineId, classId, shiftId,
+                        genderSectionId, sectionId, null, startRoll, endRoll);
+                // When called with groupId=null on the no-group bucket, the
+                // method returns all students. We need to narrow the students
+                // list to only those without a group assigned.
+                List<ProgressReportData.StudentReport> rows = data.getStudents().stream()
+                        .filter(r -> r.getGroupName() == null || r.getGroupName().isBlank())
+                        .collect(Collectors.toList());
+                data.setStudents(rows);
+                partitions.add(data);
+            } catch (RuntimeException ignored) {}
+        }
+        return partitions;
     }
 
     // ─── STATS – ROUTINE ─────────────────────────────────────────────────────────

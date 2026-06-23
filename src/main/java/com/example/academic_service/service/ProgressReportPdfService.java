@@ -33,7 +33,10 @@ public class ProgressReportPdfService {
                            Integer genderSectionId, Long sectionId, Integer groupId,
                            Integer startRoll, Integer endRoll) throws Exception {
 
-        ProgressReportData data = resultService.getProgressReportData(
+        // Partition by group so the PDF renders one group at a time with its
+        // own subject set (e.g. Science students with Science columns, then
+        // Humanities students with Humanities columns).
+        List<ProgressReportData> partitions = resultService.getProgressReportDataPartitioned(
                 examRoutineId, classId, shiftId, genderSectionId, sectionId, groupId, startRoll, endRoll);
 
         SystemSettings settings = systemSettingsService.getSettings();
@@ -45,7 +48,20 @@ public class ProgressReportPdfService {
 
         List<Grade> gradingTable = loadGradingTable(classId);
 
-        String html = buildHtml(data, institutionName, address, heading, logoBase64, signatureBase64, gradingTable);
+        // Build all student pages across every partition into one single
+        // <html> document (don't nest html docs by calling buildHtml twice).
+        StringBuilder pages = new StringBuilder();
+        for (ProgressReportData part : partitions) {
+            for (ProgressReportData.StudentReport student : part.getStudents()) {
+                pages.append(buildPage(part, student, institutionName, address, heading,
+                        logoBase64, signatureBase64, gradingTable));
+            }
+        }
+        String html = "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><style>"
+                + getCss()
+                + "</style></head><body>"
+                + pages
+                + "</body></html>";
 
         try (Playwright playwright = Playwright.create()) {
             Browser browser = playwright.chromium().launch(new BrowserType.LaunchOptions().setHeadless(true));
