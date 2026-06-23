@@ -142,6 +142,87 @@ public class ResultService {
     // ─── ROUTINE RESULT ──────────────────────────────────────────────────────────
 
     public RoutineResultResponse getRoutineResult(Integer examRoutineId, Integer classId, Integer shiftId, Integer genderSectionId, Long sectionId, Integer groupId, Integer startRoll, Integer endRoll) {
+        // When a group filter IS provided, behave exactly as before — single
+        // result with subjects + students at the top level.
+        if (groupId != null) {
+            return computeRoutineResultForGroup(examRoutineId, classId, shiftId, genderSectionId, sectionId, groupId, startRoll, endRoll);
+        }
+        // When no group is provided, partition the class by student_group_id
+        // and compute each group's result independently (as if each group's
+        // id had been passed). The wrapper response leaves the top-level
+        // subjects/students empty and stores per-group data in groupSections.
+        ExamRoutine routine = examRoutineRepository.findById(examRoutineId)
+                .orElseThrow(() -> new RuntimeException("Exam routine not found: " + examRoutineId));
+        Integer academicYearId = routine.getAcademicYear() != null ? routine.getAcademicYear().getId() : null;
+        List<Enrollment> allEnrollments = enrollmentRepository.findAllByClassIdAndFilters(classId, academicYearId, shiftId, null, null, null, null, null);
+        List<RoutineResultResponse.GroupSection> sections = new ArrayList<>();
+        // Distinct groups present in the class — preserves null bucket for
+        // students that don't have a group assigned (e.g. lower-class kids).
+        Map<Integer, String> distinctGroups = new LinkedHashMap<>();
+        boolean hasNoGroupBucket = false;
+        for (Enrollment e : allEnrollments) {
+            if (e.getStudentGroup() != null) {
+                distinctGroups.put(e.getStudentGroup().getId(), e.getStudentGroup().getGroupName());
+            } else {
+                hasNoGroupBucket = true;
+            }
+        }
+        Class examClassRef = null;
+        for (Enrollment e : allEnrollments) {
+            if (e.getStudentClass() != null) { examClassRef = e.getStudentClass(); break; }
+        }
+        for (Map.Entry<Integer, String> g : distinctGroups.entrySet()) {
+            try {
+                RoutineResultResponse perGroup = computeRoutineResultForGroup(
+                        examRoutineId, classId, shiftId, genderSectionId, sectionId, g.getKey(), startRoll, endRoll);
+                RoutineResultResponse.GroupSection section = new RoutineResultResponse.GroupSection();
+                section.setGroupId(g.getKey());
+                section.setGroupName(g.getValue());
+                section.setSubjects(perGroup.getSubjects());
+                section.setStudents(perGroup.getStudents());
+                sections.add(section);
+            } catch (RuntimeException ignored) {
+                // Group has no sessions — skip silently rather than fail the
+                // whole multi-group response.
+            }
+        }
+        if (hasNoGroupBucket) {
+            // Students with no group fall back to "compulsory only" — the
+            // per-group helper handles that when groupId is null because
+            // sessionAppliesToStudent skips any group-tagged session.
+            // We can still surface them under a "—" section.
+            try {
+                RoutineResultResponse perNoGroup = computeRoutineResultForGroup(
+                        examRoutineId, classId, shiftId, genderSectionId, sectionId, null, startRoll, endRoll);
+                // Filter the resulting student list to only no-group students,
+                // since computeRoutineResultForGroup with null does not filter
+                // by group on the student side.
+                List<RoutineResultResponse.StudentResultRow> rows = perNoGroup.getStudents().stream()
+                        .filter(r -> r.getGroupId() == null)
+                        .collect(Collectors.toList());
+                RoutineResultResponse.GroupSection section = new RoutineResultResponse.GroupSection();
+                section.setGroupId(null);
+                section.setGroupName("—");
+                section.setSubjects(perNoGroup.getSubjects());
+                section.setStudents(rows);
+                sections.add(section);
+            } catch (RuntimeException ignored) {}
+        }
+        RoutineResultResponse wrapper = new RoutineResultResponse();
+        wrapper.setExamRoutineId(examRoutineId);
+        wrapper.setRoutineTitle(routine.getTitle());
+        wrapper.setExamTypeName(routine.getExamType() != null ? routine.getExamType().getName() : null);
+        if (examClassRef != null) {
+            wrapper.setClassName(examClassRef.getName());
+            wrapper.setUseGpaForResult(Boolean.TRUE.equals(examClassRef.getUseGpaForResult()));
+        }
+        wrapper.setSubjects(new ArrayList<>());
+        wrapper.setStudents(new ArrayList<>());
+        wrapper.setGroupSections(sections);
+        return wrapper;
+    }
+
+    private RoutineResultResponse computeRoutineResultForGroup(Integer examRoutineId, Integer classId, Integer shiftId, Integer genderSectionId, Long sectionId, Integer groupId, Integer startRoll, Integer endRoll) {
         ExamRoutine routine = examRoutineRepository.findById(examRoutineId)
                 .orElseThrow(() -> new RuntimeException("Exam routine not found: " + examRoutineId));
 
