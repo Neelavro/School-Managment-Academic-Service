@@ -230,23 +230,6 @@ public class ResultService {
                 .findForRoutineAndClassWithGroupFilter(examRoutineId, classId, groupId));
         if (rawSessions.isEmpty()) throw new RuntimeException("No exam sessions found for this routine and class");
 
-        // Curriculum filter: keep only sessions whose subject is declared
-        // in class_subject_group for THIS group (or as compulsory, group=NULL).
-        // The session-level group filter on its own lets through compulsory
-        // exam_session rows for subjects that are actually group-restricted
-        // in the curriculum (e.g. AGRICULTURE tagged compulsory in session
-        // but declared only for Humanities in csg). Without this filter,
-        // such subjects leak into the wrong group's section.
-        Set<Integer> curriculumSubjectIds = classSubjectGroupRepository.findByStudentClassIdAndIsActiveTrue(classId).stream()
-                .filter(csg -> csg.getStudentGroup() == null
-                        || (groupId != null && csg.getStudentGroup().getId().equals(groupId)))
-                .map(csg -> csg.getSubject().getId())
-                .collect(Collectors.toSet());
-        rawSessions = rawSessions.stream()
-                .filter(s -> curriculumSubjectIds.contains(s.getSubject().getId()))
-                .collect(Collectors.toList());
-        if (rawSessions.isEmpty()) throw new RuntimeException("No exam sessions found for this routine and class");
-
         Class examClass = rawSessions.get(0).getExamClass();
         List<Grade> sortedGrades = loadSortedGrades(examClass);
         Set<Integer> defaultFourthSubjectIds = loadFourthSubjectIds(classId, groupId);
