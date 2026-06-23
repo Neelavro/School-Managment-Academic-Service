@@ -68,7 +68,7 @@ CREATE TABLE IF NOT EXISTS fee_categories (
 CREATE TABLE IF NOT EXISTS fee_pricing (
   id                BIGINT          NOT NULL AUTO_INCREMENT,
   fee_category_id   BIGINT          NOT NULL,
-  class_id          BIGINT          NOT NULL,
+  class_id          INT          NOT NULL,
   amount            DECIMAL(15,2)   NOT NULL,
   effective_from    DATE                NULL,
   is_active         BIT(1)          NOT NULL DEFAULT b'1',
