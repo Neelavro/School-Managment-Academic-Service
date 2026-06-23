@@ -16,13 +16,6 @@ public class RoutineResultResponse {
     private List<SubjectInfo> subjects;
     private List<StudentResultRow> students;
 
-    // Populated only when the caller did NOT pass a group filter. Each
-    // section holds the result for one student group, computed exactly as
-    // if the caller had passed that groupId — own subject list, own student
-    // list, own ranks. When this is non-empty, the top-level subjects/students
-    // are typically left empty (frontend renders the sections instead).
-    private List<GroupSection> groupSections;
-
     @Getter
     @Setter
     public static class SubjectInfo {
@@ -73,14 +66,5 @@ public class RoutineResultResponse {
         private boolean passed;
         private boolean appeared;
         private boolean fourthSubject;
-    }
-
-    @Getter
-    @Setter
-    public static class GroupSection {
-        private Integer groupId;        // null = students with no group assigned
-        private String groupName;       // e.g. "SCIENCE", "HUMANITIES", "—"
-        private List<SubjectInfo> subjects;
-        private List<StudentResultRow> students;
     }
 }
