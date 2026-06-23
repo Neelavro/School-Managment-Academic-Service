@@ -186,6 +186,7 @@ public class ResultService {
             for (ExamSession s : sessions) {
                 if (!bundle.sessionStructureMap.containsKey(s.getId())) continue;
                 if (defaultFourthSubjectIds.contains(s.getSubject().getId()) && !fourthSubjectIds.contains(s.getSubject().getId())) continue;
+                if (!sessionAppliesToStudent(s, enrollment)) continue;
                 MarkingStructure structure = bundle.sessionStructureMap.get(s.getId());
                 List<MarkingStructureComponent> components = bundle.sessionComponentsMap.get(s.getId());
                 boolean isFourth = fourthSubjectIds.contains(s.getSubject().getId());
@@ -300,6 +301,7 @@ public class ResultService {
             for (ExamSession s : sessions) {
                 if (!bundle.sessionStructureMap.containsKey(s.getId())) continue;
                 if (defaultFourthSubjectIds.contains(s.getSubject().getId()) && !fourthSubjectIds.contains(s.getSubject().getId())) continue;
+                if (!sessionAppliesToStudent(s, enrollment)) continue;
                 MarkingStructure structure = bundle.sessionStructureMap.get(s.getId());
                 List<MarkingStructureComponent> components = bundle.sessionComponentsMap.get(s.getId());
                 boolean isFourth = fourthSubjectIds.contains(s.getSubject().getId());
@@ -446,6 +448,7 @@ public class ResultService {
 
             for (Integer subjectId : orderedSubjectIds) {
                 if (defaultFourthSubjectIds.contains(subjectId) && !fourthSubjectIds.contains(subjectId)) continue;
+                if (!subjectAppliesToStudent(subjectId, bundle.sessionsBySubject, enrollment)) continue;
                 AnnualSubjectData asd = computeAnnualSubjectData(subjectId, bundle, enrollment.getId(), sortedGrades);
                 if (asd == null) continue;
                 boolean isFourth = fourthSubjectIds.contains(subjectId);
@@ -545,6 +548,7 @@ public class ResultService {
 
             for (Integer subjectId : orderedSubjectIds) {
                 if (defaultFourthSubjectIds.contains(subjectId) && !fourthSubjectIds.contains(subjectId)) continue;
+                if (!subjectAppliesToStudent(subjectId, bundle.sessionsBySubject, enrollment)) continue;
                 AnnualSubjectData asd = computeAnnualSubjectData(subjectId, bundle, enrollment.getId(), sortedGrades);
                 if (asd == null) continue;
                 boolean isFourth = fourthSubjectIds.contains(subjectId);
@@ -674,6 +678,7 @@ public class ResultService {
         for (ExamSession s : sessions) {
             if (!bundle.sessionStructureMap.containsKey(s.getId())) continue;
             if (defaultFourthSubjectIds.contains(s.getSubject().getId()) && !fourthSubjectIds.contains(s.getSubject().getId())) continue;
+            if (!sessionAppliesToStudent(s, enrollment)) continue;
             MarkingStructure structure = bundle.sessionStructureMap.get(s.getId());
             List<MarkingStructureComponent> components = bundle.sessionComponentsMap.get(s.getId());
             boolean isFourth = fourthSubjectIds.contains(s.getSubject().getId());
@@ -821,6 +826,7 @@ public class ResultService {
         Map<Integer, Boolean> mgAnyAppeared = new HashMap<>();
 
         for (Integer subjectId : orderedSubjectIds) {
+            if (!subjectAppliesToStudent(subjectId, bundle.sessionsBySubject, enrollment)) continue;
             AnnualSubjectData asd = computeAnnualSubjectData(subjectId, bundle, enrollmentId, sortedGrades);
             if (asd == null) continue;
 
@@ -940,6 +946,7 @@ public class ResultService {
 
             for (Integer subjectId : orderedSubjectIds) {
                 if (defaultFourthSubjectIds.contains(subjectId) && !fourthSubjectIds.contains(subjectId)) continue;
+                if (!subjectAppliesToStudent(subjectId, bundle.sessionsBySubject, enrollment)) continue;
                 AnnualSubjectData asd = computeAnnualSubjectData(subjectId, bundle, enrollment.getId(), sortedGrades);
                 if (asd == null) continue;
                 boolean isFourth = fourthSubjectIds.contains(subjectId);
@@ -1241,6 +1248,7 @@ public class ResultService {
             for (ExamSession s : sessions) {
                 if (!bundle.sessionStructureMap.containsKey(s.getId())) continue;
                 if (defaultFourthSubjectIds.contains(s.getSubject().getId()) && !fourthSubjectIds.contains(s.getSubject().getId())) continue;
+                if (!sessionAppliesToStudent(s, enrollment)) continue;
                 if (fourthSubjectIds.contains(s.getSubject().getId())) continue;
                 List<MarkingStructureComponent> comps = bundle.sessionComponentsMap.get(s.getId());
                 Map<Integer, BigDecimal> compMarks = bundle.markMap
@@ -1341,6 +1349,7 @@ public class ResultService {
             for (ExamSession s : sessions) {
                 if (!bundle.sessionStructureMap.containsKey(s.getId())) continue;
                 if (defaultFourthSubjectIds.contains(s.getSubject().getId()) && !fourthSubjectIds.contains(s.getSubject().getId())) continue;
+                if (!sessionAppliesToStudent(s, enrollment)) continue;
                 MarkingStructure structure = bundle.sessionStructureMap.get(s.getId());
                 List<MarkingStructureComponent> comps = bundle.sessionComponentsMap.get(s.getId());
                 boolean isFourth = fourthSubjectIds.contains(s.getSubject().getId());
@@ -1913,6 +1922,43 @@ public class ResultService {
         if (startRoll != null && (e.getClassRoll() == null || e.getClassRoll() < startRoll)) return false;
         if (endRoll != null && (e.getClassRoll() == null || e.getClassRoll() > endRoll)) return false;
         return true;
+    }
+
+    /**
+     * True if a session applies to the given student.
+     *   - Compulsory session (session.group_id == null)  → applies to everyone.
+     *   - Group-tagged session (session.group_id == G)   → applies only to
+     *     students in group G.
+     *
+     * Used to suppress false "did not appear" failures when the API is called
+     * without a group filter. Without this check, sessions from every group
+     * are loaded into the list and the per-student loop marks a Science
+     * student as failed for a Humanities subject they were never expected
+     * to sit for — which drags their overall GPA to 0 and the grade to F.
+     */
+    private boolean sessionAppliesToStudent(ExamSession s, Enrollment enrollment) {
+        Integer sessionGroupId = s.getGroup() != null ? s.getGroup().getId() : null;
+        if (sessionGroupId == null) return true;
+        Integer studentGroupId = enrollment.getStudentGroup() != null ? enrollment.getStudentGroup().getId() : null;
+        return sessionGroupId.equals(studentGroupId);
+    }
+
+    /**
+     * Subject-level counterpart for the annual / overview / stats loops that
+     * iterate subjectIds rather than sessions. True if at least one session
+     * for the subject applies to the student. False when every session for
+     * the subject is tagged for a different group — i.e. the subject isn't
+     * part of this student's curriculum.
+     */
+    private boolean subjectAppliesToStudent(Integer subjectId,
+                                              Map<Integer, List<ExamSession>> sessionsBySubject,
+                                              Enrollment enrollment) {
+        List<ExamSession> sessions = sessionsBySubject.get(subjectId);
+        if (sessions == null || sessions.isEmpty()) return true;
+        for (ExamSession s : sessions) {
+            if (sessionAppliesToStudent(s, enrollment)) return true;
+        }
+        return false;
     }
 
     // ─── DATA BUNDLE HELPERS ─────────────────────────────────────────────────────
