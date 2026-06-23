@@ -1352,9 +1352,19 @@ public class ResultService {
                 boolean appeared = !compMarks.isEmpty();
                 BigDecimal total = sumComponentMarks(comps, compMarks);
 
+                // The (4th) badge reflects ONLY the student's actual 4th pick
+                // (their override subject; falling back to the class default
+                // when no override is set). Compulsory-junction subjects are
+                // mandatory replacements for THIS student, not 4th picks,
+                // so they must not get the badge.
+                Integer studentOverrideSubject = overrideMap.get(enrollment.getId());
+                boolean isStudentActualFourth = studentOverrideSubject != null
+                        ? studentOverrideSubject.equals(s.getSubject().getId())
+                        : defaultFourthSubjectIds.contains(s.getSubject().getId());
+
                 ProgressReportData.SubjectResult sr = new ProgressReportData.SubjectResult();
                 sr.setSubjectId(s.getSubject().getId());
-                sr.setFourthSubject(isFourth);
+                sr.setFourthSubject(isStudentActualFourth);
                 sr.setAppeared(appeared);
                 sr.setComponentMarks(new HashMap<>(compMarks));
 

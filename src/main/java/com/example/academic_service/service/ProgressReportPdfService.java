@@ -276,7 +276,10 @@ public class ProgressReportPdfService {
                     }
                     tbody.append("</tr>");
 
-                    if (!msi.isFourthSubject()) {
+                    // Per-student 4th check — a class-default 4th that this
+                    // student didn't pick counts as mandatory for them.
+                    boolean msiIsStudentFourth = msr != null && msr.isFourthSubject();
+                    if (!msiIsStudentFourth) {
                         totalFull = totalFull.add(BigDecimal.valueOf(msi.getTotalMarks() != null ? msi.getTotalMarks() : 0));
                         if (appeared && msr.getTotalMarks() != null) totalObtained = totalObtained.add(msr.getTotalMarks());
                     }
@@ -290,9 +293,13 @@ public class ProgressReportPdfService {
                 String gpaCell   = appeared && sr.getGpaValue()  != null ? fmtGpa(sr.getGpaValue()) : "—";
                 String highCell  = fmtMark(si.getHighestMarks());
 
+                // (4th) badge is per-student: shown only on this student's
+                // actual 4th pick, not on every subject the class declares
+                // as a 4th option.
+                boolean isStudentFourth = sr != null && sr.isFourthSubject();
                 tbody.append("<tr>");
                 tbody.append("<td class=\"subject\">").append(si.getSubjectName())
-                        .append(si.isFourthSubject() ? " (4<sup>th</sup>)" : "").append("</td>");
+                        .append(isStudentFourth ? " (4<sup>th</sup>)" : "").append("</td>");
                 tbody.append("<td>").append(si.getTotalMarks()).append("</td>");
                 tbody.append("<td>").append(highCell).append("</td>");
                 for (ProgressReportData.ComponentInfo c : components) {
@@ -304,7 +311,9 @@ public class ProgressReportPdfService {
                 tbody.append("<td>").append(gpaCell).append("</td>");
                 tbody.append("</tr>");
 
-                if (!si.isFourthSubject()) {
+                // Totals driven off the per-student 4th flag so a class-default
+                // 4th that isn't this student's pick still counts as mandatory.
+                if (!isStudentFourth) {
                     totalFull = totalFull.add(BigDecimal.valueOf(si.getTotalMarks() != null ? si.getTotalMarks() : 0));
                     if (appeared && sr.getTotalMarks() != null) totalObtained = totalObtained.add(sr.getTotalMarks());
                 }
