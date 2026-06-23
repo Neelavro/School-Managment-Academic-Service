@@ -7,7 +7,9 @@ import com.example.academic_service.dto.exam_dtos.ExamSessionResponseDto;
 import com.example.academic_service.entity.*;
 import com.example.academic_service.entity.Class;
 import com.example.academic_service.repository.*;
+import com.example.academic_service.service.AuditLogService;
 import com.example.academic_service.service.ExamSessionService;
+import com.example.academic_service.util.AuditHelper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -24,6 +26,14 @@ public class ExamSessionServiceImpl implements ExamSessionService {
     private final ClassRepository classRepository;
     private final SubjectRepository subjectRepository;
     private final StudentGroupRepository studentGroupRepository;
+    private final AuditLogService auditLogService;
+
+    private static String describe(ExamSession s) {
+        if (s == null) return "exam session";
+        String subj  = s.getSubject()   != null ? s.getSubject().getName()   : "?";
+        String cls   = s.getExamClass() != null ? s.getExamClass().getName() : "?";
+        return "session: " + subj + " — " + cls + " (id " + s.getId() + ")";
+    }
 
     // ── create ───────────────────────────────────────────────────────────────
 
@@ -59,8 +69,14 @@ public class ExamSessionServiceImpl implements ExamSessionService {
         session.setEndTime(dto.getEndTime());
         session.setShowOnAdmitCard(dto.getShowOnAdmitCard() != null ? dto.getShowOnAdmitCard() : true);
 
-        return ApiResponse.success("Exam session created successfully",
-                ExamSessionResponseDto.from(examSessionRepository.save(session)));
+        ExamSession saved = examSessionRepository.save(session);
+        ExamSessionResponseDto savedDto = ExamSessionResponseDto.from(saved);
+        auditLogService.log(AuditHelper.getUserId(), AuditHelper.getIp(),
+                AuditActionType.CREATE, Submodule.EXAM_ROUTINES,
+                "ExamSession", saved.getId().toString(),
+                "Created " + describe(saved),
+                null, AuditHelper.toJson(savedDto));
+        return ApiResponse.success("Exam session created successfully", savedDto);
     }
 
     @Override
@@ -85,6 +101,8 @@ public class ExamSessionServiceImpl implements ExamSessionService {
             if (group == null) return ApiResponse.error("Group not found");
         }
 
+        ExamSessionResponseDto before = ExamSessionResponseDto.from(session);
+
         session.setExamClass(examClass);
         session.setSubject(subject);
         session.setGroup(group);
@@ -94,8 +112,14 @@ public class ExamSessionServiceImpl implements ExamSessionService {
         if (dto.getShowOnAdmitCard() != null) session.setShowOnAdmitCard(dto.getShowOnAdmitCard());
         session.setLastModifiedAt(LocalDateTime.now());
 
-        return ApiResponse.success("Exam session updated successfully",
-                ExamSessionResponseDto.from(examSessionRepository.save(session)));
+        ExamSession saved = examSessionRepository.save(session);
+        ExamSessionResponseDto after = ExamSessionResponseDto.from(saved);
+        auditLogService.log(AuditHelper.getUserId(), AuditHelper.getIp(),
+                AuditActionType.UPDATE, Submodule.EXAM_ROUTINES,
+                "ExamSession", saved.getId().toString(),
+                "Updated " + describe(saved),
+                AuditHelper.toJson(before), AuditHelper.toJson(after));
+        return ApiResponse.success("Exam session updated successfully", after);
     }
 
     // ── bulkCreate ────────────────────────────────────────────────────────────
@@ -125,12 +149,22 @@ public class ExamSessionServiceImpl implements ExamSessionService {
                     && !dto.getStartTime().isBefore(dto.getEndTime()))
                 return ApiResponse.error("Start time must be before end time for session id=" + dto.getId());
 
+            ExamSessionResponseDto before = ExamSessionResponseDto.from(session);
+
             session.setDate(dto.getDate());
             session.setStartTime(dto.getStartTime());
             session.setEndTime(dto.getEndTime());
             if (dto.getShowOnAdmitCard() != null) session.setShowOnAdmitCard(dto.getShowOnAdmitCard());
             session.setLastModifiedAt(LocalDateTime.now());
-            results.add(ExamSessionResponseDto.from(examSessionRepository.save(session)));
+
+            ExamSession saved = examSessionRepository.save(session);
+            ExamSessionResponseDto after = ExamSessionResponseDto.from(saved);
+            auditLogService.log(AuditHelper.getUserId(), AuditHelper.getIp(),
+                    AuditActionType.UPDATE, Submodule.EXAM_ROUTINES,
+                    "ExamSession", saved.getId().toString(),
+                    "Bulk-updated " + describe(saved),
+                    AuditHelper.toJson(before), AuditHelper.toJson(after));
+            results.add(after);
         }
         return ApiResponse.success("Bulk exam sessions updated successfully", results);
     }
@@ -169,8 +203,13 @@ public class ExamSessionServiceImpl implements ExamSessionService {
 
         session.setIsActive(true);
         session.setLastModifiedAt(LocalDateTime.now());
+        ExamSession saved = examSessionRepository.save(session);
+        auditLogService.log(AuditHelper.getUserId(), AuditHelper.getIp(),
+                AuditActionType.UPDATE, Submodule.EXAM_ROUTINES,
+                "ExamSession", saved.getId().toString(),
+                "Reactivated " + describe(saved));
         return ApiResponse.success("Exam session reactivated successfully",
-                ExamSessionResponseDto.from(examSessionRepository.save(session)));
+                ExamSessionResponseDto.from(saved));
     }
 
     // ── delete ───────────────────────────────────────────────────────────────
@@ -181,8 +220,14 @@ public class ExamSessionServiceImpl implements ExamSessionService {
         if (session == null) return ApiResponse.error("Exam session not found");
         if (!session.getIsActive()) return ApiResponse.error("Exam session is already inactive");
 
+        ExamSessionResponseDto before = ExamSessionResponseDto.from(session);
         session.setIsActive(false);
         examSessionRepository.save(session);
+        auditLogService.log(AuditHelper.getUserId(), AuditHelper.getIp(),
+                AuditActionType.DELETE, Submodule.EXAM_ROUTINES,
+                "ExamSession", session.getId().toString(),
+                "Deleted " + describe(session),
+                AuditHelper.toJson(before), null);
         return ApiResponse.success("Exam session deleted successfully", null);
     }
 }
