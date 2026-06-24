@@ -50,7 +50,9 @@ public class StudentPortalPaymentService {
         // Pull all invoices for these enrollments — typical student has < 100 lifetime.
         List<Invoice> invoices = new ArrayList<>();
         for (Long enrollmentId : enrollmentIds) {
-            Page<Invoice> page = invoiceRepo.search(enrollmentId, null, statusFilter,
+            Page<Invoice> page = invoiceRepo.search(
+                    enrollmentId, null, statusFilter,
+                    null, null, null, null, null,
                     PageRequest.of(0, 500));
             invoices.addAll(page.getContent());
         }
@@ -95,7 +97,10 @@ public class StudentPortalPaymentService {
         List<Long> enrollmentIds = enrollments.stream().map(Enrollment::getId).toList();
         Set<Long> invoiceIds = new HashSet<>();
         for (Long eid : enrollmentIds) {
-            invoiceRepo.search(eid, null, null, PageRequest.of(0, 500))
+            invoiceRepo.search(
+                    eid, null, null,
+                    null, null, null, null, null,
+                    PageRequest.of(0, 500))
                     .forEach(i -> invoiceIds.add(i.getId()));
         }
         if (invoiceIds.isEmpty()) {
