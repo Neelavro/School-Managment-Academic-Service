@@ -292,13 +292,11 @@ public class ProgressReportPdfService {
                     }
                     tbody.append("</tr>");
 
-                    // Per-student 4th check — a class-default 4th that this
-                    // student didn't pick counts as mandatory for them.
-                    boolean msiIsStudentFourth = msr != null && msr.isFourthSubject();
-                    if (!msiIsStudentFourth) {
-                        totalFull = totalFull.add(BigDecimal.valueOf(msi.getTotalMarks() != null ? msi.getTotalMarks() : 0));
-                        if (appeared && msr.getTotalMarks() != null) totalObtained = totalObtained.add(msr.getTotalMarks());
-                    }
+                    // Totals include every subject on the card — 4th included
+                    // — to stay consistent with the with-4th overall GPA shown
+                    // in the footer.
+                    totalFull = totalFull.add(BigDecimal.valueOf(msi.getTotalMarks() != null ? msi.getTotalMarks() : 0));
+                    if (appeared && msr.getTotalMarks() != null) totalObtained = totalObtained.add(msr.getTotalMarks());
                 }
 
             } else {
@@ -327,12 +325,10 @@ public class ProgressReportPdfService {
                 tbody.append("<td>").append(gpaCell).append("</td>");
                 tbody.append("</tr>");
 
-                // Totals driven off the per-student 4th flag so a class-default
-                // 4th that isn't this student's pick still counts as mandatory.
-                if (!isStudentFourth) {
-                    totalFull = totalFull.add(BigDecimal.valueOf(si.getTotalMarks() != null ? si.getTotalMarks() : 0));
-                    if (appeared && sr.getTotalMarks() != null) totalObtained = totalObtained.add(sr.getTotalMarks());
-                }
+                // Totals include every subject on the card — 4th included —
+                // matching the with-4th overall GPA shown in the footer.
+                totalFull = totalFull.add(BigDecimal.valueOf(si.getTotalMarks() != null ? si.getTotalMarks() : 0));
+                if (appeared && sr.getTotalMarks() != null) totalObtained = totalObtained.add(sr.getTotalMarks());
             }
         }
         tbody.append("</tbody>");
