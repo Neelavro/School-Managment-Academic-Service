@@ -256,6 +256,29 @@ public class PaymentService {
         );
         JournalEntryResponse je = journalService.post(jReq, receivedBy);
         saved.setMainJournalEntryId(je.getId());
+
+        // Platform commission also applies to cash payments — the school owes
+        // the platform whether the money came through SSLCommerz or the front
+        // desk. Posts only if percent/flat are configured AND both fee
+        // accounts are set in Accounting Settings.
+        BigDecimal feeAmount = computePlatformFee(req.getAmount(), settings);
+        if (feeAmount.compareTo(BigDecimal.ZERO) > 0
+                && settings.getPlatformFeeAccountId() != null
+                && settings.getPlatformPayableAccountId() != null) {
+            JournalEntryRequest feeEntry = buildTwoLine(
+                    LocalDate.now(),
+                    JournalReferenceType.PAYMENT_CASH,
+                    saved.getId(),
+                    "Platform commission — " + tranId,
+                    settings.getPlatformFeeAccountId(), feeAmount,
+                    "Platform fee expense",
+                    settings.getPlatformPayableAccountId(), feeAmount,
+                    "Payable to platform owner"
+            );
+            JournalEntryResponse feeJe = journalService.post(feeEntry, receivedBy);
+            saved.setFeeJournalEntryId(feeJe.getId());
+            saved.setPlatformFeeAmount(feeAmount);
+        }
         paymentRepo.save(saved);
 
         // Update invoice paid amount + status.
