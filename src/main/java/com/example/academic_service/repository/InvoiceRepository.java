@@ -37,17 +37,49 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
             @Param("period") LocalDate period,
             @Param("enrollmentIds") List<Long> enrollmentIds);
 
+    /**
+     * Invoice search with student-level filters resolved through an enrollment
+     * subquery (Invoice carries enrollmentId only, no FK relationship to
+     * Enrollment, so we filter the enrollmentId set directly).
+     *
+     * All filter parameters are nullable — pass null to skip a filter.
+     * studentSearch matches case-insensitively against student_system_id OR
+     * the student's English name.
+     */
     @Query("""
         SELECT i FROM Invoice i
         WHERE (:enrollmentId IS NULL OR i.enrollmentId = :enrollmentId)
           AND (:period IS NULL OR i.billingPeriod = :period)
           AND (:status IS NULL OR i.status = :status)
+          AND (
+               (:classId IS NULL AND :academicYearId IS NULL
+                AND :shiftId IS NULL AND :genderSectionId IS NULL
+                AND :studentSearch IS NULL)
+            OR i.enrollmentId IN (
+                  SELECT e.id FROM Enrollment e
+                  WHERE (:classId IS NULL OR e.studentClass.id = :classId)
+                    AND (:academicYearId IS NULL OR e.academicYear.id = :academicYearId)
+                    AND (:shiftId IS NULL OR e.shift.id = :shiftId)
+                    AND (:genderSectionId IS NULL OR e.genderSection.id = :genderSectionId)
+                    AND (
+                          :studentSearch IS NULL
+                       OR LOWER(e.studentSystemId) LIKE LOWER(CONCAT('%', :studentSearch, '%'))
+                       OR (e.student IS NOT NULL AND LOWER(e.student.nameEnglish) LIKE LOWER(CONCAT('%', :studentSearch, '%')))
+                       OR (e.student IS NOT NULL AND LOWER(e.student.nameBangla)  LIKE LOWER(CONCAT('%', :studentSearch, '%')))
+                       )
+              )
+          )
         ORDER BY i.billingPeriod DESC, i.id DESC
     """)
     Page<Invoice> search(
             @Param("enrollmentId") Long enrollmentId,
             @Param("period") LocalDate period,
             @Param("status") InvoiceStatus status,
+            @Param("classId") Integer classId,
+            @Param("academicYearId") Integer academicYearId,
+            @Param("shiftId") Integer shiftId,
+            @Param("genderSectionId") Integer genderSectionId,
+            @Param("studentSearch") String studentSearch,
             Pageable pageable);
 
     @Query("""

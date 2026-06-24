@@ -1,11 +1,13 @@
 package com.example.academic_service.controller;
 
 import com.example.academic_service.config.RequirePermission;
+import com.example.academic_service.dto.InvoiceGenerationProgress;
 import com.example.academic_service.dto.InvoiceGenerationRequest;
 import com.example.academic_service.dto.InvoiceGenerationResult;
 import com.example.academic_service.dto.InvoiceResponse;
 import com.example.academic_service.entity.InvoiceStatus;
 import com.example.academic_service.entity.Submodule;
+import com.example.academic_service.service.InvoiceGenerationProgressTracker;
 import com.example.academic_service.service.InvoiceService;
 import com.example.academic_service.util.ApiResponse;
 import jakarta.validation.Valid;
@@ -27,6 +29,7 @@ import java.util.Map;
 public class InvoiceController {
 
     private final InvoiceService service;
+    private final InvoiceGenerationProgressTracker progressTracker;
 
     @GetMapping
     @RequirePermission(submodule = Submodule.ACCOUNTS_INVOICES, action = "READ")
@@ -34,10 +37,17 @@ public class InvoiceController {
             @RequestParam(required = false) Long enrollmentId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period,
             @RequestParam(required = false) InvoiceStatus status,
+            @RequestParam(required = false) Integer classId,
+            @RequestParam(required = false) Integer academicYearId,
+            @RequestParam(required = false) Integer shiftId,
+            @RequestParam(required = false) Integer genderSectionId,
+            @RequestParam(required = false) String studentSearch,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "30") int size) {
         return ResponseEntity.ok(new ApiResponse<>("OK",
-                service.search(enrollmentId, period, status, page, size)));
+                service.search(enrollmentId, period, status,
+                        classId, academicYearId, shiftId, genderSectionId, studentSearch,
+                        page, size)));
     }
 
     @GetMapping("/{id}")
@@ -52,6 +62,29 @@ public class InvoiceController {
             @Valid @RequestBody InvoiceGenerationRequest req) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(new ApiResponse<>("Generation complete", service.generate(req, currentUser())));
+    }
+
+    /**
+     * Async invoice generation. Returns a progress handle immediately with a
+     * taskId. The client polls /generate/progress/{taskId} to drive the
+     * progress bar; final result is delivered in the DONE poll response.
+     */
+    @PostMapping("/generate/async")
+    @RequirePermission(submodule = Submodule.ACCOUNTS_INVOICES, action = "CREATE")
+    public ResponseEntity<ApiResponse<InvoiceGenerationProgress>> generateAsync(
+            @Valid @RequestBody InvoiceGenerationRequest req) {
+        return ResponseEntity.status(HttpStatus.ACCEPTED)
+                .body(new ApiResponse<>("Generation started", service.generateAsync(req, currentUser())));
+    }
+
+    @GetMapping("/generate/progress/{taskId}")
+    @RequirePermission(submodule = Submodule.ACCOUNTS_INVOICES, action = "READ")
+    public ResponseEntity<ApiResponse<InvoiceGenerationProgress>> generateProgress(
+            @PathVariable String taskId) {
+        InvoiceGenerationProgress p = progressTracker.get(taskId);
+        if (p == null) return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new ApiResponse<>("Task not found or already retrieved", null));
+        return ResponseEntity.ok(new ApiResponse<>("OK", p));
     }
 
     @PostMapping("/{id}/cancel")
