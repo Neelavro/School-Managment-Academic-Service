@@ -46,6 +46,8 @@ public class InvoiceService {
     private final FeePricingRepository pricingRepo;
     private final AccountingSettingsService settingsService;
     private final JournalEntryService journalService;
+    private final AcademicYearRepository academicYearRepo;
+    private final InvoiceGenerationProgressTracker progressTracker;
 
     /**
      * Self-injected lazy proxy so we can call our own @Transactional method
@@ -59,10 +61,16 @@ public class InvoiceService {
     // ── Read ──────────────────────────────────────────────────────────────
 
     public Page<InvoiceResponse> search(Long enrollmentId, LocalDate period, InvoiceStatus status,
+                                         Integer classId, Integer academicYearId, Integer shiftId,
+                                         Integer genderSectionId, String studentSearch,
                                          int page, int size) {
         Pageable pageable = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 200));
         LocalDate normalized = period != null ? period.withDayOfMonth(1) : null;
-        Page<Invoice> invoices = invoiceRepo.search(enrollmentId, normalized, status, pageable);
+        String trimmedSearch = (studentSearch == null || studentSearch.isBlank()) ? null : studentSearch.trim();
+        Page<Invoice> invoices = invoiceRepo.search(
+                enrollmentId, normalized, status,
+                classId, academicYearId, shiftId, genderSectionId, trimmedSearch,
+                pageable);
         if (invoices.isEmpty()) return invoices.map(i -> InvoiceResponse.from(i, null, null, null, List.of()));
         return invoices.map(this::hydrate);
     }
@@ -106,11 +114,47 @@ public class InvoiceService {
      * Each invoice is created in its own REQUIRES_NEW transaction so a single
      * failure does not roll back the whole batch.
      */
+    /**
+     * Kick off invoice generation in a background thread and return a
+     * progress handle immediately. The frontend polls
+     * GET /api/accounting/invoices/generate/progress/{taskId}
+     * every ~500ms and renders a real progress bar based on processed/total.
+     */
+    public InvoiceGenerationProgress generateAsync(InvoiceGenerationRequest req, String generatedBy) {
+        InvoiceGenerationProgress task = progressTracker.start(0);
+        final String taskId = task.getTaskId();
+        Thread t = new Thread(() -> {
+            try {
+                InvoiceGenerationResult result = generate(req, generatedBy, taskId);
+                progressTracker.complete(taskId, result);
+            } catch (Exception ex) {
+                String msg = ex.getMessage() != null ? ex.getMessage() : ex.getClass().getSimpleName();
+                progressTracker.fail(taskId, msg);
+            }
+        }, "invoice-gen-" + taskId);
+        t.setDaemon(true);
+        t.start();
+        return task;
+    }
+
     public InvoiceGenerationResult generate(InvoiceGenerationRequest req, String generatedBy) {
+        return generate(req, generatedBy, null);
+    }
+
+    public InvoiceGenerationResult generate(InvoiceGenerationRequest req, String generatedBy, String taskId) {
         if (req.getBillingPeriod() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "billingPeriod is required");
         }
         LocalDate period = req.getBillingPeriod().withDayOfMonth(1);
+
+        // Default academicYearId to the current active year when the caller
+        // didn't pass one. Generation should never silently span across years.
+        if (req.getAcademicYearId() == null) {
+            req.setAcademicYearId(
+                    academicYearRepo.findFirstByIsActiveTrue()
+                            .map(AcademicYear::getId)
+                            .orElse(null));
+        }
 
         // Settings + AR account.
         AccountingSettings settings = settingsService.getRequiredForPosting();
@@ -148,6 +192,9 @@ public class InvoiceService {
         Set<Long> alreadyInvoiced = new HashSet<>(
                 invoiceRepo.findEnrollmentsAlreadyInvoiced(period, candidateIds));
 
+        // For async progress reporting: total = total candidates we'll iterate.
+        if (taskId != null) progressTracker.setTotal(taskId, candidates.size());
+
         // Preload pricing once.
         Map<Long, Map<Integer, BigDecimal>> pricingByCategoryThenClass = new HashMap<>();
         for (FeeCategory c : activeCategories) {
@@ -163,8 +210,11 @@ public class InvoiceService {
         InvoiceGenerationResult result = new InvoiceGenerationResult(period, 0, 0, 0, 0, new ArrayList<>());
 
         for (Enrollment enrollment : candidates) {
+            // Wrap each enrollment in try/finally so the progress counter
+            // ticks even for already-invoiced (skipped) students.
             if (alreadyInvoiced.contains(enrollment.getId())) {
                 result.setSkippedExisting(result.getSkippedExisting() + 1);
+                if (taskId != null) progressTracker.increment(taskId);
                 continue;
             }
 
@@ -187,6 +237,8 @@ public class InvoiceService {
                         : ("enrollment #" + enrollment.getId());
                 String msg = ex.getMessage() != null ? ex.getMessage() : ex.getClass().getSimpleName();
                 result.getWarnings().add("Failed for " + studentLabel + ": " + msg);
+            } finally {
+                if (taskId != null) progressTracker.increment(taskId);
             }
         }
 
