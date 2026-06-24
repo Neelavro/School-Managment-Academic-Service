@@ -301,6 +301,13 @@ public class ProgressReportPdfService {
 
             } else {
                 ProgressReportData.SubjectResult sr = resultMap.get(si.getSubjectId());
+                // 4th-subject row visibility: a class-level 4th option only
+                // belongs on the card of students who picked it (via override)
+                // or have it in their compulsory junction. Students who didn't
+                // pick it would otherwise get an empty 4th row — skip them.
+                if (si.isFourthSubject() && sr == null) {
+                    continue;
+                }
                 boolean appeared = sr != null && sr.isAppeared();
                 String totalCell = appeared && sr.getTotalMarks() != null ? fmtMark(sr.getTotalMarks()) : "—";
                 String gradeCell = appeared && sr.getGradeName() != null ? sr.getGradeName() : "—";
