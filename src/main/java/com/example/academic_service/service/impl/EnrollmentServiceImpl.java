@@ -229,7 +229,7 @@ public class EnrollmentServiceImpl implements EnrollmentService {
             enrollment.setStudentClass(classRepository.findById(request.getClassId())
                     .orElseThrow(() -> new RuntimeException("Class not found: " + request.getClassId())));
         if (request.getSectionId() != null)
-            enrollment.setSection(sectionRepository.findById(Math.toIntExact(request.getSectionId()))
+            enrollment.setSection(sectionRepository.findById(request.getSectionId())
                     .orElseThrow(() -> new RuntimeException("Section not found: " + request.getSectionId())));
         if (request.getShiftId() != null)
             enrollment.setShift(shiftRepository.findById(request.getShiftId())
@@ -257,7 +257,7 @@ public class EnrollmentServiceImpl implements EnrollmentService {
         if (request.getClassId() != null)
             existing.setStudentClass(classRepository.findById(request.getClassId()).orElse(null));
         if (request.getSectionId() != null)
-            existing.setSection(sectionRepository.findById(Math.toIntExact(request.getSectionId())).orElse(null));
+            existing.setSection(sectionRepository.findById(request.getSectionId()).orElse(null));
         if (request.getShiftId() != null)
             existing.setShift(shiftRepository.findById(request.getShiftId()).orElse(null));
         if (request.getGenderSectionId() != null)
@@ -390,7 +390,7 @@ public class EnrollmentServiceImpl implements EnrollmentService {
         GenderSection toGenderSection = genderSectionRepository.findById(request.getToGenderSectionId())
                 .orElseThrow(() -> new RuntimeException("Target gender section not found"));
         Section toSection = request.getToSectionId() != null
-                ? sectionRepository.findById(Math.toIntExact(request.getToSectionId())).orElse(null) : null;
+                ? sectionRepository.findById(request.getToSectionId()).orElse(null) : null;
         StudentGroup toGroup = request.getToGroupId() != null
                 ? studentGroupRepository.findById(request.getToGroupId()).orElse(null) : null;
 

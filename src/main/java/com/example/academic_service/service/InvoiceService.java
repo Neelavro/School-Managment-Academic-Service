@@ -48,6 +48,7 @@ public class InvoiceService {
     private final JournalEntryService journalService;
     private final AcademicYearRepository academicYearRepo;
     private final InvoiceGenerationProgressTracker progressTracker;
+    private final PlatformFeeService platformFeeService;
 
     /**
      * Self-injected lazy proxy so we can call our own @Transactional method
@@ -63,13 +64,16 @@ public class InvoiceService {
     public Page<InvoiceResponse> search(Long enrollmentId, LocalDate period, InvoiceStatus status,
                                          Integer classId, Integer academicYearId, Integer shiftId,
                                          Integer genderSectionId, String studentSearch,
+                                         String invoiceNumber,
                                          int page, int size) {
         Pageable pageable = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 200));
         LocalDate normalized = period != null ? period.withDayOfMonth(1) : null;
         String trimmedSearch = (studentSearch == null || studentSearch.isBlank()) ? null : studentSearch.trim();
+        String trimmedInvNo  = (invoiceNumber == null || invoiceNumber.isBlank()) ? null : invoiceNumber.trim();
         Page<Invoice> invoices = invoiceRepo.search(
                 enrollmentId, normalized, status,
                 classId, academicYearId, shiftId, genderSectionId, trimmedSearch,
+                trimmedInvNo,
                 pageable);
         if (invoices.isEmpty()) return invoices.map(i -> InvoiceResponse.from(i, null, null, null, List.of()));
         return invoices.map(this::hydrate);
@@ -288,6 +292,23 @@ public class InvoiceService {
         }
         if (specs.isEmpty()) {
             return CreateInvoiceOutcome.NO_FEES;
+        }
+
+        // Auto-append the platform fee (Edunix's per-enrollment cut). Cached
+        // hourly so we don't hit platform_admin once per student per month.
+        // Lands as a separate line crediting Platform Payable so:
+        //   Dr AR           = student total incl. platform fee
+        //   Cr Income       = per-fee-category ledgers
+        //   Cr Platform Pay = platform fee
+        BigDecimal platformFeeRate = platformFeeService.getPerEnrollmentRate();
+        AccountingSettings accSettings = settingsService.getRequiredForPosting();
+        if (platformFeeRate.compareTo(BigDecimal.ZERO) > 0
+                && accSettings.getPlatformPayableAccountId() != null) {
+            specs.add(new LineSpec(null,
+                    "Platform Fee (Edunix)",
+                    accSettings.getPlatformPayableAccountId(),
+                    platformFeeRate));
+            total = total.add(platformFeeRate);
         }
 
         // Header.

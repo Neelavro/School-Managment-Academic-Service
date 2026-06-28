@@ -52,7 +52,7 @@ public class StudentPortalPaymentService {
         for (Long enrollmentId : enrollmentIds) {
             Page<Invoice> page = invoiceRepo.search(
                     enrollmentId, null, statusFilter,
-                    null, null, null, null, null,
+                    null, null, null, null, null, null,
                     PageRequest.of(0, 500));
             invoices.addAll(page.getContent());
         }
@@ -99,7 +99,7 @@ public class StudentPortalPaymentService {
         for (Long eid : enrollmentIds) {
             invoiceRepo.search(
                     eid, null, null,
-                    null, null, null, null, null,
+                    null, null, null, null, null, null,
                     PageRequest.of(0, 500))
                     .forEach(i -> invoiceIds.add(i.getId()));
         }

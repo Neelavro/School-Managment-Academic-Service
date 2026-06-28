@@ -62,10 +62,9 @@ public class AccountingSettingsService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "Gateway Clearing account is not configured. Set it in Accounting Settings.");
         }
-        if (s.getPlatformFeeAccountId() == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "Platform Fee account is not configured. Set it in Accounting Settings.");
-        }
+        // Platform fee is now accrued at invoice generation (Dr AR / Cr
+        // Platform Payable). Only Platform Payable is needed; the legacy
+        // Platform Fee Expense account is no longer required.
         if (s.getPlatformPayableAccountId() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "Payable to Platform account is not configured. Set it in Accounting Settings.");

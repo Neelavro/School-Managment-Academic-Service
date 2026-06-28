@@ -33,7 +33,7 @@ public class ClassTeacherService {
 
         Staff staff = staffRepository.findById(staffId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Staff not found"));
-        Section section = sectionRepository.findById(Math.toIntExact(sectionId))
+        Section section = sectionRepository.findById(sectionId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Section not found"));
         AcademicYear year = academicYearRepository.findById(academicYearId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Academic year not found"));

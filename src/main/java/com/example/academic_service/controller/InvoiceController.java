@@ -42,11 +42,13 @@ public class InvoiceController {
             @RequestParam(required = false) Integer shiftId,
             @RequestParam(required = false) Integer genderSectionId,
             @RequestParam(required = false) String studentSearch,
+            @RequestParam(required = false) String invoiceNumber,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "30") int size) {
         return ResponseEntity.ok(new ApiResponse<>("OK",
                 service.search(enrollmentId, period, status,
                         classId, academicYearId, shiftId, genderSectionId, studentSearch,
+                        invoiceNumber,
                         page, size)));
     }
 

@@ -30,6 +30,13 @@ public class CacheConfig {
                         .maximumSize(1)
                         .expireAfterWrite(60, TimeUnit.SECONDS)
                         .build());
+        // Platform fee rate — fetched from platform_admin once per hour so
+        // every invoice-generation batch doesn't hammer the upstream service.
+        manager.registerCustomCache("platformFee",
+                Caffeine.newBuilder()
+                        .maximumSize(1)
+                        .expireAfterWrite(1, TimeUnit.HOURS)
+                        .build());
         return manager;
     }
 }

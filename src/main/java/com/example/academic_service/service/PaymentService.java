@@ -256,29 +256,10 @@ public class PaymentService {
         );
         JournalEntryResponse je = journalService.post(jReq, receivedBy);
         saved.setMainJournalEntryId(je.getId());
-
-        // Platform commission also applies to cash payments — the school owes
-        // the platform whether the money came through SSLCommerz or the front
-        // desk. Posts only if percent/flat are configured AND both fee
-        // accounts are set in Accounting Settings.
-        BigDecimal feeAmount = computePlatformFee(req.getAmount(), settings);
-        if (feeAmount.compareTo(BigDecimal.ZERO) > 0
-                && settings.getPlatformFeeAccountId() != null
-                && settings.getPlatformPayableAccountId() != null) {
-            JournalEntryRequest feeEntry = buildTwoLine(
-                    LocalDate.now(),
-                    JournalReferenceType.PAYMENT_CASH,
-                    saved.getId(),
-                    "Platform commission — " + tranId,
-                    settings.getPlatformFeeAccountId(), feeAmount,
-                    "Platform fee expense",
-                    settings.getPlatformPayableAccountId(), feeAmount,
-                    "Payable to platform owner"
-            );
-            JournalEntryResponse feeJe = journalService.post(feeEntry, receivedBy);
-            saved.setFeeJournalEntryId(feeJe.getId());
-            saved.setPlatformFeeAmount(feeAmount);
-        }
+        // Platform fee is now baked into the invoice at accrual time
+        // (Dr AR / Cr Platform Payable). No per-payment fee posting needed —
+        // the school's liability to the platform was already recognised when
+        // the invoice was generated.
         paymentRepo.save(saved);
 
         // Update invoice paid amount + status.
@@ -411,9 +392,10 @@ public class PaymentService {
                 new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Invoice gone"));
 
         BigDecimal amount = payment.getAmount();
-        BigDecimal feeAmount = computePlatformFee(amount, settings);
-
-        // 1) Receipt entry: Dr Gateway Clearing / Cr AR
+        // Receipt entry: Dr Gateway Clearing / Cr AR.
+        // Platform fee is now accrued at invoice generation time (Dr AR /
+        // Cr Platform Payable). The gateway-clearing receipt just settles AR
+        // — no fee-side posting needed at payment time.
         JournalEntryRequest receipt = buildTwoLine(
                 LocalDate.now(),
                 JournalReferenceType.PAYMENT_ONLINE,
@@ -427,24 +409,7 @@ public class PaymentService {
         JournalEntryResponse mainJe = journalService.post(receipt, "system:ipn");
         payment.setMainJournalEntryId(mainJe.getId());
 
-        // 2) Platform fee entry: Dr Platform Fee Expense / Cr Payable to Platform
-        if (feeAmount.compareTo(BigDecimal.ZERO) > 0) {
-            JournalEntryRequest feeEntry = buildTwoLine(
-                    LocalDate.now(),
-                    JournalReferenceType.PAYMENT_ONLINE,
-                    payment.getId(),
-                    "Platform commission — " + payment.getTranId(),
-                    settings.getPlatformFeeAccountId(), feeAmount,
-                    "Platform fee expense",
-                    settings.getPlatformPayableAccountId(), feeAmount,
-                    "Payable to platform owner"
-            );
-            JournalEntryResponse feeJe = journalService.post(feeEntry, "system:ipn");
-            payment.setFeeJournalEntryId(feeJe.getId());
-            payment.setPlatformFeeAmount(feeAmount);
-        }
-
-        // 3) Update invoice paid_amount + status.
+        // Update invoice paid_amount + status.
         BigDecimal newPaid = invoice.getPaidAmount().add(amount);
         invoice.setPaidAmount(newPaid);
         if (newPaid.compareTo(invoice.getTotalAmount()) >= 0) {
@@ -490,19 +455,9 @@ public class PaymentService {
         paymentRepo.delete(payment);
     }
 
-    /**
-     * platformFeePercent% of amount + platformFeeFlat. Rounded HALF_UP to 2dp.
-     * Returns zero if both percent and flat are null/zero.
-     */
-    private BigDecimal computePlatformFee(BigDecimal amount, AccountingSettings settings) {
-        BigDecimal percent = settings.getPlatformFeePercent() != null
-                ? settings.getPlatformFeePercent() : BigDecimal.ZERO;
-        BigDecimal flat = settings.getPlatformFeeFlat() != null
-                ? settings.getPlatformFeeFlat() : BigDecimal.ZERO;
-        BigDecimal percentAmt = amount.multiply(percent)
-                .divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP);
-        return percentAmt.add(flat).setScale(2, RoundingMode.HALF_UP);
-    }
+    // computePlatformFee removed — platform fee is now accrued at invoice
+    // generation via PlatformFeeService (fetched from platform_admin,
+    // cached 1h) instead of per-payment.
 
     private JournalEntryRequest buildTwoLine(LocalDate date, JournalReferenceType refType,
                                               Long refId, String description,

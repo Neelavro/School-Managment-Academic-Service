@@ -44,7 +44,7 @@ public class StaffClassAssignmentService {
         if (req.getGenderSection() != null && req.getGenderSection().getId() != null)
             a.setGenderSection(genderSectionRepository.getReferenceById(req.getGenderSection().getId()));
         if (req.getSection() != null && req.getSection().getId() != null)
-            a.setSection(sectionRepository.getReferenceById(req.getSection().getId().intValue()));
+            a.setSection(sectionRepository.getReferenceById(req.getSection().getId()));
         if (req.getStudentGroup() != null && req.getStudentGroup().getId() != null)
             a.setStudentGroup(studentGroupRepository.getReferenceById(req.getStudentGroup().getId()));
         return assignmentRepository.save(a);
