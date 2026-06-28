@@ -87,18 +87,21 @@ CREATE TABLE IF NOT EXISTS class_subject_group (
 );
 
 -- ── 5. class_routine  (weekly timetable per class+section+subject+room) ───
+-- class_id, gender_section_id and room_id are NOT NULL — the JPA entity
+-- declares @JoinColumn(nullable = false) on each, and the prod schema
+-- matches. section_id, student_group_id and subject_id remain optional.
 CREATE TABLE IF NOT EXISTS class_routine (
   id                    INT          NOT NULL AUTO_INCREMENT,
-  class_id              INT              NULL,
-  gender_section_id     INT              NULL,
+  class_id              INT          NOT NULL,
+  gender_section_id     INT          NOT NULL,
   section_id            BIGINT           NULL,
   student_group_id      INT              NULL,
   subject_id            INT              NULL,
-  room_id               INT              NULL,
-  day_of_week           VARCHAR(20)      NULL,                    -- MONDAY | TUESDAY | ...
-  start_time            TIME             NULL,
-  end_time              TIME             NULL,
-  routine_type          VARCHAR(20)      NULL DEFAULT 'DEFAULT',  -- DEFAULT | RAMADAN
+  room_id               INT          NOT NULL,
+  day_of_week           VARCHAR(20)  NOT NULL,                    -- MONDAY | TUESDAY | ...
+  start_time            TIME         NOT NULL,
+  end_time              TIME         NOT NULL,
+  routine_type          VARCHAR(20)  NOT NULL DEFAULT 'DEFAULT',  -- DEFAULT | RAMADAN
   is_active             BIT(1)           NULL DEFAULT b'1',
   PRIMARY KEY (id),
   KEY idx_routine_class (class_id),
@@ -111,7 +114,7 @@ CREATE TABLE IF NOT EXISTS class_routine (
   CONSTRAINT fk_routine_class
       FOREIGN KEY (class_id)          REFERENCES class(id)          ON DELETE CASCADE,
   CONSTRAINT fk_routine_gender_section
-      FOREIGN KEY (gender_section_id) REFERENCES gender_section(id) ON DELETE SET NULL,
+      FOREIGN KEY (gender_section_id) REFERENCES gender_section(id) ON DELETE CASCADE,
   CONSTRAINT fk_routine_section
       FOREIGN KEY (section_id)        REFERENCES section(id)        ON DELETE SET NULL,
   CONSTRAINT fk_routine_student_group
@@ -119,5 +122,5 @@ CREATE TABLE IF NOT EXISTS class_routine (
   CONSTRAINT fk_routine_subject
       FOREIGN KEY (subject_id)        REFERENCES subject(id)        ON DELETE SET NULL,
   CONSTRAINT fk_routine_room
-      FOREIGN KEY (room_id)           REFERENCES room(id)           ON DELETE SET NULL
+      FOREIGN KEY (room_id)           REFERENCES room(id)           ON DELETE CASCADE
 );

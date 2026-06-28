@@ -79,7 +79,10 @@ INSERT INTO exam_routine (
       '2026-12-01', '2026-12-20', b'1');
 
 -- ============================================================================
--- 4. class_routine — 10 classes × 3 sections × 5 days × 6 periods = 900 rows
+-- 4. class_routine — N classes × 3 sections × 5 days × 6 periods rows
+--    (uses every active class; the original "10 classes" was an example).
+--    gender_section_id is resolved from section.gender_id so the seed
+--    satisfies the NOT NULL constraint on the column.
 -- ============================================================================
 -- Shift-aware time math (offsets are MINUTES from the shift's first-bell):
 --   Period 1:   0  → 45        (45 min)
@@ -92,7 +95,7 @@ INSERT INTO exam_routine (
 -- ============================================================================
 
 INSERT INTO class_routine (
-    class_id, section_id, subject_id, room_id,
+    class_id, gender_section_id, section_id, subject_id, room_id,
     day_of_week, start_time, end_time, routine_type, is_active
 )
 WITH RECURSIVE
@@ -156,7 +159,8 @@ WITH RECURSIVE
   )
 SELECT
     g.class_id,
-    (g.class_id - 1) * 3 + g.section_pos AS section_id,
+    sec.gender_id AS gender_section_id,
+    sec.id        AS section_id,
     rs.subject_id,
     ((g.slot + g.class_id + g.section_pos) % 5) + 1 AS room_id,
     g.day_name AS day_of_week,
@@ -165,7 +169,15 @@ SELECT
     'DEFAULT'  AS routine_type,
     b'1'       AS is_active
 FROM grid g
-JOIN shift_times st  ON st.shift_id = COALESCE(g.shift_id, 1)
+JOIN shift_times st ON st.shift_id = COALESCE(g.shift_id, 1)
+-- Resolve the section (and its gender_section) for this (class, section_pos)
+-- deterministically: order sections within a class and pick the section_pos-th.
+JOIN (
+    SELECT s.id, s.class_id, s.gender_id,
+           ROW_NUMBER() OVER (PARTITION BY s.class_id ORDER BY s.id) AS pos
+    FROM section s
+    WHERE s.is_active = b'1'
+) sec ON sec.class_id = g.class_id AND sec.pos = g.section_pos
 JOIN ranked_subjects rs
   ON rs.class_id = g.class_id
  AND rs.rn       = (g.slot % rs.total_subjects) + 1;
