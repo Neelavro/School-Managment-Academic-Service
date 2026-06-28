@@ -25,17 +25,8 @@ public class ClassRoutineResponseDto {
     public static ClassRoutineResponseDto from(ClassRoutine r) {
         ClassRoutineResponseDto dto = new ClassRoutineResponseDto();
         dto.setId(r.getId());
-        if (r.getClassEntity() != null) {
-            dto.setClassEntity(new ClassInfo(r.getClassEntity().getId(), r.getClassEntity().getName()));
-        }
-        // gender_section_id, section_id, student_group_id, subject_id and
-        // room_id are all NULLable in the schema (FKs with ON DELETE SET NULL).
-        // Older rows may have any of them missing; guard each so the response
-        // serializer never NPEs on legacy data.
-        if (r.getGenderSection() != null) {
-            dto.setGenderSection(new GenderSectionInfo(
-                    r.getGenderSection().getId(), r.getGenderSection().getGenderName()));
-        }
+        dto.setClassEntity(new ClassInfo(r.getClassEntity().getId(), r.getClassEntity().getName()));
+        dto.setGenderSection(new GenderSectionInfo(r.getGenderSection().getId(), r.getGenderSection().getGenderName()));
         if (r.getSection() != null) {
             dto.setSection(new SectionInfo(r.getSection().getId(), r.getSection().getSectionName()));
         }
@@ -45,13 +36,11 @@ public class ClassRoutineResponseDto {
         if (r.getSubject() != null) {
             dto.setSubject(new SubjectInfo(r.getSubject().getId(), r.getSubject().getName(), r.getSubject().getCode()));
         }
-        if (r.getRoom() != null) {
-            dto.setRoom(new RoomInfo(r.getRoom().getId(), r.getRoom().getName()));
-        }
-        dto.setDayOfWeek(r.getDayOfWeek() != null ? r.getDayOfWeek().name() : null);
-        dto.setStartTime(r.getStartTime() != null ? r.getStartTime().toString() : null);
-        dto.setEndTime(r.getEndTime() != null ? r.getEndTime().toString() : null);
-        dto.setRoutineType(r.getRoutineType() != null ? r.getRoutineType().name() : null);
+        dto.setRoom(new RoomInfo(r.getRoom().getId(), r.getRoom().getName()));
+        dto.setDayOfWeek(r.getDayOfWeek().name());
+        dto.setStartTime(r.getStartTime().toString());
+        dto.setEndTime(r.getEndTime().toString());
+        dto.setRoutineType(r.getRoutineType().name());
         dto.setIsActive(r.getIsActive());
         return dto;
     }
