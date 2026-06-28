@@ -51,6 +51,8 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
         WHERE (:enrollmentId IS NULL OR i.enrollmentId = :enrollmentId)
           AND (:period IS NULL OR i.billingPeriod = :period)
           AND (:status IS NULL OR i.status = :status)
+          AND (:invoiceNumber IS NULL
+               OR LOWER(i.invoiceNumber) LIKE LOWER(CONCAT('%', :invoiceNumber, '%')))
           AND (
                (:classId IS NULL AND :academicYearId IS NULL
                 AND :shiftId IS NULL AND :genderSectionId IS NULL
@@ -80,6 +82,7 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
             @Param("shiftId") Integer shiftId,
             @Param("genderSectionId") Integer genderSectionId,
             @Param("studentSearch") String studentSearch,
+            @Param("invoiceNumber") String invoiceNumber,
             Pageable pageable);
 
     @Query("""

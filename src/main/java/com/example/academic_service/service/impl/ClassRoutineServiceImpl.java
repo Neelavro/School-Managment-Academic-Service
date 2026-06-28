@@ -128,7 +128,7 @@ public class ClassRoutineServiceImpl implements ClassRoutineService {
         routine.setRoutineType(dto.getRoutineType());
 
         if (dto.getSectionId() != null) {
-            Section section = sectionRepository.findById(Math.toIntExact(dto.getSectionId())).orElse(null);
+            Section section = sectionRepository.findById(dto.getSectionId()).orElse(null);
             routine.setSection(section);
         } else {
             routine.setSection(null);

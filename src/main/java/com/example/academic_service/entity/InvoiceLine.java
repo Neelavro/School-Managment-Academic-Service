@@ -25,7 +25,8 @@ public class InvoiceLine {
     @Column(name = "invoice_id", nullable = false)
     private Long invoiceId;
 
-    @Column(name = "fee_category_id", nullable = false)
+    /** Nullable: system-injected lines (e.g. Platform Fee) have no fee category. */
+    @Column(name = "fee_category_id")
     private Long feeCategoryId;
 
     /** Denormalized for display/reporting even if the category is renamed later. */

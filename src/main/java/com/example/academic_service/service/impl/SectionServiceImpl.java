@@ -65,7 +65,7 @@ public class SectionServiceImpl implements SectionService {
 
     @Override
     public Section getSectionById(Long id) {
-        return sectionRepository.findById(Math.toIntExact(id))
+        return sectionRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Section not found"));
     }
 
@@ -76,7 +76,7 @@ public class SectionServiceImpl implements SectionService {
 
     @Override
     public void deleteSection(Long id) {
-        Section section = sectionRepository.findById(Math.toIntExact(id))
+        Section section = sectionRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Section not found"));
 
         section.setIsActive(false);

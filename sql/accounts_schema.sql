@@ -191,10 +191,12 @@ CREATE TABLE IF NOT EXISTS invoices (
 );
 
 -- ── invoice_lines ─────────────────────────────────────────────────────────
+-- fee_category_id is NULL for system-injected lines (e.g. the per-invoice
+-- "Platform Fee (Edunix)" line that credits the Payable-to-Platform account).
 CREATE TABLE IF NOT EXISTS invoice_lines (
   id                  BIGINT          NOT NULL AUTO_INCREMENT,
   invoice_id          BIGINT          NOT NULL,
-  fee_category_id     BIGINT          NOT NULL,
+  fee_category_id     BIGINT              NULL,
   fee_category_name   VARCHAR(255)    NOT NULL,
   income_ledger_id    BIGINT          NOT NULL,
   amount              DECIMAL(15,2)   NOT NULL,
