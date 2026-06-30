@@ -5,6 +5,7 @@ import com.example.academic_service.dto.InvoiceGenerationProgress;
 import com.example.academic_service.dto.InvoiceGenerationRequest;
 import com.example.academic_service.dto.InvoiceGenerationResult;
 import com.example.academic_service.dto.InvoiceResponse;
+import com.example.academic_service.dto.PagedResponse;
 import com.example.academic_service.entity.InvoiceStatus;
 import com.example.academic_service.entity.Submodule;
 import com.example.academic_service.service.InvoiceGenerationProgressTracker;
@@ -33,7 +34,7 @@ public class InvoiceController {
 
     @GetMapping
     @RequirePermission(submodule = Submodule.ACCOUNTS_INVOICES, action = "READ")
-    public ResponseEntity<ApiResponse<Page<InvoiceResponse>>> search(
+    public ResponseEntity<ApiResponse<PagedResponse<InvoiceResponse>>> search(
             @RequestParam(required = false) Long enrollmentId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate period,
             @RequestParam(required = false) InvoiceStatus status,
@@ -45,11 +46,11 @@ public class InvoiceController {
             @RequestParam(required = false) String invoiceNumber,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "30") int size) {
-        return ResponseEntity.ok(new ApiResponse<>("OK",
-                service.search(enrollmentId, period, status,
-                        classId, academicYearId, shiftId, genderSectionId, studentSearch,
-                        invoiceNumber,
-                        page, size)));
+        Page<InvoiceResponse> result = service.search(enrollmentId, period, status,
+                classId, academicYearId, shiftId, genderSectionId, studentSearch,
+                invoiceNumber,
+                page, size);
+        return ResponseEntity.ok(new ApiResponse<>("OK", PagedResponse.of(result)));
     }
 
     @GetMapping("/{id}")

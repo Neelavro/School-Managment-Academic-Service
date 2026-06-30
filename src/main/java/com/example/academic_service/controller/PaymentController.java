@@ -63,7 +63,7 @@ public class PaymentController {
 
     @GetMapping
     @RequirePermission(submodule = Submodule.ACCOUNTS_PAYMENTS, action = "READ")
-    public ResponseEntity<ApiResponse<Page<PaymentResponse>>> list(
+    public ResponseEntity<ApiResponse<PagedResponse<PaymentResponse>>> list(
             @RequestParam(required = false) PaymentStatus status,
             @RequestParam(required = false) PaymentMethod method,
             @RequestParam(required = false) Long invoiceId,
@@ -71,8 +71,8 @@ public class PaymentController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "30") int size) {
-        return ResponseEntity.ok(new ApiResponse<>("OK",
-                service.search(status, method, invoiceId, from, to, page, size)));
+        Page<PaymentResponse> result = service.search(status, method, invoiceId, from, to, page, size);
+        return ResponseEntity.ok(new ApiResponse<>("OK", PagedResponse.of(result)));
     }
 
     @GetMapping("/{id}")
@@ -108,15 +108,15 @@ public class PaymentController {
 
     @GetMapping("/failures")
     @RequirePermission(submodule = Submodule.ACCOUNTS_PAYMENTS, action = "READ")
-    public ResponseEntity<ApiResponse<Page<PaymentFailureResponse>>> listFailures(
+    public ResponseEntity<ApiResponse<PagedResponse<PaymentFailureResponse>>> listFailures(
             @RequestParam(required = false) PaymentStatus status,
             @RequestParam(required = false) Long invoiceId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "30") int size) {
-        return ResponseEntity.ok(new ApiResponse<>("OK",
-                service.searchFailures(status, invoiceId, from, to, page, size)));
+        Page<PaymentFailureResponse> result = service.searchFailures(status, invoiceId, from, to, page, size);
+        return ResponseEntity.ok(new ApiResponse<>("OK", PagedResponse.of(result)));
     }
 
     @GetMapping("/failures/{id}")
