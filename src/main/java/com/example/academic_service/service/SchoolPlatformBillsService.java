@@ -46,6 +46,20 @@ public class SchoolPlatformBillsService {
             .build();
 
     public JsonNode fetchBills() {
+        return callPlatform("/api/public/billing/bills", "GET", null);
+    }
+
+    /**
+     * School-side "Mark as Paid" — forwards the payload to platform_admin's
+     * /api/public/billing/bills/{id}/report-payment endpoint. The school is
+     * identified by the X-Platform-Secret header at the upstream layer.
+     */
+    public JsonNode reportPayment(Long billId, String requestJson) {
+        return callPlatform("/api/public/billing/bills/" + billId + "/report-payment",
+                "POST", requestJson);
+    }
+
+    private JsonNode callPlatform(String path, String method, String body) {
         if (platformAdminUrl == null || platformAdminUrl.isBlank()) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
                     "Platform admin URL not configured");
@@ -57,17 +71,30 @@ public class SchoolPlatformBillsService {
         String base = platformAdminUrl.endsWith("/")
                 ? platformAdminUrl.substring(0, platformAdminUrl.length() - 1)
                 : platformAdminUrl;
-        URI uri = URI.create(base + "/api/public/billing/bills");
+        URI uri = URI.create(base + path);
         try {
-            HttpRequest req = HttpRequest.newBuilder(uri)
+            HttpRequest.Builder reqBuilder = HttpRequest.newBuilder(uri)
                     .timeout(Duration.ofSeconds(10))
                     .header("X-Platform-Secret", secret)
-                    .header("Accept", "application/json")
-                    .GET()
-                    .build();
-            HttpResponse<String> res = http.send(req, HttpResponse.BodyHandlers.ofString());
+                    .header("Accept", "application/json");
+            if ("POST".equalsIgnoreCase(method)) {
+                reqBuilder
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(body == null ? "" : body));
+            } else {
+                reqBuilder.GET();
+            }
+            HttpResponse<String> res = http.send(reqBuilder.build(), HttpResponse.BodyHandlers.ofString());
+            if (res.statusCode() == 401) {
+                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,
+                        "Platform admin rejected the secret");
+            }
+            if (res.statusCode() / 100 == 4) {
+                String message = extractMessage(res.body(), res.statusCode());
+                throw new ResponseStatusException(HttpStatus.valueOf(res.statusCode()), message);
+            }
             if (res.statusCode() != 200) {
-                log.warn("Platform bills fetch HTTP {} — {}", res.statusCode(), res.body());
+                log.warn("Platform call {} {} → HTTP {} — {}", method, path, res.statusCode(), res.body());
                 throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
                         "Platform admin returned " + res.statusCode());
             }
@@ -80,9 +107,18 @@ public class SchoolPlatformBillsService {
         } catch (ResponseStatusException ex) {
             throw ex;
         } catch (Exception e) {
-            log.warn("Platform bills fetch failed: {}", e.getMessage());
+            log.warn("Platform call {} {} failed: {}", method, path, e.getMessage());
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
                     "Could not reach platform admin: " + e.getMessage());
         }
+    }
+
+    private String extractMessage(String body, int statusCode) {
+        try {
+            JsonNode node = objectMapper.readTree(body);
+            String msg = node.path("message").asText(null);
+            if (msg != null && !msg.isBlank()) return msg;
+        } catch (Exception ignored) {}
+        return "Platform admin returned " + statusCode;
     }
 }
