@@ -30,7 +30,11 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/login", "/api/auth/bootstrap", "/api/auth/student-login", "/api/auth/student-set-password").permitAll()
+                        .requestMatchers("/api/auth/login", "/api/auth/bootstrap",
+                                         "/api/auth/student-login",
+                                         "/api/auth/student-set-password",
+                                         "/api/auth/forgot-password",
+                                         "/api/auth/reset-password").permitAll()
                         // SSLCommerz IPN webhook — public; security via re-validation against gateway
                         .requestMatchers("/api/payments/ipn").permitAll()
                         // Platform metrics — auth via X-Platform-Secret header (checked in controller)
