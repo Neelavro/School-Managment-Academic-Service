@@ -46,28 +46,26 @@ public class AuthController {
     }
 
     /**
-     * Forgot-password step 1 — generates a 6-digit reset code and stores
-     * its hash. The raw code is written to the academic_service stdout;
-     * an admin passes it to the user (until SMS/email is wired up).
-     *
-     * Always returns 200 to avoid leaking whether a phone is registered.
+     * Forgot-password step 1 — does an active account exist for this phone?
+     * Returns {@code { exists: true|false }}. UI shows the new-password fields
+     * only when this comes back true.
      */
-    @PostMapping("/forgot-password")
-    public ResponseEntity<ApiResponse> forgotPassword(@RequestBody Map<String, String> body) {
-        passwordResetService.requestReset(body.get("phone"));
+    @PostMapping("/forgot-password/check")
+    public ResponseEntity<ApiResponse> checkPhone(@RequestBody Map<String, String> body) {
+        boolean exists = passwordResetService.userExists(body.get("phone"));
         return ResponseEntity.ok(new ApiResponse(
-                "If the phone is registered, a reset code has been generated.", null));
+                exists ? "Account found" : "No account for that phone",
+                Map.of("exists", exists)));
     }
 
     /**
-     * Forgot-password step 2 — validates the code and updates the password.
+     * Forgot-password step 2 — verify the phone belongs to an active user
+     * and update the password in one shot. No OTP, no email — anyone who
+     * knows a phone can trigger a reset.
      */
     @PostMapping("/reset-password")
     public ResponseEntity<ApiResponse> resetPassword(@RequestBody Map<String, String> body) {
-        passwordResetService.confirmReset(
-                body.get("phone"),
-                body.get("code"),
-                body.get("newPassword"));
+        passwordResetService.resetPassword(body.get("phone"), body.get("newPassword"));
         return ResponseEntity.ok(new ApiResponse("Password updated", null));
     }
 }
