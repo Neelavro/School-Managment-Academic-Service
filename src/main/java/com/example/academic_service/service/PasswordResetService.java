@@ -59,7 +59,7 @@ public class PasswordResetService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN,
                     "Account is inactive or suspended");
         }
-        user.setPassword(passwordEncoder.encode(newPassword));
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
         user.setMustResetPassword(false);
         userRepo.save(user);
         log.info("Password reset completed for user {} ({})", user.getId(), phone);
