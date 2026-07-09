@@ -30,6 +30,11 @@ CREATE TABLE IF NOT EXISTS exam_type (
 );
 
 -- ── 2. exam_routine  (FK → exam_type same-section, academic_year bootstrap) ─
+-- Multiple routines per exam_type in one year are allowed — e.g. one
+-- exam_type "TERM EXAM" backing three routines "1st Term / 2nd Term /
+-- 3rd Term" sharing one marking structure per (class, subject). Uniqueness
+-- lives on (title, academic_year_id) so accidental duplicates are still
+-- rejected — the admin must pick a distinct title within a year.
 CREATE TABLE IF NOT EXISTS exam_routine (
   id                          INT          NOT NULL AUTO_INCREMENT,
   title                       VARCHAR(255)     NULL,
@@ -44,6 +49,7 @@ CREATE TABLE IF NOT EXISTS exam_routine (
   routine_end_date            DATE             NULL,
   consider_for_annual_result  BIT(1)           NULL DEFAULT b'1',
   PRIMARY KEY (id),
+  UNIQUE KEY uq_exam_routine_title_year (title, academic_year_id),
   KEY idx_routine_exam_type (exam_type_id),
   KEY idx_routine_academic_year (academic_year_id),
   KEY idx_routine_status (status),
