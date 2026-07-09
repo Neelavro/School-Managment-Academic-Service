@@ -1263,25 +1263,11 @@ public class ResultService {
                 .sorted(Comparator.comparingInt(ProgressReportData.ComponentInfo::getOrderIndex))
                 .collect(Collectors.toList());
 
-        // compute total marks for rank computation (mandatory subjects only, per-student override)
-        Map<Long, BigDecimal> totalMarksMap = new HashMap<>();
-        for (Enrollment enrollment : allEnrollments) {
-            Set<Integer> fourthSubjectIds = buildStudentFourthSet(enrollment.getId(), overrideMap, compulsoryMap);
-            BigDecimal grandTotal = BigDecimal.ZERO;
-            for (ExamSession s : sessions) {
-                if (!bundle.sessionStructureMap.containsKey(s.getId())) continue;
-                if (defaultFourthSubjectIds.contains(s.getSubject().getId()) && !fourthSubjectIds.contains(s.getSubject().getId())) continue;
-                if (!sessionAppliesToStudent(s, enrollment)) continue;
-                if (fourthSubjectIds.contains(s.getSubject().getId())) continue;
-                List<MarkingStructureComponent> comps = bundle.sessionComponentsMap.get(s.getId());
-                Map<Integer, BigDecimal> compMarks = bundle.markMap
-                        .getOrDefault(enrollment.getId(), Collections.emptyMap())
-                        .getOrDefault(s.getSubject().getId(), Collections.emptyMap());
-                if (!compMarks.isEmpty()) grandTotal = grandTotal.add(sumComponentMarks(comps, compMarks));
-            }
-            totalMarksMap.put(enrollment.getId(), grandTotal);
-        }
-        RankMaps rankMaps = computeRankMaps(allEnrollments, totalMarksMap);
+        // Ranks are computed after report-building (see below), so we can rank
+        // by the same total the student sees on their marksheet: mandatory
+        // marks plus 4th-subject marks when the student passed. Failed
+        // students are dropped to 0 in the ranking map so they sort last and
+        // the passed students get contiguous ranks 1..N_passed.
 
         // compute highest marks per session across all students
         Map<Integer, BigDecimal> highestBySession = new HashMap<>();
@@ -1325,13 +1311,9 @@ public class ResultService {
             subjectInfos.add(si);
         }
 
-        // filter enrollments for display
-        List<Enrollment> filteredEnrollments = allEnrollments.stream()
-                .filter(e -> matchesFilter(e, genderSectionId, sectionId, groupId, startRoll, endRoll))
-                .collect(Collectors.toList());
-
-        // build student reports
-        List<ProgressReportData.StudentReport> studentReports = filteredEnrollments.stream().map(enrollment -> {
+        // build student reports for ALL enrollments (needed for ranking);
+        // display filter is applied at the end
+        List<ProgressReportData.StudentReport> allReports = allEnrollments.stream().map(enrollment -> {
             Set<Integer> fourthSubjectIds = buildStudentFourthSet(enrollment.getId(), overrideMap, compulsoryMap);
             ProgressReportData.StudentReport report = new ProgressReportData.StudentReport();
             report.setEnrollmentId(enrollment.getId());
@@ -1351,15 +1333,11 @@ public class ResultService {
             if (enrollment.getSection() != null) report.setSectionName(enrollment.getSection().getSectionName());
             if (enrollment.getStudentGroup() != null) report.setGroupName(enrollment.getStudentGroup().getGroupName());
 
-            report.setClassRank(rankMaps.classRankMap.get(enrollment.getId()));
-            report.setGenderSectionRank(rankMaps.genderSectionRankMap.get(enrollment.getId()));
-            report.setSectionRank(rankMaps.sectionRankMap.get(enrollment.getId()));
-            report.setGroupRank(rankMaps.groupRankMap.get(enrollment.getId()));
-
             List<ProgressReportData.SubjectResult> subjectResults = new ArrayList<>();
             List<Double> mandatoryGpas = new ArrayList<>();
             Double fourthGpa = null;
             BigDecimal grandTotal = BigDecimal.ZERO;
+            BigDecimal fourthTotal = BigDecimal.ZERO;
             boolean overallPassed = true;
             int failedCount = 0;
             Map<Integer, BigDecimal> mgObtained = new HashMap<>();
@@ -1425,8 +1403,11 @@ public class ResultService {
                         grandTotal = grandTotal.add(total);
                         if (grade != null) mandatoryGpas.add(grade.getGpaValue());
                         if (!passed) { overallPassed = false; failedCount++; }
-                    } else if (grade != null && s.getSubject().getId().equals(overrideMap.get(enrollment.getId()))) {
-                        fourthGpa = grade.getGpaValue();
+                    } else {
+                        fourthTotal = fourthTotal.add(total);
+                        if (grade != null && s.getSubject().getId().equals(overrideMap.get(enrollment.getId()))) {
+                            fourthGpa = grade.getGpaValue();
+                        }
                     }
                 } else if (mergeGroupId != null) {
                     mgObtained.merge(mergeGroupId, BigDecimal.ZERO, BigDecimal::add);
@@ -1444,7 +1425,10 @@ public class ResultService {
             if (mergedFailed > 0) { overallPassed = false; failedCount += mergedFailed; }
 
             report.setSubjectResults(subjectResults);
-            report.setTotalMarks(grandTotal);
+            // Passed students get the 4th subject folded into their total —
+            // matches the marksheet footer and lines up the rank with what
+            // the reader sees on the page.
+            report.setTotalMarks(overallPassed ? grandTotal.add(fourthTotal) : grandTotal);
             report.setPassed(overallPassed);
             report.setFailedSubjectCount(failedCount);
 
@@ -1456,14 +1440,39 @@ public class ResultService {
                 report.setGpaWithout4th(0.0);
                 report.setOverallGpa(0.0);
             }
-            if (!overallPassed) {
-                report.setClassRank(0);
-                report.setGenderSectionRank(0);
-                report.setSectionRank(0);
-                report.setGroupRank(0);
-            }
             return report;
         }).collect(Collectors.toList());
+
+        // Rank by the with-4th total for passed students; failed students
+        // are pinned to 0 so they sort last and don't create rank gaps.
+        Map<Long, BigDecimal> totalMarksMap = new HashMap<>();
+        for (ProgressReportData.StudentReport r : allReports) {
+            totalMarksMap.put(r.getEnrollmentId(),
+                    r.isPassed() ? r.getTotalMarks() : BigDecimal.ZERO);
+        }
+        RankMaps rankMaps = computeRankMaps(allEnrollments, totalMarksMap);
+        for (ProgressReportData.StudentReport r : allReports) {
+            if (r.isPassed()) {
+                r.setClassRank(rankMaps.classRankMap.get(r.getEnrollmentId()));
+                r.setGenderSectionRank(rankMaps.genderSectionRankMap.get(r.getEnrollmentId()));
+                r.setSectionRank(rankMaps.sectionRankMap.get(r.getEnrollmentId()));
+                r.setGroupRank(rankMaps.groupRankMap.get(r.getEnrollmentId()));
+            } else {
+                r.setClassRank(0);
+                r.setGenderSectionRank(0);
+                r.setSectionRank(0);
+                r.setGroupRank(0);
+            }
+        }
+
+        // Apply the display filter now that ranks are assigned
+        Set<Long> filteredEnrollmentIds = allEnrollments.stream()
+                .filter(e -> matchesFilter(e, genderSectionId, sectionId, groupId, startRoll, endRoll))
+                .map(Enrollment::getId)
+                .collect(Collectors.toSet());
+        List<ProgressReportData.StudentReport> studentReports = allReports.stream()
+                .filter(r -> filteredEnrollmentIds.contains(r.getEnrollmentId()))
+                .collect(Collectors.toList());
 
         studentReports.sort(Comparator.comparingInt(r -> r.getClassRoll() != null ? r.getClassRoll() : Integer.MAX_VALUE));
 
