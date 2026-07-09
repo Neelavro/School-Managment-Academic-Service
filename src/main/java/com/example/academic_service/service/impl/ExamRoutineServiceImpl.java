@@ -45,12 +45,21 @@ public class ExamRoutineServiceImpl implements ExamRoutineService {
         AcademicYear academicYear = academicYearRepository.findById(dto.getAcademicYearId()).orElse(null);
         if (academicYear == null) return ApiResponse.error("Academic year not found");
 
-        if (examRoutineRepository.existsByExamTypeIdAndAcademicYearIdAndIsActiveTrue(
-                dto.getExamTypeId(), dto.getAcademicYearId())) {
-            return ApiResponse.error("An active routine for this exam type and academic year already exists");
+        // Multiple routines per exam_type in one year IS allowed — e.g.
+        // "1st Term / 2nd Term / 3rd Term" all sharing exam_type = "TERM
+        // EXAM" and one marking structure. Uniqueness now enforced on
+        // (title, academic_year) so accidental duplicates are still
+        // prevented — the admin must pick distinct routine titles.
+        String title = dto.getTitle() == null ? null : dto.getTitle().trim();
+        if (title == null || title.isBlank()) {
+            return ApiResponse.error("Routine title is required");
+        }
+        if (examRoutineRepository.existsByTitleAndAcademicYearIdAndIsActiveTrue(
+                title, dto.getAcademicYearId())) {
+            return ApiResponse.error("An active routine with this title already exists for this academic year");
         }
         ExamRoutine routine = new ExamRoutine();
-        routine.setTitle(dto.getTitle());
+        routine.setTitle(title);
         routine.setExamType(examType);
         routine.setAcademicYear(academicYear);
         routine.setRoutineStartDate(dto.getRoutineStartDate());
@@ -73,11 +82,15 @@ public class ExamRoutineServiceImpl implements ExamRoutineService {
         AcademicYear academicYear = academicYearRepository.findById(dto.getAcademicYearId()).orElse(null);
         if (academicYear == null) return ApiResponse.error("Academic year not found");
 
-        if (examRoutineRepository.existsByExamTypeIdAndAcademicYearIdAndIsActiveTrueAndIdNot(
-                dto.getExamTypeId(), dto.getAcademicYearId(), id)) {
-            return ApiResponse.error("Another active routine for this exam type and academic year already exists");
+        String title = dto.getTitle() == null ? null : dto.getTitle().trim();
+        if (title == null || title.isBlank()) {
+            return ApiResponse.error("Routine title is required");
         }
-        routine.setTitle(dto.getTitle());
+        if (examRoutineRepository.existsByTitleAndAcademicYearIdAndIsActiveTrueAndIdNot(
+                title, dto.getAcademicYearId(), id)) {
+            return ApiResponse.error("Another active routine with this title already exists for this academic year");
+        }
+        routine.setTitle(title);
         routine.setExamType(examType);
         routine.setAcademicYear(academicYear);
         routine.setRoutineStartDate(dto.getRoutineStartDate());
@@ -207,13 +220,17 @@ public class ExamRoutineServiceImpl implements ExamRoutineService {
         AcademicYear academicYear = academicYearRepository.findById(dto.getAcademicYearId()).orElse(null);
         if (academicYear == null) return ApiResponse.error("Academic year not found");
 
-        if (examRoutineRepository.existsByExamTypeIdAndAcademicYearIdAndIsActiveTrue(
-                source.getExamType().getId(), dto.getAcademicYearId())) {
-            return ApiResponse.error("An active routine for this exam type and academic year already exists");
+        String title = dto.getTitle() == null ? null : dto.getTitle().trim();
+        if (title == null || title.isBlank()) {
+            return ApiResponse.error("Routine title is required");
+        }
+        if (examRoutineRepository.existsByTitleAndAcademicYearIdAndIsActiveTrue(
+                title, dto.getAcademicYearId())) {
+            return ApiResponse.error("An active routine with this title already exists for this academic year");
         }
 
         ExamRoutine newRoutine = new ExamRoutine();
-        newRoutine.setTitle(dto.getTitle());
+        newRoutine.setTitle(title);
         newRoutine.setExamType(source.getExamType());
         newRoutine.setAcademicYear(academicYear);
         examRoutineRepository.save(newRoutine);

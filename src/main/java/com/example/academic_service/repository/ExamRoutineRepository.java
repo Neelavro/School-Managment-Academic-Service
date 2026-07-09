@@ -20,4 +20,8 @@ public interface ExamRoutineRepository extends JpaRepository<ExamRoutine, Intege
     // Duplicate checks
     boolean existsByExamTypeIdAndAcademicYearIdAndIsActiveTrue(Integer examTypeId, Integer academicYearId);
     boolean existsByExamTypeIdAndAcademicYearIdAndIsActiveTrueAndIdNot(Integer examTypeId, Integer academicYearId, Integer id);
+
+    // Title-based duplicate checks — one active routine per (title, year).
+    boolean existsByTitleAndAcademicYearIdAndIsActiveTrue(String title, Integer academicYearId);
+    boolean existsByTitleAndAcademicYearIdAndIsActiveTrueAndIdNot(String title, Integer academicYearId, Integer id);
 }
