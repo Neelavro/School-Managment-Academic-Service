@@ -4,6 +4,8 @@ import com.example.academic_service.dto.ApiResponse;
 import com.example.academic_service.dto.exam_dtos.BulkSessionUpdateItemDto;
 import com.example.academic_service.dto.exam_dtos.ExamSessionRequestDto;
 import com.example.academic_service.dto.exam_dtos.ExamSessionResponseDto;
+import com.example.academic_service.dto.exam_dtos.ImportSessionsRequestDto;
+import com.example.academic_service.dto.exam_dtos.ImportSessionsResultDto;
 
 import java.util.List;
 
@@ -15,4 +17,5 @@ public interface ExamSessionService {
     ApiResponse<Void> delete(Integer id);
     ApiResponse<List<ExamSessionResponseDto>> bulkCreate(List<ExamSessionRequestDto> dtos);
     ApiResponse<List<ExamSessionResponseDto>> bulkUpdate(List<BulkSessionUpdateItemDto> dtos);
+    ApiResponse<ImportSessionsResultDto> importFromRoutine(ImportSessionsRequestDto dto);
 }
