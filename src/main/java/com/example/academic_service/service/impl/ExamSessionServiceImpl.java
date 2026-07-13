@@ -4,6 +4,8 @@ import com.example.academic_service.dto.ApiResponse;
 import com.example.academic_service.dto.exam_dtos.BulkSessionUpdateItemDto;
 import com.example.academic_service.dto.exam_dtos.ExamSessionRequestDto;
 import com.example.academic_service.dto.exam_dtos.ExamSessionResponseDto;
+import com.example.academic_service.dto.exam_dtos.ImportSessionsRequestDto;
+import com.example.academic_service.dto.exam_dtos.ImportSessionsResultDto;
 import com.example.academic_service.entity.*;
 import com.example.academic_service.entity.Class;
 import com.example.academic_service.repository.*;
@@ -184,5 +186,76 @@ public class ExamSessionServiceImpl implements ExamSessionService {
         session.setIsActive(false);
         examSessionRepository.save(session);
         return ApiResponse.success("Exam session deleted successfully", null);
+    }
+
+    // ── importFromRoutine ────────────────────────────────────────────────────
+    // Clone every active session on the source routine over to the target
+    // routine. Dates are intentionally blanked out — a new routine almost
+    // always sits on different dates from the one it's copied from, and
+    // silently carrying them over is a footgun. Same (class, subject, group)
+    // combos on the target are skipped so re-running the import is safe.
+
+    @Override
+    public ApiResponse<ImportSessionsResultDto> importFromRoutine(ImportSessionsRequestDto dto) {
+        if (dto.getSourceRoutineId().equals(dto.getTargetRoutineId()))
+            return ApiResponse.error("Source and target routines must be different");
+
+        ExamRoutine source = examRoutineRepository.findById(dto.getSourceRoutineId()).orElse(null);
+        if (source == null) return ApiResponse.error("Source routine not found");
+
+        ExamRoutine target = examRoutineRepository.findById(dto.getTargetRoutineId()).orElse(null);
+        if (target == null) return ApiResponse.error("Target routine not found");
+        if (!target.getIsActive()) return ApiResponse.error("Cannot import into an inactive routine");
+
+        List<ExamSession> sourceSessions = examSessionRepository
+                .findByExamRoutineIdAndIsActiveTrue(source.getId());
+        if (sourceSessions.isEmpty())
+            return ApiResponse.error("Source routine has no active sessions to import");
+
+        // Build a lookup of what the target already has so we can skip
+        // duplicates without a per-session DB round trip.
+        Set<String> existingKeys = examSessionRepository
+                .findByExamRoutineIdAndIsActiveTrue(target.getId())
+                .stream()
+                .map(ExamSessionServiceImpl::sessionKey)
+                .collect(Collectors.toSet());
+
+        List<ExamSessionResponseDto> created = new ArrayList<>();
+        int skipped = 0;
+        for (ExamSession src : sourceSessions) {
+            String key = sessionKey(src);
+            if (existingKeys.contains(key)) {
+                skipped++;
+                continue;
+            }
+
+            ExamSession copy = new ExamSession();
+            copy.setExamRoutine(target);
+            copy.setExamClass(src.getExamClass());
+            copy.setSubject(src.getSubject());
+            copy.setGroup(src.getGroup());
+            copy.setDate(null); // blanked deliberately
+            copy.setStartTime(src.getStartTime());
+            copy.setEndTime(src.getEndTime());
+            copy.setShowOnAdmitCard(src.getShowOnAdmitCard() != null ? src.getShowOnAdmitCard() : true);
+
+            ExamSession saved = examSessionRepository.save(copy);
+            existingKeys.add(key);
+            created.add(ExamSessionResponseDto.from(saved));
+        }
+
+        ImportSessionsResultDto result = new ImportSessionsResultDto(
+                created.size(), skipped, created);
+        String message = String.format(
+                "Imported %d session(s)%s", created.size(),
+                skipped > 0 ? ", skipped " + skipped + " duplicate(s)" : "");
+        return ApiResponse.success(message, result);
+    }
+
+    private static String sessionKey(ExamSession s) {
+        Integer cls  = s.getExamClass() != null ? s.getExamClass().getId() : null;
+        Integer sub  = s.getSubject()   != null ? s.getSubject().getId()   : null;
+        Integer grp  = s.getGroup()     != null ? s.getGroup().getId()     : null;
+        return cls + "|" + sub + "|" + grp;
     }
 }

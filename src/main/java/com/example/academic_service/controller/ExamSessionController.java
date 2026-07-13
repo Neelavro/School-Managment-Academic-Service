@@ -4,6 +4,8 @@ import com.example.academic_service.dto.ApiResponse;
 import com.example.academic_service.dto.exam_dtos.BulkSessionUpdateItemDto;
 import com.example.academic_service.dto.exam_dtos.ExamSessionRequestDto;
 import com.example.academic_service.dto.exam_dtos.ExamSessionResponseDto;
+import com.example.academic_service.dto.exam_dtos.ImportSessionsRequestDto;
+import com.example.academic_service.dto.exam_dtos.ImportSessionsResultDto;
 import com.example.academic_service.service.ExamSessionService;
 import com.example.academic_service.service.RoomService;
 import jakarta.validation.Valid;
@@ -59,5 +61,11 @@ public class ExamSessionController {
     public ResponseEntity<ApiResponse<List<ExamSessionResponseDto>>> bulkUpdate(
             @RequestBody List<@Valid BulkSessionUpdateItemDto> dtos) {
         return ResponseEntity.ok(examSessionService.bulkUpdate(dtos));
+    }
+
+    @PostMapping("/import")
+    public ResponseEntity<ApiResponse<ImportSessionsResultDto>> importFromRoutine(
+            @Valid @RequestBody ImportSessionsRequestDto dto) {
+        return ResponseEntity.ok(examSessionService.importFromRoutine(dto));
     }
 }
