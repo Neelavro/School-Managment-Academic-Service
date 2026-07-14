@@ -64,4 +64,21 @@ ORDER BY e.classRoll ASC
             @Param("sectionId") Long sectionId,
             @Param("academicYearId") Integer academicYearId
     );
+
+    // Dashboard summary: aggregate active enrollments in a year, grouped
+    // by class + gender section, so a chart can render (class, boys/girls)
+    // splits without pulling every row across the wire.
+    @Query("""
+SELECT e.studentClass.id, e.studentClass.name,
+       e.genderSection.id, e.genderSection.genderName,
+       COUNT(e)
+FROM Enrollment e
+WHERE e.academicYear.id = :academicYearId
+AND e.isActive = true
+AND e.studentClass IS NOT NULL
+AND e.genderSection IS NOT NULL
+GROUP BY e.studentClass.id, e.studentClass.name,
+         e.genderSection.id, e.genderSection.genderName
+""")
+    List<Object[]> countByClassAndGenderSection(@Param("academicYearId") Integer academicYearId);
 }
