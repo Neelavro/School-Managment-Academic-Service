@@ -409,7 +409,10 @@ public class EnrollmentServiceImpl implements EnrollmentService {
             newEnrollment.setGenderSection(toGenderSection);
             newEnrollment.setSection(toSection);
             newEnrollment.setStudentGroup(toGroup);
-            newEnrollment.setClassRoll(null);
+            // Carry the roll over — a section-to-section move inside the
+            // same class should keep it, and even across classes the admin
+            // wants to see the previous roll instead of a blank field.
+            newEnrollment.setClassRoll(existing.getClassRoll());
             newEnrollment.setIsActive(true);
 
             Enrollment saved = enrollmentRepository.save(newEnrollment);
