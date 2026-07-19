@@ -54,7 +54,22 @@
       "Bash(xargs -I{} basename {} .java)",
       "Bash(xargs basename *)",
       "Bash(grep -E \"\\\\.\\(dart\\)$\")",
-      "Bash(xargs -I{} basename {})"
+      "Bash(xargs -I{} basename {})",
+      "Bash(git stash *)",
+      "Bash(git checkout *)",
+      "Bash(git cherry-pick *)",
+      "Bash(git push *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(cp \"/Users/neelavroshafin/StudioProjects/school management/Stellar_API\\(Client\\).docx\" ./stellar.docx)",
+      "Bash(unzip -o stellar.docx -d stellar_extracted)",
+      "Bash(git -C \"/Users/neelavroshafin/StudioProjects/school management/academic_service\" log --all --oneline -- '**/SeatPlan*')",
+      "Bash(git -C \"/Users/neelavroshafin/StudioProjects/school management/academic_service\" log --all --source --oneline -S \"seat-plan\")",
+      "Bash(git -C \"/Users/neelavroshafin/StudioProjects/school management/academic_service\" show fe8b452 --stat)",
+      "Bash(git -C \"/Users/neelavroshafin/StudioProjects/school management/academic_service\" log --oneline production-full-system -- '**/SeatPlan*')",
+      "Bash(git -C \"/Users/neelavroshafin/StudioProjects/school management/academic_service\" log --oneline production-full-system -S \"seat-plan\")",
+      "Bash(git *)",
+      "Bash(mvn -q compile)"
     ]
   }
 }
