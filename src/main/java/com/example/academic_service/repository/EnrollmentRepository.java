@@ -77,8 +77,9 @@ WHERE e.academicYear.id = :academicYearId
 AND e.isActive = true
 AND e.studentClass IS NOT NULL
 AND e.genderSection IS NOT NULL
-GROUP BY e.studentClass.id, e.studentClass.name,
+GROUP BY e.studentClass.id, e.studentClass.name, e.studentClass.orderIndex,
          e.genderSection.id, e.genderSection.genderName
+ORDER BY e.studentClass.orderIndex NULLS LAST, e.studentClass.name
 """)
     List<Object[]> countByClassAndGenderSection(@Param("academicYearId") Integer academicYearId);
 }
