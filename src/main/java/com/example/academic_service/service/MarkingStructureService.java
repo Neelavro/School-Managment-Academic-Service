@@ -262,6 +262,89 @@ public class MarkingStructureService {
         return res;
     }
     @Transactional
+    public Map<String, Object> copyFromExamType(CopyMarkingStructureRequest request) {
+        if (request.getFromExamTypeId() == null || request.getToExamTypeId() == null) {
+            throw new RuntimeException("Both source and target exam types are required");
+        }
+        if (Objects.equals(request.getFromExamTypeId(), request.getToExamTypeId())) {
+            throw new RuntimeException("Source and target exam types must be different");
+        }
+
+        ExamType fromExamType = examTypeRepository.findByIdAndIsActiveTrue(request.getFromExamTypeId())
+                .orElseThrow(() -> new RuntimeException("Source exam type not found with id: " + request.getFromExamTypeId()));
+        ExamType toExamType = examTypeRepository.findByIdAndIsActiveTrue(request.getToExamTypeId())
+                .orElseThrow(() -> new RuntimeException("Target exam type not found with id: " + request.getToExamTypeId()));
+
+        List<Integer> classIds = request.getClassIds();
+        List<MarkingStructure> sources = classIds == null || classIds.isEmpty()
+                ? markingStructureRepository.findAllByExamType_IdAndDeletedAtIsNull(fromExamType.getId())
+                : markingStructureRepository.findAllByExamType_IdAndExamClass_IdInAndDeletedAtIsNull(
+                        fromExamType.getId(), classIds);
+
+        List<MarkingStructureResponse> created = new ArrayList<>();
+        List<String> skipped = new ArrayList<>();
+
+        for (MarkingStructure src : sources) {
+            Class examClass = src.getExamClass();
+            Subject subject = src.getSubject();
+            StudentGroup group = src.getGroup();
+            String label = examClass.getName() + " / " + subject.getName()
+                    + (group != null ? " / " + group.getGroupName() : "");
+
+            boolean exists = markingStructureRepository
+                    .existsByExamTypeAndExamClassAndSubjectAndGroupAndDeletedAtIsNull(
+                            toExamType, examClass, subject, group);
+            if (exists) {
+                skipped.add(label + " already has a structure under " + toExamType.getName());
+                continue;
+            }
+
+            // Same collision-with-soft-deleted handling as create/bulkCreate
+            markingStructureRepository
+                    .findByExamTypeAndExamClassAndSubjectAndGroupAndDeletedAtIsNotNull(
+                            toExamType, examClass, subject, group)
+                    .ifPresent(softDeleted -> {
+                        markingStructureComponentRepository.deleteAll(
+                                markingStructureComponentRepository.findAllByMarkingStructure(softDeleted));
+                        markingStructureComponentRepository.flush();
+                        markingStructureRepository.delete(softDeleted);
+                        markingStructureRepository.flush();
+                    });
+
+            MarkingStructure copy = new MarkingStructure();
+            copy.setExamType(toExamType);
+            copy.setExamClass(examClass);
+            copy.setSubject(subject);
+            copy.setGroup(group);
+            copy.setTotalMarks(src.getTotalMarks());
+            copy.setPassMarks(src.getPassMarks());
+            markingStructureRepository.save(copy);
+
+            List<MarkingStructureComponent> srcComponents =
+                    markingStructureComponentRepository.findAllByMarkingStructureAndDeletedAtIsNull(src);
+            List<MarkingStructureComponent> newComponents = srcComponents.stream().map(sc -> {
+                MarkingStructureComponent nc = new MarkingStructureComponent();
+                nc.setMarkingStructure(copy);
+                nc.setExamComponent(sc.getExamComponent());
+                nc.setMaxMarks(sc.getMaxMarks());
+                nc.setPassMarks(sc.getPassMarks());
+                return nc;
+            }).toList();
+            markingStructureComponentRepository.saveAll(newComponents);
+
+            created.add(toResponse(copy));
+        }
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("message", created.size() + " marking structure(s) copied from "
+                + fromExamType.getName() + " to " + toExamType.getName()
+                + (skipped.isEmpty() ? "" : ", " + skipped.size() + " skipped"));
+        result.put("data", created);
+        if (!skipped.isEmpty()) result.put("skipped", skipped);
+        return result;
+    }
+
+    @Transactional
     public Map<String, Object> bulkCreate(BulkMarkingStructureRequest request) {
         if (request.getSubjectIds() == null || request.getSubjectIds().isEmpty()) {
             throw new RuntimeException("At least one subject must be selected");
