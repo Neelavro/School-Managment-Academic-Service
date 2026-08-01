@@ -104,8 +104,9 @@ public class MarkingStructureService {
                     .map(c -> c.getExamComponent().getId())
                     .collect(Collectors.toList());
             if (!componentIds.isEmpty() && studentMarkRepository
-                    .existsBySubjectIdAndExamComponentIdInAndClassId(
-                            structure.getSubject().getId(), componentIds, structure.getExamClass().getId())) {
+                    .existsBySubjectIdAndExamComponentIdInAndClassIdAndExamTypeId(
+                            structure.getSubject().getId(), componentIds,
+                            structure.getExamClass().getId(), structure.getExamType().getId())) {
                 throw new RuntimeException(
                         "Cannot change group: marks have already been entered using this marking structure. " +
                         "Please delete and recreate instead.");
@@ -162,8 +163,9 @@ public class MarkingStructureService {
                 .map(c -> c.getExamComponent().getId())
                 .collect(Collectors.toList());
         boolean has = !componentIds.isEmpty() && studentMarkRepository
-                .existsBySubjectIdAndExamComponentIdInAndClassId(
-                        structure.getSubject().getId(), componentIds, structure.getExamClass().getId());
+                .existsBySubjectIdAndExamComponentIdInAndClassIdAndExamTypeId(
+                        structure.getSubject().getId(), componentIds,
+                        structure.getExamClass().getId(), structure.getExamType().getId());
         return Map.of("hasMarks", has);
     }
 
@@ -176,8 +178,9 @@ public class MarkingStructureService {
                 .map(c -> c.getExamComponent().getId())
                 .collect(Collectors.toList());
         if (!componentIds.isEmpty()) {
-            studentMarkRepository.deleteBySubjectIdAndExamComponentIdInAndClassId(
-                    structure.getSubject().getId(), componentIds, structure.getExamClass().getId());
+            studentMarkRepository.deleteBySubjectIdAndExamComponentIdInAndClassIdAndExamTypeId(
+                    structure.getSubject().getId(), componentIds,
+                    structure.getExamClass().getId(), structure.getExamType().getId());
         }
         return Map.of("message", "Marks cleared successfully");
     }
