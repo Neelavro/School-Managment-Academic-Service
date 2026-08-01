@@ -70,4 +70,10 @@ public interface MarkingStructureRepository extends JpaRepository<MarkingStructu
             @Param("classId") Integer classId,
             @Param("subjectId") Integer subjectId,
             @Param("groupId") Integer groupId);
+
+    // Used by the exam-type copy flow.
+    List<MarkingStructure> findAllByExamType_IdAndDeletedAtIsNull(Integer examTypeId);
+
+    List<MarkingStructure> findAllByExamType_IdAndExamClass_IdInAndDeletedAtIsNull(
+            Integer examTypeId, List<Integer> classIds);
 }

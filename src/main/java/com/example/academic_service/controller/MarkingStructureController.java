@@ -19,6 +19,11 @@ public class MarkingStructureController {
         return ResponseEntity.ok(markingStructureService.bulkCreate(request));
     }
 
+    @PostMapping("/copy")
+    public ResponseEntity<Map<String, Object>> copyFromExamType(@RequestBody CopyMarkingStructureRequest request) {
+        return ResponseEntity.ok(markingStructureService.copyFromExamType(request));
+    }
+
 
     @PostMapping
     public ResponseEntity<Map<String, Object>> create(@RequestBody MarkingStructureRequest request) {
