@@ -237,7 +237,7 @@ public class ResultService {
         }
 
         // compute rank maps across all scopes
-        RankMaps rankMaps = computeRankMaps(allEnrollments, totalMarksMap);
+        RankMaps rankMaps = computeRankMaps(allEnrollments, totalMarksMap, gpaMap);
 
         // build subject infos (group-level default for the column header)
         List<RoutineResultResponse.SubjectInfo> subjectInfos = sessions.stream()
@@ -492,7 +492,7 @@ public class ResultService {
         }
 
         // compute rank maps
-        RankMaps rankMaps = computeRankMaps(allEnrollments, totalScaledMap);
+        RankMaps rankMaps = computeRankMaps(allEnrollments, totalScaledMap, gpaMap);
 
         // group-level default for column headers
         List<AnnualResultResponse.SubjectInfo> subjectInfos = orderedSubjectIds.stream()
@@ -1446,11 +1446,14 @@ public class ResultService {
         // Rank by the with-4th total for passed students; failed students
         // are pinned to 0 so they sort last and don't create rank gaps.
         Map<Long, BigDecimal> totalMarksMap = new HashMap<>();
+        Map<Long, Double> gpaMap = new HashMap<>();
         for (ProgressReportData.StudentReport r : allReports) {
             totalMarksMap.put(r.getEnrollmentId(),
                     r.isPassed() ? r.getTotalMarks() : BigDecimal.ZERO);
+            gpaMap.put(r.getEnrollmentId(),
+                    r.isPassed() ? r.getOverallGpa() : 0.0);
         }
-        RankMaps rankMaps = computeRankMaps(allEnrollments, totalMarksMap);
+        RankMaps rankMaps = computeRankMaps(allEnrollments, totalMarksMap, gpaMap);
         for (ProgressReportData.StudentReport r : allReports) {
             if (r.isPassed()) {
                 r.setClassRank(rankMaps.classRankMap.get(r.getEnrollmentId()));
@@ -1970,10 +1973,15 @@ public class ResultService {
         Map<Long, Integer> groupRankMap = new HashMap<>();
     }
 
-    private RankMaps computeRankMaps(List<Enrollment> allEnrollments, Map<Long, BigDecimal> totalMarksMap) {
+    private RankMaps computeRankMaps(List<Enrollment> allEnrollments, Map<Long, BigDecimal> totalMarksMap, Map<Long, Double> gpaMap) {
         RankMaps rm = new RankMaps();
-        Comparator<Enrollment> byMarksDesc = Comparator.comparing(
-                e -> totalMarksMap.getOrDefault(e.getId(), BigDecimal.ZERO), Comparator.reverseOrder());
+        // Tie-break: higher GPA wins; then lower class roll wins (nulls last);
+        // then lower enrollment id — so ordering is fully deterministic.
+        Comparator<Enrollment> byMarksDesc = Comparator
+                .comparing((Enrollment e) -> totalMarksMap.getOrDefault(e.getId(), BigDecimal.ZERO), Comparator.reverseOrder())
+                .thenComparing(e -> gpaMap.getOrDefault(e.getId(), 0.0), Comparator.reverseOrder())
+                .thenComparing(e -> e.getClassRoll() != null ? e.getClassRoll() : Integer.MAX_VALUE)
+                .thenComparing(Enrollment::getId);
 
         // class rank — all students
         List<Enrollment> sortedAll = allEnrollments.stream().sorted(byMarksDesc).collect(Collectors.toList());
