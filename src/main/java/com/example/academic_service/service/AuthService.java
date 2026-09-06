@@ -91,15 +91,15 @@ public class AuthService {
             throw new IllegalStateException("Student account is inactive");
 
         String hash = student.getPasswordHash();
-        if (hash == null || !passwordEncoder.matches(password, hash))
-            throw new IllegalArgumentException("Invalid credentials");
-
-        if (Boolean.TRUE.equals(student.getMustChangePassword())) {
+        if (hash == null) {
             Map<String, Object> response = new HashMap<>();
             response.put("mustSetPassword", true);
             response.put("studentSystemId", studentSystemId);
             return response;
         }
+
+        if (!passwordEncoder.matches(password, hash))
+            throw new IllegalArgumentException("Invalid credentials");
 
         Map<String, Object> extraClaims = new HashMap<>();
         extraClaims.put("userType", "STUDENT");
@@ -125,7 +125,6 @@ public class AuthService {
             throw new IllegalStateException("Student account is inactive");
 
         student.setPasswordHash(passwordEncoder.encode(newPassword));
-        student.setMustChangePassword(false);
         studentRepository.save(student);
 
         Map<String, Object> extraClaims = new HashMap<>();
