@@ -94,6 +94,40 @@ public class AuthService {
         if (hash == null || !passwordEncoder.matches(password, hash))
             throw new IllegalArgumentException("Invalid credentials");
 
+        if (Boolean.TRUE.equals(student.getMustChangePassword())) {
+            Map<String, Object> response = new HashMap<>();
+            response.put("mustSetPassword", true);
+            response.put("studentSystemId", studentSystemId);
+            return response;
+        }
+
+        Map<String, Object> extraClaims = new HashMap<>();
+        extraClaims.put("userType", "STUDENT");
+        extraClaims.put("role", "STUDENT");
+        extraClaims.put("studentSystemId", studentSystemId);
+
+        String token = jwtUtil.generateToken(studentSystemId, extraClaims);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("token", token);
+        response.put("userType", "STUDENT");
+        response.put("studentSystemId", studentSystemId);
+        response.put("studentName", student.getNameEnglish());
+        response.put("hasStudentPortal", true);
+        return response;
+    }
+
+    public Map<String, Object> studentSetPassword(String studentSystemId, String newPassword) {
+        Student student = studentRepository.findByStudentSystemId(studentSystemId)
+                .orElseThrow(() -> new IllegalArgumentException("Invalid credentials"));
+
+        if (!Boolean.TRUE.equals(student.getIsActive()))
+            throw new IllegalStateException("Student account is inactive");
+
+        student.setPasswordHash(passwordEncoder.encode(newPassword));
+        student.setMustChangePassword(false);
+        studentRepository.save(student);
+
         Map<String, Object> extraClaims = new HashMap<>();
         extraClaims.put("userType", "STUDENT");
         extraClaims.put("role", "STUDENT");

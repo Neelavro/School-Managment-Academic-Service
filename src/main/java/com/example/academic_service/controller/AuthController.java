@@ -38,6 +38,12 @@ public class AuthController {
         return ResponseEntity.ok(new ApiResponse("Login successful", result));
     }
 
+    @PostMapping("/student-set-password")
+    public ResponseEntity<ApiResponse> studentSetPassword(@RequestBody Map<String, String> body) {
+        Map<String, Object> result = authService.studentSetPassword(body.get("studentSystemId"), body.get("newPassword"));
+        return ResponseEntity.ok(new ApiResponse("Password set successfully", result));
+    }
+
     @PutMapping("/change-password")
     public ResponseEntity<ApiResponse> changePassword(@RequestBody Map<String, Object> body) {
         Long userId = ((Number) body.get("userId")).longValue();

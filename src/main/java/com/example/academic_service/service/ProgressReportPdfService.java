@@ -33,7 +33,10 @@ public class ProgressReportPdfService {
                            Integer genderSectionId, Long sectionId, Integer groupId,
                            Integer startRoll, Integer endRoll) throws Exception {
 
-        ProgressReportData data = resultService.getProgressReportData(
+        // Partition by group so the PDF renders one group at a time with its
+        // own subject set (e.g. Science students with Science columns, then
+        // Humanities students with Humanities columns).
+        List<ProgressReportData> partitions = resultService.getProgressReportDataPartitioned(
                 examRoutineId, classId, shiftId, genderSectionId, sectionId, groupId, startRoll, endRoll);
 
         SystemSettings settings = systemSettingsService.getSettings();
@@ -45,7 +48,20 @@ public class ProgressReportPdfService {
 
         List<Grade> gradingTable = loadGradingTable(classId);
 
-        String html = buildHtml(data, institutionName, address, heading, logoBase64, signatureBase64, gradingTable);
+        // Build all student pages across every partition into one single
+        // <html> document (don't nest html docs by calling buildHtml twice).
+        StringBuilder pages = new StringBuilder();
+        for (ProgressReportData part : partitions) {
+            for (ProgressReportData.StudentReport student : part.getStudents()) {
+                pages.append(buildPage(part, student, institutionName, address, heading,
+                        logoBase64, signatureBase64, gradingTable));
+            }
+        }
+        String html = "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><style>"
+                + getCss()
+                + "</style></head><body>"
+                + pages
+                + "</body></html>";
 
         try (Playwright playwright = Playwright.create()) {
             Browser browser = playwright.chromium().launch(new BrowserType.LaunchOptions().setHeadless(true));
@@ -276,23 +292,35 @@ public class ProgressReportPdfService {
                     }
                     tbody.append("</tr>");
 
-                    if (!msi.isFourthSubject()) {
-                        totalFull = totalFull.add(BigDecimal.valueOf(msi.getTotalMarks() != null ? msi.getTotalMarks() : 0));
-                        if (appeared && msr.getTotalMarks() != null) totalObtained = totalObtained.add(msr.getTotalMarks());
-                    }
+                    // Totals include every subject on the card — 4th included
+                    // — to stay consistent with the with-4th overall GPA shown
+                    // in the footer.
+                    totalFull = totalFull.add(BigDecimal.valueOf(msi.getTotalMarks() != null ? msi.getTotalMarks() : 0));
+                    if (appeared && msr.getTotalMarks() != null) totalObtained = totalObtained.add(msr.getTotalMarks());
                 }
 
             } else {
                 ProgressReportData.SubjectResult sr = resultMap.get(si.getSubjectId());
+                // 4th-subject row visibility: a class-level 4th option only
+                // belongs on the card of students who picked it (via override)
+                // or have it in their compulsory junction. Students who didn't
+                // pick it would otherwise get an empty 4th row — skip them.
+                if (si.isFourthSubject() && sr == null) {
+                    continue;
+                }
                 boolean appeared = sr != null && sr.isAppeared();
                 String totalCell = appeared && sr.getTotalMarks() != null ? fmtMark(sr.getTotalMarks()) : "—";
                 String gradeCell = appeared && sr.getGradeName() != null ? sr.getGradeName() : "—";
                 String gpaCell   = appeared && sr.getGpaValue()  != null ? fmtGpa(sr.getGpaValue()) : "—";
                 String highCell  = fmtMark(si.getHighestMarks());
 
+                // (4th) badge is per-student: shown only on this student's
+                // actual 4th pick, not on every subject the class declares
+                // as a 4th option.
+                boolean isStudentFourth = sr != null && sr.isFourthSubject();
                 tbody.append("<tr>");
                 tbody.append("<td class=\"subject\">").append(si.getSubjectName())
-                        .append(si.isFourthSubject() ? " (4<sup>th</sup>)" : "").append("</td>");
+                        .append(isStudentFourth ? " (4<sup>th</sup>)" : "").append("</td>");
                 tbody.append("<td>").append(si.getTotalMarks()).append("</td>");
                 tbody.append("<td>").append(highCell).append("</td>");
                 for (ProgressReportData.ComponentInfo c : components) {
@@ -304,10 +332,10 @@ public class ProgressReportPdfService {
                 tbody.append("<td>").append(gpaCell).append("</td>");
                 tbody.append("</tr>");
 
-                if (!si.isFourthSubject()) {
-                    totalFull = totalFull.add(BigDecimal.valueOf(si.getTotalMarks() != null ? si.getTotalMarks() : 0));
-                    if (appeared && sr.getTotalMarks() != null) totalObtained = totalObtained.add(sr.getTotalMarks());
-                }
+                // Totals include every subject on the card — 4th included —
+                // matching the with-4th overall GPA shown in the footer.
+                totalFull = totalFull.add(BigDecimal.valueOf(si.getTotalMarks() != null ? si.getTotalMarks() : 0));
+                if (appeared && sr.getTotalMarks() != null) totalObtained = totalObtained.add(sr.getTotalMarks());
             }
         }
         tbody.append("</tbody>");
@@ -508,7 +536,7 @@ public class ProgressReportPdfService {
                 + "body { font-family: 'Noto Sans', Arial, sans-serif; font-size: 9pt; color: #050505; line-height: 1.35; }"
                 + ".page { width: 210mm; height: 297mm; padding: 4mm; border: 2.5px solid #4A90D9; background: white; page-break-after: always; overflow: hidden; }"
                 + ".page:last-child { page-break-after: auto; }"
-                + ".inner { border: 2.5px solid #E0B84A; padding: 5mm 7mm; height: 100%; display: flex; flex-direction: column; }"
+                + ".inner { border: 2.5px solid #E0B84A; padding: 3mm 6mm; height: 100%; display: flex; flex-direction: column; }"
                 + ".content-area { flex: 1; overflow: hidden; }"
                 + ".bottom-area { flex-shrink: 0; }"
                 + "table { border-collapse: collapse; width: 100%; }"
@@ -534,7 +562,7 @@ public class ProgressReportPdfService {
                 + ".v-blue { color: #013E5B; font-weight: 600; } .v-red { color: #C2185B; font-weight: 600; }"
                 + ".marks { margin-top: 3mm; font-size: 8.5pt; table-layout: fixed; width: 100%; }"
                 + ".marks thead th { padding: 4px; }"
-                + ".marks tbody td { padding: 3px 4px; text-align: center; }"
+                + ".marks tbody td { padding: 2px 4px; text-align: center; }"
                 + ".marks tbody td.subject { text-align: left; }"
                 + ".marks tbody td.merged-grade { vertical-align: middle; font-weight: 600; background: #FAF3E0; }"
                 + ".marks tfoot td { padding: 4px; font-weight: 600; }"

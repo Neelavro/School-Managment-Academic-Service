@@ -186,6 +186,7 @@ public class ResultService {
             for (ExamSession s : sessions) {
                 if (!bundle.sessionStructureMap.containsKey(s.getId())) continue;
                 if (defaultFourthSubjectIds.contains(s.getSubject().getId()) && !fourthSubjectIds.contains(s.getSubject().getId())) continue;
+                if (!sessionAppliesToStudent(s, enrollment)) continue;
                 MarkingStructure structure = bundle.sessionStructureMap.get(s.getId());
                 List<MarkingStructureComponent> components = bundle.sessionComponentsMap.get(s.getId());
                 boolean isFourth = fourthSubjectIds.contains(s.getSubject().getId());
@@ -236,7 +237,7 @@ public class ResultService {
         }
 
         // compute rank maps across all scopes
-        RankMaps rankMaps = computeRankMaps(allEnrollments, totalMarksMap);
+        RankMaps rankMaps = computeRankMaps(allEnrollments, totalMarksMap, gpaMap);
 
         // build subject infos (group-level default for the column header)
         List<RoutineResultResponse.SubjectInfo> subjectInfos = sessions.stream()
@@ -300,6 +301,7 @@ public class ResultService {
             for (ExamSession s : sessions) {
                 if (!bundle.sessionStructureMap.containsKey(s.getId())) continue;
                 if (defaultFourthSubjectIds.contains(s.getSubject().getId()) && !fourthSubjectIds.contains(s.getSubject().getId())) continue;
+                if (!sessionAppliesToStudent(s, enrollment)) continue;
                 MarkingStructure structure = bundle.sessionStructureMap.get(s.getId());
                 List<MarkingStructureComponent> components = bundle.sessionComponentsMap.get(s.getId());
                 boolean isFourth = fourthSubjectIds.contains(s.getSubject().getId());
@@ -446,6 +448,7 @@ public class ResultService {
 
             for (Integer subjectId : orderedSubjectIds) {
                 if (defaultFourthSubjectIds.contains(subjectId) && !fourthSubjectIds.contains(subjectId)) continue;
+                if (!subjectAppliesToStudent(subjectId, bundle.sessionsBySubject, enrollment)) continue;
                 AnnualSubjectData asd = computeAnnualSubjectData(subjectId, bundle, enrollment.getId(), sortedGrades);
                 if (asd == null) continue;
                 boolean isFourth = fourthSubjectIds.contains(subjectId);
@@ -489,7 +492,7 @@ public class ResultService {
         }
 
         // compute rank maps
-        RankMaps rankMaps = computeRankMaps(allEnrollments, totalScaledMap);
+        RankMaps rankMaps = computeRankMaps(allEnrollments, totalScaledMap, gpaMap);
 
         // group-level default for column headers
         List<AnnualResultResponse.SubjectInfo> subjectInfos = orderedSubjectIds.stream()
@@ -545,6 +548,7 @@ public class ResultService {
 
             for (Integer subjectId : orderedSubjectIds) {
                 if (defaultFourthSubjectIds.contains(subjectId) && !fourthSubjectIds.contains(subjectId)) continue;
+                if (!subjectAppliesToStudent(subjectId, bundle.sessionsBySubject, enrollment)) continue;
                 AnnualSubjectData asd = computeAnnualSubjectData(subjectId, bundle, enrollment.getId(), sortedGrades);
                 if (asd == null) continue;
                 boolean isFourth = fourthSubjectIds.contains(subjectId);
@@ -674,6 +678,7 @@ public class ResultService {
         for (ExamSession s : sessions) {
             if (!bundle.sessionStructureMap.containsKey(s.getId())) continue;
             if (defaultFourthSubjectIds.contains(s.getSubject().getId()) && !fourthSubjectIds.contains(s.getSubject().getId())) continue;
+            if (!sessionAppliesToStudent(s, enrollment)) continue;
             MarkingStructure structure = bundle.sessionStructureMap.get(s.getId());
             List<MarkingStructureComponent> components = bundle.sessionComponentsMap.get(s.getId());
             boolean isFourth = fourthSubjectIds.contains(s.getSubject().getId());
@@ -821,6 +826,7 @@ public class ResultService {
         Map<Integer, Boolean> mgAnyAppeared = new HashMap<>();
 
         for (Integer subjectId : orderedSubjectIds) {
+            if (!subjectAppliesToStudent(subjectId, bundle.sessionsBySubject, enrollment)) continue;
             AnnualSubjectData asd = computeAnnualSubjectData(subjectId, bundle, enrollmentId, sortedGrades);
             if (asd == null) continue;
 
@@ -940,6 +946,7 @@ public class ResultService {
 
             for (Integer subjectId : orderedSubjectIds) {
                 if (defaultFourthSubjectIds.contains(subjectId) && !fourthSubjectIds.contains(subjectId)) continue;
+                if (!subjectAppliesToStudent(subjectId, bundle.sessionsBySubject, enrollment)) continue;
                 AnnualSubjectData asd = computeAnnualSubjectData(subjectId, bundle, enrollment.getId(), sortedGrades);
                 if (asd == null) continue;
                 boolean isFourth = fourthSubjectIds.contains(subjectId);
@@ -1199,6 +1206,29 @@ public class ResultService {
                 .findForRoutineAndClassWithGroupFilter(examRoutineId, classId, groupId));
         if (rawSessions.isEmpty()) throw new RuntimeException("No exam sessions found for this routine and class");
 
+        // Curriculum filter: only subjects declared in class_subject_group for
+        // this group (or as compulsory, group=NULL) make it through. Stops
+        // exam_session rows from leaking subjects into the wrong group's
+        // report card (e.g. AGRICULTURE tagged compulsory in the session but
+        // declared in csg only for Humanities should not appear on a Science
+        // student's card). The filter is conditional on the class actually
+        // having a csg curriculum — if csg is empty we leave sessions alone
+        // to preserve old behaviour.
+        Set<Integer> curriculumSubjectIds = classSubjectGroupRepository
+                .findByStudentClassIdAndIsActiveTrue(classId).stream()
+                .filter(csg -> csg.getStudentGroup() == null
+                        || (groupId != null && csg.getStudentGroup().getId().equals(groupId)))
+                .map(csg -> csg.getSubject().getId())
+                .collect(Collectors.toSet());
+        if (!curriculumSubjectIds.isEmpty()) {
+            rawSessions = rawSessions.stream()
+                    .filter(s -> curriculumSubjectIds.contains(s.getSubject().getId()))
+                    .collect(Collectors.toList());
+            if (rawSessions.isEmpty()) {
+                throw new RuntimeException("No exam sessions found for this routine and class");
+            }
+        }
+
         Class examClass = rawSessions.get(0).getExamClass();
         List<Grade> sortedGrades = loadSortedGrades(examClass);
         Set<Integer> defaultFourthSubjectIds = loadFourthSubjectIds(classId, groupId);
@@ -1320,6 +1350,7 @@ public class ResultService {
             for (ExamSession s : sessions) {
                 if (!bundle.sessionStructureMap.containsKey(s.getId())) continue;
                 if (defaultFourthSubjectIds.contains(s.getSubject().getId()) && !fourthSubjectIds.contains(s.getSubject().getId())) continue;
+                if (!sessionAppliesToStudent(s, enrollment)) continue;
                 MarkingStructure structure = bundle.sessionStructureMap.get(s.getId());
                 List<MarkingStructureComponent> comps = bundle.sessionComponentsMap.get(s.getId());
                 boolean isFourth = fourthSubjectIds.contains(s.getSubject().getId());
@@ -1331,9 +1362,19 @@ public class ResultService {
                 boolean appeared = !compMarks.isEmpty();
                 BigDecimal total = sumComponentMarks(comps, compMarks);
 
+                // The (4th) badge reflects ONLY the student's actual 4th pick
+                // (their override subject; falling back to the class default
+                // when no override is set). Compulsory-junction subjects are
+                // mandatory replacements for THIS student, not 4th picks,
+                // so they must not get the badge.
+                Integer studentOverrideSubject = overrideMap.get(enrollment.getId());
+                boolean isStudentActualFourth = studentOverrideSubject != null
+                        ? studentOverrideSubject.equals(s.getSubject().getId())
+                        : defaultFourthSubjectIds.contains(s.getSubject().getId());
+
                 ProgressReportData.SubjectResult sr = new ProgressReportData.SubjectResult();
                 sr.setSubjectId(s.getSubject().getId());
-                sr.setFourthSubject(isFourth);
+                sr.setFourthSubject(isStudentActualFourth);
                 sr.setAppeared(appeared);
                 sr.setComponentMarks(new HashMap<>(compMarks));
 
@@ -1405,11 +1446,14 @@ public class ResultService {
         // Rank by the with-4th total for passed students; failed students
         // are pinned to 0 so they sort last and don't create rank gaps.
         Map<Long, BigDecimal> totalMarksMap = new HashMap<>();
+        Map<Long, Double> gpaMap = new HashMap<>();
         for (ProgressReportData.StudentReport r : allReports) {
             totalMarksMap.put(r.getEnrollmentId(),
                     r.isPassed() ? r.getTotalMarks() : BigDecimal.ZERO);
+            gpaMap.put(r.getEnrollmentId(),
+                    r.isPassed() ? r.getOverallGpa() : 0.0);
         }
-        RankMaps rankMaps = computeRankMaps(allEnrollments, totalMarksMap);
+        RankMaps rankMaps = computeRankMaps(allEnrollments, totalMarksMap, gpaMap);
         for (ProgressReportData.StudentReport r : allReports) {
             if (r.isPassed()) {
                 r.setClassRank(rankMaps.classRankMap.get(r.getEnrollmentId()));
@@ -1446,6 +1490,76 @@ public class ResultService {
         result.setSubjects(subjectInfos);
         result.setStudents(studentReports);
         return result;
+    }
+
+    /**
+     * Progress-report partition. Returns the data already split per group so
+     * the PDF service can render Science students with Science subjects, then
+     * Humanities students with Humanities subjects, etc. — no shared subject
+     * list with blanks across groups.
+     *
+     * - When a groupId is passed, returns a single-element list containing
+     *   the result for that group (same as a direct getProgressReportData
+     *   call).
+     * - When groupId is null, partitions the class by student_group_id and
+     *   calls getProgressReportData once per group, plus once for any
+     *   no-group bucket. Each ProgressReportData carries the curriculum-
+     *   filtered subjects list relevant to its group.
+     *
+     * Used only by ProgressReportPdfService — other consumers stick with
+     * getProgressReportData.
+     */
+    public List<ProgressReportData> getProgressReportDataPartitioned(
+            Integer examRoutineId, Integer classId, Integer shiftId,
+            Integer genderSectionId, Long sectionId, Integer groupId,
+            Integer startRoll, Integer endRoll) {
+
+        if (groupId != null) {
+            return List.of(getProgressReportData(examRoutineId, classId, shiftId,
+                    genderSectionId, sectionId, groupId, startRoll, endRoll));
+        }
+
+        // Discover the distinct groups present in the class. We need both the
+        // group ids AND whether there's a no-group bucket. Order preserved
+        // so the PDF renders groups consistently across downloads.
+        ExamRoutine routine = examRoutineRepository.findById(examRoutineId)
+                .orElseThrow(() -> new RuntimeException("Exam routine not found: " + examRoutineId));
+        Integer academicYearId = routine.getAcademicYear() != null ? routine.getAcademicYear().getId() : null;
+        List<Enrollment> allEnrollments = enrollmentRepository
+                .findAllByClassIdAndFilters(classId, academicYearId, shiftId, null, null, null, null, null);
+
+        LinkedHashSet<Integer> distinctGroups = new LinkedHashSet<>();
+        boolean hasNoGroupBucket = false;
+        for (Enrollment e : allEnrollments) {
+            if (e.getStudentGroup() != null) distinctGroups.add(e.getStudentGroup().getId());
+            else hasNoGroupBucket = true;
+        }
+
+        List<ProgressReportData> partitions = new ArrayList<>();
+        for (Integer gId : distinctGroups) {
+            try {
+                partitions.add(getProgressReportData(examRoutineId, classId, shiftId,
+                        genderSectionId, sectionId, gId, startRoll, endRoll));
+            } catch (RuntimeException ignored) {
+                // No sessions for this group — skip rather than fail the
+                // whole PDF.
+            }
+        }
+        if (hasNoGroupBucket) {
+            try {
+                ProgressReportData data = getProgressReportData(examRoutineId, classId, shiftId,
+                        genderSectionId, sectionId, null, startRoll, endRoll);
+                // When called with groupId=null on the no-group bucket, the
+                // method returns all students. We need to narrow the students
+                // list to only those without a group assigned.
+                List<ProgressReportData.StudentReport> rows = data.getStudents().stream()
+                        .filter(r -> r.getGroupName() == null || r.getGroupName().isBlank())
+                        .collect(Collectors.toList());
+                data.setStudents(rows);
+                partitions.add(data);
+            } catch (RuntimeException ignored) {}
+        }
+        return partitions;
     }
 
     // ─── STATS – ROUTINE ─────────────────────────────────────────────────────────
@@ -1859,10 +1973,15 @@ public class ResultService {
         Map<Long, Integer> groupRankMap = new HashMap<>();
     }
 
-    private RankMaps computeRankMaps(List<Enrollment> allEnrollments, Map<Long, BigDecimal> totalMarksMap) {
+    private RankMaps computeRankMaps(List<Enrollment> allEnrollments, Map<Long, BigDecimal> totalMarksMap, Map<Long, Double> gpaMap) {
         RankMaps rm = new RankMaps();
-        Comparator<Enrollment> byMarksDesc = Comparator.comparing(
-                e -> totalMarksMap.getOrDefault(e.getId(), BigDecimal.ZERO), Comparator.reverseOrder());
+        // Tie-break: higher GPA wins; then lower class roll wins (nulls last);
+        // then lower enrollment id — so ordering is fully deterministic.
+        Comparator<Enrollment> byMarksDesc = Comparator
+                .comparing((Enrollment e) -> totalMarksMap.getOrDefault(e.getId(), BigDecimal.ZERO), Comparator.reverseOrder())
+                .thenComparing(e -> gpaMap.getOrDefault(e.getId(), 0.0), Comparator.reverseOrder())
+                .thenComparing(e -> e.getClassRoll() != null ? e.getClassRoll() : Integer.MAX_VALUE)
+                .thenComparing(Enrollment::getId);
 
         // class rank — all students
         List<Enrollment> sortedAll = allEnrollments.stream().sorted(byMarksDesc).collect(Collectors.toList());
@@ -1913,6 +2032,43 @@ public class ResultService {
         if (startRoll != null && (e.getClassRoll() == null || e.getClassRoll() < startRoll)) return false;
         if (endRoll != null && (e.getClassRoll() == null || e.getClassRoll() > endRoll)) return false;
         return true;
+    }
+
+    /**
+     * True if a session applies to the given student.
+     *   - Compulsory session (session.group_id == null)  → applies to everyone.
+     *   - Group-tagged session (session.group_id == G)   → applies only to
+     *     students in group G.
+     *
+     * Used to suppress false "did not appear" failures when the API is called
+     * without a group filter. Without this check, sessions from every group
+     * are loaded into the list and the per-student loop marks a Science
+     * student as failed for a Humanities subject they were never expected
+     * to sit for — which drags their overall GPA to 0 and the grade to F.
+     */
+    private boolean sessionAppliesToStudent(ExamSession s, Enrollment enrollment) {
+        Integer sessionGroupId = s.getGroup() != null ? s.getGroup().getId() : null;
+        if (sessionGroupId == null) return true;
+        Integer studentGroupId = enrollment.getStudentGroup() != null ? enrollment.getStudentGroup().getId() : null;
+        return sessionGroupId.equals(studentGroupId);
+    }
+
+    /**
+     * Subject-level counterpart for the annual / overview / stats loops that
+     * iterate subjectIds rather than sessions. True if at least one session
+     * for the subject applies to the student. False when every session for
+     * the subject is tagged for a different group — i.e. the subject isn't
+     * part of this student's curriculum.
+     */
+    private boolean subjectAppliesToStudent(Integer subjectId,
+                                              Map<Integer, List<ExamSession>> sessionsBySubject,
+                                              Enrollment enrollment) {
+        List<ExamSession> sessions = sessionsBySubject.get(subjectId);
+        if (sessions == null || sessions.isEmpty()) return true;
+        for (ExamSession s : sessions) {
+            if (sessionAppliesToStudent(s, enrollment)) return true;
+        }
+        return false;
     }
 
     // ─── DATA BUNDLE HELPERS ─────────────────────────────────────────────────────
