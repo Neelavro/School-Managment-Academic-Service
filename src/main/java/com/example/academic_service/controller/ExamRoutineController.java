@@ -11,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/exam-routines")
@@ -80,12 +81,20 @@ public class ExamRoutineController {
     }
 
     @PatchMapping("/{id}/publish-results")
-    public ResponseEntity<ApiResponse<ExamRoutine>> publishResults(@PathVariable Integer id) {
-        return ResponseEntity.ok(examRoutineService.publishResults(id));
+    public ResponseEntity<ApiResponse<ExamRoutine>> publishResults(
+            @PathVariable Integer id, @RequestParam Integer classId) {
+        return ResponseEntity.ok(examRoutineService.publishResults(id, classId));
     }
 
     @PatchMapping("/{id}/unpublish-results")
-    public ResponseEntity<ApiResponse<ExamRoutine>> unpublishResults(@PathVariable Integer id) {
-        return ResponseEntity.ok(examRoutineService.unpublishResults(id));
+    public ResponseEntity<ApiResponse<ExamRoutine>> unpublishResults(
+            @PathVariable Integer id, @RequestParam Integer classId) {
+        return ResponseEntity.ok(examRoutineService.unpublishResults(id, classId));
+    }
+
+    @GetMapping("/{id}/class-publication-status")
+    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getClassPublicationStatus(
+            @PathVariable Integer id) {
+        return ResponseEntity.ok(examRoutineService.getClassPublicationStatus(id));
     }
 }

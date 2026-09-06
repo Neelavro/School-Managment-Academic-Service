@@ -20,7 +20,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -251,51 +253,77 @@ public class ExamRoutineServiceImpl implements ExamRoutineService {
     }
 
     @Override
-    public ApiResponse<ExamRoutine> publishResults(Integer routineId) {
+    public ApiResponse<ExamRoutine> publishResults(Integer routineId, Integer classId) {
         ExamRoutine routine = examRoutineRepository.findById(routineId).orElse(null);
         if (routine == null) return ApiResponse.error("Exam routine not found");
-        ResultPublication pub = resultPublicationRepository.findByExamRoutine_Id(routineId)
+
+        List<Class> classes = examSessionRepository.findDistinctClassesByRoutineId(routineId);
+        Class targetClass = classes.stream().filter(c -> c.getId().equals(classId)).findFirst().orElse(null);
+        if (targetClass == null) return ApiResponse.error("Class not found in this routine");
+
+        ResultPublication pub = resultPublicationRepository
+                .findByExamRoutine_IdAndStudentClass_Id(routineId, classId)
                 .orElseGet(() -> {
                     ResultPublication rp = new ResultPublication();
                     rp.setExamRoutine(routine);
+                    rp.setStudentClass(targetClass);
                     return rp;
                 });
 
         if (Boolean.TRUE.equals(pub.getPublished()))
-            return ApiResponse.error("Results are already published for this routine");
+            return ApiResponse.error("Results already published for this class");
 
         pub.setPublished(true);
         pub.setPublishedAt(LocalDateTime.now());
         resultPublicationRepository.save(pub);
 
-        routine.setResultPublished(true);
         Integer academicYearId = routine.getAcademicYear() != null ? routine.getAcademicYear().getId() : null;
-        if (academicYearId != null) cacheWarmingService.warmStudentResultCache(routineId, academicYearId);
+        if (academicYearId != null) cacheWarmingService.warmStudentResultCache(routineId, classId, academicYearId);
         auditLogService.log(AuditHelper.getUserId(), AuditHelper.getIp(),
             AuditActionType.UPDATE, Submodule.EXAM_ROUTINES, "ExamRoutine", routineId.toString(),
-            "Published results for routine: " + routine.getTitle());
-        return ApiResponse.success("Results published successfully", routine);
+            "Published results for routine: " + routine.getTitle() + ", class: " + targetClass.getName());
+        return ApiResponse.success("Results published for " + targetClass.getName(), routine);
     }
 
     @Override
-    public ApiResponse<ExamRoutine> unpublishResults(Integer routineId) {
+    public ApiResponse<ExamRoutine> unpublishResults(Integer routineId, Integer classId) {
         ExamRoutine routine = examRoutineRepository.findById(routineId).orElse(null);
         if (routine == null) return ApiResponse.error("Exam routine not found");
 
-        ResultPublication pub = resultPublicationRepository.findByExamRoutine_Id(routineId).orElse(null);
+        ResultPublication pub = resultPublicationRepository
+                .findByExamRoutine_IdAndStudentClass_Id(routineId, classId).orElse(null);
         if (pub == null || !Boolean.TRUE.equals(pub.getPublished()))
-            return ApiResponse.error("Results are not published for this routine");
+            return ApiResponse.error("Results are not published for this class");
 
         pub.setPublished(false);
         pub.setPublishedAt(null);
         resultPublicationRepository.save(pub);
 
-        routine.setResultPublished(false);
         Integer academicYearId = routine.getAcademicYear() != null ? routine.getAcademicYear().getId() : null;
-        if (academicYearId != null) cacheWarmingService.evictStudentResultCache(routineId, academicYearId);
+        if (academicYearId != null) cacheWarmingService.evictStudentResultCache(routineId, classId, academicYearId);
         auditLogService.log(AuditHelper.getUserId(), AuditHelper.getIp(),
             AuditActionType.UPDATE, Submodule.EXAM_ROUTINES, "ExamRoutine", routineId.toString(),
-            "Unpublished results for routine: " + routine.getTitle());
-        return ApiResponse.success("Results unpublished successfully", routine);
+            "Unpublished results for routine: " + routine.getTitle() + ", class: " + pub.getStudentClass().getName());
+        return ApiResponse.success("Results hidden for " + pub.getStudentClass().getName(), routine);
+    }
+
+    @Override
+    public ApiResponse<List<Map<String, Object>>> getClassPublicationStatus(Integer routineId) {
+        List<Class> classes = examSessionRepository.findDistinctClassesByRoutineId(routineId);
+        List<ResultPublication> pubs = resultPublicationRepository.findByExamRoutine_Id(routineId);
+        Map<Integer, ResultPublication> pubByClassId = pubs.stream()
+                .collect(Collectors.toMap(p -> p.getStudentClass().getId(), p -> p));
+
+        List<Map<String, Object>> result = classes.stream().map(c -> {
+            ResultPublication pub = pubByClassId.get(c.getId());
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("classId", c.getId());
+            m.put("className", c.getName());
+            m.put("published", pub != null && Boolean.TRUE.equals(pub.getPublished()));
+            m.put("publishedAt", pub != null ? pub.getPublishedAt() : null);
+            return m;
+        }).collect(Collectors.toList());
+
+        return ApiResponse.success("Class publication status fetched", result);
     }
 }

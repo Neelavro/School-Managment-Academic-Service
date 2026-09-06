@@ -6,6 +6,7 @@ import com.example.academic_service.dto.exam_dtos.ExamRoutineRequestDto;
 import com.example.academic_service.entity.ExamRoutine;
 
 import java.util.List;
+import java.util.Map;
 
 public interface ExamRoutineService {
     ApiResponse<ExamRoutine> create(ExamRoutineRequestDto dto);
@@ -19,6 +20,7 @@ public interface ExamRoutineService {
     ApiResponse<ExamRoutine> reactivate(Integer id);
     ApiResponse<Void> delete(Integer id);
     ApiResponse<ExamRoutine> clone(Integer sourceId, CloneRoutineRequestDto dto);
-    ApiResponse<ExamRoutine> publishResults(Integer routineId);
-    ApiResponse<ExamRoutine> unpublishResults(Integer routineId);
+    ApiResponse<ExamRoutine> publishResults(Integer routineId, Integer classId);
+    ApiResponse<ExamRoutine> unpublishResults(Integer routineId, Integer classId);
+    ApiResponse<List<Map<String, Object>>> getClassPublicationStatus(Integer routineId);
 }
