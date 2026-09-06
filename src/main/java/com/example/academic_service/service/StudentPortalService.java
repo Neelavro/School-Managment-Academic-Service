@@ -101,18 +101,17 @@ public class StudentPortalService {
     public ApiResponse<List<Map<String, Object>>> getAvailableRoutines(String studentSystemId) {
         Enrollment e = requireActiveEnrollment(studentSystemId);
         Integer academicYearId = e.getAcademicYear() != null ? e.getAcademicYear().getId() : null;
-        if (academicYearId == null) return ApiResponse.success("No academic year", List.of());
+        Integer classId = e.getStudentClass() != null ? e.getStudentClass().getId() : null;
+        if (academicYearId == null || classId == null) return ApiResponse.success("No academic year or class", List.of());
 
-        List<ExamRoutine> publishedRoutines = examRoutineRepository
-                .findByAcademicYearIdAndIsActiveTrue(academicYearId);
+        List<ExamRoutine> allRoutines = examRoutineRepository.findByAcademicYearIdAndIsActiveTrue(academicYearId);
 
-        List<Integer> routineIds = publishedRoutines.stream()
-                .map(ExamRoutine::getId).collect(Collectors.toList());
+        List<Integer> routineIds = allRoutines.stream().map(ExamRoutine::getId).collect(Collectors.toList());
         Set<Integer> resultPublishedIds = routineIds.isEmpty()
                 ? Set.of()
-                : resultPublicationRepository.findPublishedRoutineIds(routineIds);
+                : resultPublicationRepository.findPublishedRoutineIdsForClass(routineIds, classId);
 
-        List<Map<String, Object>> routines = publishedRoutines.stream()
+        List<Map<String, Object>> routines = allRoutines.stream()
                 .filter(r -> resultPublishedIds.contains(r.getId()))
                 .map(r -> {
                     Map<String, Object> m = new LinkedHashMap<>();
@@ -129,12 +128,14 @@ public class StudentPortalService {
     }
 
     public ApiResponse<StudentRoutineResultResponse> getMyResult(String studentSystemId, Integer examRoutineId) {
-        resultPublicationRepository.findByExamRoutine_Id(examRoutineId)
+        Enrollment e = requireActiveEnrollment(studentSystemId);
+        Integer classId = e.getStudentClass() != null ? e.getStudentClass().getId() : null;
+
+        resultPublicationRepository.findByExamRoutine_IdAndStudentClass_Id(examRoutineId, classId)
                 .filter(rp -> Boolean.TRUE.equals(rp.getPublished()))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN,
                         "Results for this routine have not been released yet"));
 
-        Enrollment e = requireActiveEnrollment(studentSystemId);
         StudentRoutineResultResponse result = resultService.getStudentRoutineResult(e.getId(), examRoutineId);
         return ApiResponse.success("Result fetched", result);
     }

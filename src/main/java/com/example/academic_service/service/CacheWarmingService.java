@@ -23,8 +23,9 @@ public class CacheWarmingService {
     private final CacheManager cacheManager;
 
     @Async
-    public void warmStudentResultCache(Integer routineId, Integer academicYearId) {
-        List<Enrollment> enrollments = enrollmentRepository.findByAcademicYearIdAndIsActiveTrue(academicYearId);
+    public void warmStudentResultCache(Integer routineId, Integer classId, Integer academicYearId) {
+        List<Enrollment> enrollments = enrollmentRepository
+                .findByStudentClass_IdAndAcademicYear_IdAndIsActiveTrue(classId, academicYearId);
         int warmed = 0;
         for (Enrollment e : enrollments) {
             try {
@@ -34,15 +35,16 @@ public class CacheWarmingService {
                 log.debug("Cache warm skip enrollmentId={} routineId={}: {}", e.getId(), routineId, ex.getMessage());
             }
         }
-        log.info("Cache warmed: {} / {} enrollments for routineId={}", warmed, enrollments.size(), routineId);
+        log.info("Cache warmed: {} / {} enrollments for routineId={} classId={}", warmed, enrollments.size(), routineId, classId);
     }
 
     @Async
-    public void evictStudentResultCache(Integer routineId, Integer academicYearId) {
+    public void evictStudentResultCache(Integer routineId, Integer classId, Integer academicYearId) {
         Cache cache = cacheManager.getCache("studentResult");
         if (cache == null) return;
-        List<Enrollment> enrollments = enrollmentRepository.findByAcademicYearIdAndIsActiveTrue(academicYearId);
+        List<Enrollment> enrollments = enrollmentRepository
+                .findByStudentClass_IdAndAcademicYear_IdAndIsActiveTrue(classId, academicYearId);
         enrollments.forEach(e -> cache.evict(e.getId() + ":" + routineId));
-        log.info("Cache evicted {} entries for routineId={}", enrollments.size(), routineId);
+        log.info("Cache evicted {} entries for routineId={} classId={}", enrollments.size(), routineId, classId);
     }
 }

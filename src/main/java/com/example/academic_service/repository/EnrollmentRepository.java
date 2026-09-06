@@ -53,6 +53,8 @@ AND (:endRoll IS NULL OR e.classRoll <= :endRoll)
 
     List<Enrollment> findByAcademicYearIdAndIsActiveTrue(Integer academicYearId);
 
+    List<Enrollment> findByStudentClass_IdAndAcademicYear_IdAndIsActiveTrue(Integer classId, Integer academicYearId);
+
     @Query("""
 SELECT e FROM Enrollment e
 WHERE e.section.id = :sectionId

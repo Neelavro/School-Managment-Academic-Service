@@ -61,4 +61,7 @@ public interface ExamSessionRepository extends JpaRepository<ExamSession, Intege
             @Param("classId") Integer classId,
             @Param("groupId") Integer groupId,
             @Param("today") java.time.LocalDate today);
+
+    @Query("SELECT DISTINCT es.examClass FROM ExamSession es WHERE es.examRoutine.id = :routineId AND es.isActive = true ORDER BY es.examClass.name")
+    List<com.example.academic_service.entity.Class> findDistinctClassesByRoutineId(@Param("routineId") Integer routineId);
 }

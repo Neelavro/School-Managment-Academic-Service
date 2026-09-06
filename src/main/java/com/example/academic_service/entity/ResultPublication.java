@@ -7,7 +7,9 @@ import lombok.Setter;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "result_publication")
+@Table(name = "result_publication",
+        uniqueConstraints = @UniqueConstraint(name = "uk_result_pub_routine_class",
+                columnNames = {"routine_id", "class_id"}))
 @Getter
 @Setter
 public class ResultPublication {
@@ -16,9 +18,13 @@ public class ResultPublication {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
-    @OneToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "routine_id", nullable = false, unique = true)
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "routine_id", nullable = false)
     private ExamRoutine examRoutine;
+
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "class_id", nullable = false)
+    private Class studentClass;
 
     @Column(nullable = false)
     private Boolean published = false;
