@@ -105,13 +105,14 @@ public class ExamRoutineServiceImpl implements ExamRoutineService {
     private void hydrateResultPublished(List<ExamRoutine> routines) {
         if (routines.isEmpty()) return;
         List<Integer> ids = routines.stream().map(ExamRoutine::getId).collect(Collectors.toList());
-        Set<Integer> publishedIds = resultPublicationRepository.findPublishedRoutineIds(ids);
+        Set<Integer> publishedIds = resultPublicationRepository.findRoutineIdsWithAnyPublishedClass(ids);
         routines.forEach(r -> r.setResultPublished(publishedIds.contains(r.getId())));
     }
 
     private void hydrateResultPublished(ExamRoutine routine) {
-        resultPublicationRepository.findByExamRoutine_Id(routine.getId())
-                .ifPresent(rp -> routine.setResultPublished(Boolean.TRUE.equals(rp.getPublished())));
+        boolean anyPublished = resultPublicationRepository.findByExamRoutine_Id(routine.getId())
+                .stream().anyMatch(rp -> Boolean.TRUE.equals(rp.getPublished()));
+        routine.setResultPublished(anyPublished);
     }
 
     @Override
@@ -257,8 +258,8 @@ public class ExamRoutineServiceImpl implements ExamRoutineService {
         ExamRoutine routine = examRoutineRepository.findById(routineId).orElse(null);
         if (routine == null) return ApiResponse.error("Exam routine not found");
 
-        List<Class> classes = examSessionRepository.findDistinctClassesByRoutineId(routineId);
-        Class targetClass = classes.stream().filter(c -> c.getId().equals(classId)).findFirst().orElse(null);
+        List<com.example.academic_service.entity.Class> classes = examSessionRepository.findDistinctClassesByRoutineId(routineId);
+        com.example.academic_service.entity.Class targetClass = classes.stream().filter(c -> c.getId().equals(classId)).findFirst().orElse(null);
         if (targetClass == null) return ApiResponse.error("Class not found in this routine");
 
         ResultPublication pub = resultPublicationRepository
@@ -309,20 +310,21 @@ public class ExamRoutineServiceImpl implements ExamRoutineService {
 
     @Override
     public ApiResponse<List<Map<String, Object>>> getClassPublicationStatus(Integer routineId) {
-        List<Class> classes = examSessionRepository.findDistinctClassesByRoutineId(routineId);
+        List<com.example.academic_service.entity.Class> classes = examSessionRepository.findDistinctClassesByRoutineId(routineId);
         List<ResultPublication> pubs = resultPublicationRepository.findByExamRoutine_Id(routineId);
         Map<Integer, ResultPublication> pubByClassId = pubs.stream()
                 .collect(Collectors.toMap(p -> p.getStudentClass().getId(), p -> p));
 
-        List<Map<String, Object>> result = classes.stream().map(c -> {
+        List<Map<String, Object>> result = new java.util.ArrayList<>();
+        for (com.example.academic_service.entity.Class c : classes) {
             ResultPublication pub = pubByClassId.get(c.getId());
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("classId", c.getId());
             m.put("className", c.getName());
             m.put("published", pub != null && Boolean.TRUE.equals(pub.getPublished()));
             m.put("publishedAt", pub != null ? pub.getPublishedAt() : null);
-            return m;
-        }).collect(Collectors.toList());
+            result.add(m);
+        }
 
         return ApiResponse.success("Class publication status fetched", result);
     }

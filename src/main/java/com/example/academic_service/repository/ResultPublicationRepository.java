@@ -20,4 +20,8 @@ public interface ResultPublicationRepository extends JpaRepository<ResultPublica
            "WHERE rp.examRoutine.id IN :ids AND rp.studentClass.id = :classId AND rp.published = true")
     Set<Integer> findPublishedRoutineIdsForClass(@Param("ids") Collection<Integer> ids,
                                                  @Param("classId") Integer classId);
+
+    @Query("SELECT rp.examRoutine.id FROM ResultPublication rp " +
+           "WHERE rp.examRoutine.id IN :ids AND rp.published = true")
+    Set<Integer> findRoutineIdsWithAnyPublishedClass(@Param("ids") Collection<Integer> ids);
 }
