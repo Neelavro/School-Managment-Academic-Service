@@ -261,6 +261,7 @@ public class ProgressReportPdfService {
                 BigDecimal combinedObtained = BigDecimal.ZERO;
                 int combinedFull = 0;
                 boolean anyAppeared = false;
+                boolean anyExpelled = false;
                 for (ProgressReportData.SubjectInfo msi : pair) {
                     ProgressReportData.SubjectResult msr = resultMap.get(msi.getSubjectId());
                     if (msr != null && msr.isAppeared()) {
@@ -268,10 +269,11 @@ public class ProgressReportPdfService {
                         if (msr.getTotalMarks() != null)
                             combinedObtained = combinedObtained.add(msr.getTotalMarks());
                     }
+                    if (msr != null && "EXPELLED".equals(msr.getStatus())) anyExpelled = true;
                     if (msi.getTotalMarks() != null) combinedFull += msi.getTotalMarks();
                 }
-                String combinedGrade = anyAppeared ? resolveMergedGrade(combinedObtained, combinedFull, gradingTable) : "—";
-                String combinedGpa   = anyAppeared ? resolveMergedGpa(combinedObtained, combinedFull, gradingTable) : "—";
+                String combinedGrade = !anyAppeared ? "—" : anyExpelled ? "F" : resolveMergedGrade(combinedObtained, combinedFull, gradingTable);
+                String combinedGpa   = !anyAppeared ? "—" : anyExpelled ? "0.00" : resolveMergedGpa(combinedObtained, combinedFull, gradingTable);
 
                 for (int i = 0; i < rowCount; i++) {
                     ProgressReportData.SubjectInfo msi = pair.get(i);
