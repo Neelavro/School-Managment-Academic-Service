@@ -260,14 +260,18 @@ public class ProgressReportPdfService {
                 // Compute combined obtained/full for the merged group grade
                 BigDecimal combinedObtained = BigDecimal.ZERO;
                 int combinedFull = 0;
+                boolean anyAppeared = false;
                 for (ProgressReportData.SubjectInfo msi : pair) {
                     ProgressReportData.SubjectResult msr = resultMap.get(msi.getSubjectId());
-                    if (msr != null && msr.isAppeared() && msr.getTotalMarks() != null)
-                        combinedObtained = combinedObtained.add(msr.getTotalMarks());
+                    if (msr != null && msr.isAppeared()) {
+                        anyAppeared = true;
+                        if (msr.getTotalMarks() != null)
+                            combinedObtained = combinedObtained.add(msr.getTotalMarks());
+                    }
                     if (msi.getTotalMarks() != null) combinedFull += msi.getTotalMarks();
                 }
-                String combinedGrade = resolveMergedGrade(combinedObtained, combinedFull, gradingTable);
-                String combinedGpa   = resolveMergedGpa(combinedObtained, combinedFull, gradingTable);
+                String combinedGrade = anyAppeared ? resolveMergedGrade(combinedObtained, combinedFull, gradingTable) : "—";
+                String combinedGpa   = anyAppeared ? resolveMergedGpa(combinedObtained, combinedFull, gradingTable) : "—";
 
                 for (int i = 0; i < rowCount; i++) {
                     ProgressReportData.SubjectInfo msi = pair.get(i);
