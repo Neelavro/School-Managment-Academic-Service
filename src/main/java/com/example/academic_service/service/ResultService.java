@@ -53,7 +53,10 @@ public class ResultService {
                 .findAllByEnrollmentIdInAndRoutineIdAndSubjectId(enrollmentIds, routineId, subjectId);
 
         Map<Long, Map<Integer, StudentMark>> markMap = new HashMap<>();
+        Map<Long, String> enrollmentStatuses = new HashMap<>();
         for (StudentMark m : marks) {
+            if ("EXPELLED".equals(m.getStatus())) enrollmentStatuses.put(m.getEnrollmentId(), "EXPELLED");
+            else if ("ABSENT".equals(m.getStatus())) enrollmentStatuses.putIfAbsent(m.getEnrollmentId(), "ABSENT");
             if ("ABSENT".equals(m.getStatus()) || "EXPELLED".equals(m.getStatus())) continue;
             markMap.computeIfAbsent(m.getEnrollmentId(), k -> new HashMap<>())
                     .put(m.getExamComponent().getId(), m);
@@ -78,6 +81,7 @@ public class ResultService {
             Map<Integer, StudentMark> studentMarkMap = markMap.getOrDefault(enrollment.getId(), Collections.emptyMap());
             boolean appeared = !studentMarkMap.isEmpty();
             row.setAppeared(appeared);
+            if (!appeared) row.setStatus(enrollmentStatuses.get(enrollment.getId()));
 
             List<SessionResultResponse.ComponentMark> componentMarks = components.stream().map(c -> {
                 SessionResultResponse.ComponentMark cm = new SessionResultResponse.ComponentMark();
@@ -326,6 +330,13 @@ public class ResultService {
                 sr.setMaxMarks(structure.getTotalMarks());
                 sr.setFourthSubject(isFourth);
                 sr.setAppeared(appeared);
+                if (!appeared) {
+                    int sid = s.getSubject().getId();
+                    if (bundle.expelledSubjects.getOrDefault(enrollment.getId(), Collections.emptySet()).contains(sid))
+                        sr.setStatus("EXPELLED");
+                    else if (bundle.absentSubjects.getOrDefault(enrollment.getId(), Collections.emptySet()).contains(sid))
+                        sr.setStatus("ABSENT");
+                }
 
                 if (appeared) {
                     sr.setMarksObtained(total);
@@ -583,12 +594,17 @@ public class ResultService {
                 sr.setMaxMarksRaw(asd.totalMax);
                 sr.setFourthSubject(isFourth);
                 sr.setAppeared(asd.appeared);
+                if (!asd.appeared && bundle.expelledSubjects.getOrDefault(enrollment.getId(), Collections.emptySet()).contains(subjectId))
+                    sr.setStatus("EXPELLED");
+                else if (!asd.appeared)
+                    sr.setStatus(asd.routineBreakdowns.stream().map(r -> r.status).filter(Objects::nonNull).findFirst().orElse(null));
                 sr.setRoutineBreakdowns(asd.routineBreakdowns.stream().map(rbd -> {
                     AnnualResultResponse.RoutineBreakdown rb = new AnnualResultResponse.RoutineBreakdown();
                     rb.setRoutineId(rbd.routineId);
                     rb.setMarksObtained(rbd.marksObtained);
                     rb.setMaxMarks(rbd.maxMarks);
                     rb.setAppeared(rbd.appeared);
+                    rb.setStatus(rbd.status);
                     if (rbd.grade != null) { rb.setGradeName(rbd.grade.getName()); rb.setGpaValue(rbd.grade.getGpaValue()); }
                     rb.setPassed(rbd.passed);
                     return rb;
@@ -729,6 +745,13 @@ public class ResultService {
             sr.setMaxMarks(structure.getTotalMarks());
             sr.setPassMarks(structure.getPassMarks());
             sr.setAppeared(appeared);
+            if (!appeared) {
+                int sid = s.getSubject().getId();
+                if (bundle.expelledSubjects.getOrDefault(enrollment.getId(), Collections.emptySet()).contains(sid))
+                    sr.setStatus("EXPELLED");
+                else if (bundle.absentSubjects.getOrDefault(enrollment.getId(), Collections.emptySet()).contains(sid))
+                    sr.setStatus("ABSENT");
+            }
 
             List<StudentRoutineResultResponse.ComponentMark> componentMarks = new ArrayList<>();
             for (MarkingStructureComponent comp : components) {
@@ -877,12 +900,17 @@ public class ResultService {
             sr.setFourthSubject(isFourth);
             sr.setMaxMarksRaw(asd.totalMax);
             sr.setAppeared(asd.appeared);
+            if (!asd.appeared && bundle.expelledSubjects.getOrDefault(enrollmentId, Collections.emptySet()).contains(subjectId))
+                sr.setStatus("EXPELLED");
+            else if (!asd.appeared)
+                sr.setStatus(asd.routineBreakdowns.stream().map(r -> r.status).filter(Objects::nonNull).findFirst().orElse(null));
             sr.setRoutineBreakdowns(asd.routineBreakdowns.stream().map(rbd -> {
                 StudentAnnualResultResponse.RoutineBreakdown rb = new StudentAnnualResultResponse.RoutineBreakdown();
                 rb.setRoutineId(rbd.routineId);
                 rb.setMarksObtained(rbd.marksObtained);
                 rb.setMaxMarks(rbd.maxMarks);
                 rb.setAppeared(rbd.appeared);
+                rb.setStatus(rbd.status);
                 if (rbd.grade != null) { rb.setGradeName(rbd.grade.getName()); rb.setGpaValue(rbd.grade.getGpaValue()); }
                 rb.setPassed(rbd.passed);
                 return rb;
@@ -1430,6 +1458,13 @@ public class ResultService {
                 sr.setFourthSubject(isStudentActualFourth);
                 sr.setAppeared(appeared);
                 sr.setComponentMarks(new HashMap<>(compMarks));
+                if (!appeared) {
+                    int sid = s.getSubject().getId();
+                    if (bundle.expelledSubjects.getOrDefault(enrollment.getId(), Collections.emptySet()).contains(sid))
+                        sr.setStatus("EXPELLED");
+                    else if (bundle.absentSubjects.getOrDefault(enrollment.getId(), Collections.emptySet()).contains(sid))
+                        sr.setStatus("ABSENT");
+                }
 
                 if (appeared) {
                     sr.setTotalMarks(total);
@@ -2143,6 +2178,8 @@ public class ResultService {
         Map<Long, Map<Integer, Map<Integer, BigDecimal>>> markMap = new HashMap<>();
         // enrollmentId -> subjectIds where status is EXPELLED
         Map<Long, Set<Integer>> expelledSubjects = new HashMap<>();
+        // enrollmentId -> subjectIds where status is ABSENT
+        Map<Long, Set<Integer>> absentSubjects = new HashMap<>();
     }
 
     private SessionDataBundle loadSessionData(List<ExamSession> sessions, Integer classId, List<Enrollment> enrollments) {
@@ -2176,6 +2213,8 @@ public class ResultService {
             for (StudentMark m : allMarks) {
                 if ("EXPELLED".equals(m.getStatus()))
                     bundle.expelledSubjects.computeIfAbsent(m.getEnrollmentId(), k -> new HashSet<>()).add(m.getSubjectId());
+                else if ("ABSENT".equals(m.getStatus()))
+                    bundle.absentSubjects.computeIfAbsent(m.getEnrollmentId(), k -> new HashSet<>()).add(m.getSubjectId());
                 if ("ABSENT".equals(m.getStatus()) || "EXPELLED".equals(m.getStatus())) continue;
                 bundle.markMap.computeIfAbsent(m.getEnrollmentId(), k -> new HashMap<>())
                         .computeIfAbsent(m.getSubjectId(), k -> new HashMap<>())
@@ -2193,6 +2232,8 @@ public class ResultService {
         Map<Long, Map<String, Map<Integer, BigDecimal>>> markMap = new HashMap<>();
         // enrollmentId -> subjectIds where status is EXPELLED in any routine
         Map<Long, Set<Integer>> expelledSubjects = new HashMap<>();
+        // enrollmentId -> "routineId_subjectId" -> "ABSENT"/"EXPELLED"
+        Map<Long, Map<String, String>> routineSubjectStatuses = new HashMap<>();
     }
 
     private AnnualDataBundle loadAnnualData(List<ExamSession> sessions, Integer classId, List<Enrollment> enrollments) {
@@ -2230,6 +2271,9 @@ public class ResultService {
             for (StudentMark m : allMarks) {
                 if ("EXPELLED".equals(m.getStatus()))
                     bundle.expelledSubjects.computeIfAbsent(m.getEnrollmentId(), k -> new HashSet<>()).add(m.getSubjectId());
+                if ("EXPELLED".equals(m.getStatus()) || "ABSENT".equals(m.getStatus()))
+                    bundle.routineSubjectStatuses.computeIfAbsent(m.getEnrollmentId(), k -> new HashMap<>())
+                            .putIfAbsent(m.getRoutineId() + "_" + m.getSubjectId(), m.getStatus());
                 if ("ABSENT".equals(m.getStatus()) || "EXPELLED".equals(m.getStatus())) continue;
                 String key = m.getRoutineId() + "_" + m.getSubjectId();
                 bundle.markMap.computeIfAbsent(m.getEnrollmentId(), k -> new HashMap<>())
@@ -2256,6 +2300,7 @@ public class ResultService {
             Grade grade;
             boolean passed;
             boolean appeared;
+            String status; // null = present, "ABSENT", "EXPELLED"
         }
     }
 
@@ -2291,6 +2336,9 @@ public class ResultService {
             rbd.marksObtained = routineObtained;
             rbd.maxMarks = routineMax;
             rbd.appeared = routineAppeared;
+            if (!routineAppeared)
+                rbd.status = bundle.routineSubjectStatuses
+                        .getOrDefault(enrollmentId, Collections.emptyMap()).get(markKey);
 
             if (routineAppeared && routineMax > 0) {
                 BigDecimal routineScaled = routineObtained.multiply(BigDecimal.valueOf(100))

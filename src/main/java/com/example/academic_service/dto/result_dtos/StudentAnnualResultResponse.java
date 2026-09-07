@@ -44,6 +44,7 @@ public class StudentAnnualResultResponse {
         private Double gpaValue;
         private boolean passed;
         private boolean appeared;
+        private String status; // null = present, "ABSENT", "EXPELLED"
         private List<RoutineBreakdown> routineBreakdowns;
     }
 
@@ -57,5 +58,6 @@ public class StudentAnnualResultResponse {
         private Double gpaValue;
         private boolean passed;
         private boolean appeared;
+        private String status; // null = present, "ABSENT", "EXPELLED"
     }
 }

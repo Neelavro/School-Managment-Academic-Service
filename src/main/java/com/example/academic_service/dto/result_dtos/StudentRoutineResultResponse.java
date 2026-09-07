@@ -35,6 +35,7 @@ public class StudentRoutineResultResponse {
         private Double gpaValue;
         private boolean passed;
         private boolean appeared;
+        private String status; // null = present, "ABSENT", "EXPELLED"
         private List<ComponentMark> components;
     }
 
