@@ -54,6 +54,7 @@ public class ResultService {
 
         Map<Long, Map<Integer, StudentMark>> markMap = new HashMap<>();
         for (StudentMark m : marks) {
+            if ("ABSENT".equals(m.getStatus()) || "EXPELLED".equals(m.getStatus())) continue;
             markMap.computeIfAbsent(m.getEnrollmentId(), k -> new HashMap<>())
                     .put(m.getExamComponent().getId(), m);
         }
@@ -2110,6 +2111,7 @@ public class ResultService {
             List<StudentMark> allMarks = studentMarkRepository
                     .findAllByEnrollmentIdsAndRoutineId(enrollmentIds, routineId);
             for (StudentMark m : allMarks) {
+                if ("ABSENT".equals(m.getStatus()) || "EXPELLED".equals(m.getStatus())) continue;
                 bundle.markMap.computeIfAbsent(m.getEnrollmentId(), k -> new HashMap<>())
                         .computeIfAbsent(m.getSubjectId(), k -> new HashMap<>())
                         .put(m.getExamComponent().getId(), m.getMarksObtained());
@@ -2159,6 +2161,7 @@ public class ResultService {
             List<StudentMark> allMarks = studentMarkRepository
                     .findAllByEnrollmentIdsAndRoutineIds(enrollmentIds, routineIds);
             for (StudentMark m : allMarks) {
+                if ("ABSENT".equals(m.getStatus()) || "EXPELLED".equals(m.getStatus())) continue;
                 String key = m.getRoutineId() + "_" + m.getSubjectId();
                 bundle.markMap.computeIfAbsent(m.getEnrollmentId(), k -> new HashMap<>())
                         .computeIfAbsent(key, k -> new HashMap<>())
