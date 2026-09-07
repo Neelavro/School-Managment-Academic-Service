@@ -228,6 +228,14 @@ public class ResultService {
                 }
             }
 
+            for (Integer subId : bundle.expelledSubjects.getOrDefault(enrollment.getId(), Collections.emptySet())) {
+                Integer gid = mergeGroupMap.get(subId);
+                if (gid != null && mgObtained.containsKey(gid)) {
+                    mgObtained.remove(gid); mgTotalMax.remove(gid); mgPassMarks.remove(gid);
+                    mgAnyAppeared.remove(gid); mgCompObtained.remove(gid); mgCompPassMarks.remove(gid);
+                    overallPassed = false;
+                }
+            }
             if (applyMergeGroupGpas(mgObtained, mgTotalMax, mgPassMarks, mgCompObtained, mgCompPassMarks, mgAnyAppeared, sortedGrades, mandatoryGpas) > 0)
                 overallPassed = false;
 
@@ -358,6 +366,14 @@ public class ResultService {
                 subjectResults.add(sr);
             }
 
+            for (Integer subId : bundle.expelledSubjects.getOrDefault(enrollment.getId(), Collections.emptySet())) {
+                Integer gid = mergeGroupMap.get(subId);
+                if (gid != null && mgObtained.containsKey(gid)) {
+                    mgObtained.remove(gid); mgTotalMax.remove(gid); mgPassMarks.remove(gid);
+                    mgAnyAppeared.remove(gid); mgCompObtained.remove(gid); mgCompPassMarks.remove(gid);
+                    overallPassed = false;
+                }
+            }
             if (applyMergeGroupGpas(mgObtained, mgTotalMax, mgPassMarks, mgCompObtained, mgCompPassMarks, mgAnyAppeared, sortedGrades, mandatoryGpas) > 0)
                 overallPassed = false;
 
@@ -480,6 +496,13 @@ public class ResultService {
                 }
             }
 
+            for (Integer subId : bundle.expelledSubjects.getOrDefault(enrollment.getId(), Collections.emptySet())) {
+                Integer gid = mergeGroupMap.get(subId);
+                if (gid != null && mgObtained.containsKey(gid)) {
+                    mgObtained.remove(gid); mgTotalMax.remove(gid); mgAnyAppeared.remove(gid);
+                    overallPassed = false;
+                }
+            }
             if (applyMergeGroupGpas(mgObtained, mgTotalMax, Collections.emptyMap(), new HashMap<>(), new HashMap<>(), mgAnyAppeared, sortedGrades, mandatoryGpas) > 0)
                 overallPassed = false;
 
@@ -600,6 +623,13 @@ public class ResultService {
                 subjectResults.add(sr);
             }
 
+            for (Integer subId : bundle.expelledSubjects.getOrDefault(enrollment.getId(), Collections.emptySet())) {
+                Integer gid = mergeGroupMap.get(subId);
+                if (gid != null && mgObtained.containsKey(gid)) {
+                    mgObtained.remove(gid); mgTotalMax.remove(gid); mgAnyAppeared.remove(gid);
+                    overallPassed = false;
+                }
+            }
             if (applyMergeGroupGpas(mgObtained, mgTotalMax, Collections.emptyMap(), new HashMap<>(), new HashMap<>(), mgAnyAppeared, sortedGrades, mandatoryGpas) > 0)
                 overallPassed = false;
 
@@ -749,6 +779,14 @@ public class ResultService {
             subjectResults.add(sr);
         }
 
+        for (Integer subId : bundle.expelledSubjects.getOrDefault(enrollment.getId(), Collections.emptySet())) {
+            Integer gid = mergeGroupMap.get(subId);
+            if (gid != null && mgObtained.containsKey(gid)) {
+                mgObtained.remove(gid); mgTotalMax.remove(gid); mgPassMarks.remove(gid);
+                mgAnyAppeared.remove(gid); mgCompObtained.remove(gid); mgCompPassMarks.remove(gid);
+                overallPassed = false;
+            }
+        }
         if (applyMergeGroupGpas(mgObtained, mgTotalMax, mgPassMarks, mgCompObtained, mgCompPassMarks, mgAnyAppeared, sortedGrades, mandatoryGpas) > 0)
             overallPassed = false;
 
@@ -879,6 +917,13 @@ public class ResultService {
             subjectResults.add(sr);
         }
 
+        for (Integer subId : bundle.expelledSubjects.getOrDefault(enrollment.getId(), Collections.emptySet())) {
+            Integer gid = mergeGroupMap.get(subId);
+            if (gid != null && mgObtained.containsKey(gid)) {
+                mgObtained.remove(gid); mgTotalMax.remove(gid); mgAnyAppeared.remove(gid);
+                overallPassed = false;
+            }
+        }
         if (applyMergeGroupGpas(mgObtained, mgTotalMax, Collections.emptyMap(), new HashMap<>(), new HashMap<>(), mgAnyAppeared, sortedGrades, mandatoryGpas) > 0)
             overallPassed = false;
 
@@ -979,6 +1024,13 @@ public class ResultService {
                 }
             }
 
+            for (Integer subId : bundle.expelledSubjects.getOrDefault(enrollment.getId(), Collections.emptySet())) {
+                Integer gid = mergeGroupMap.get(subId);
+                if (gid != null && mgObtained.containsKey(gid)) {
+                    mgObtained.remove(gid); mgTotalMax.remove(gid); mgAnyAppeared.remove(gid);
+                    passed = false;
+                }
+            }
             if (applyMergeGroupGpas(mgObtained, mgTotalMax, Collections.emptyMap(), new HashMap<>(), new HashMap<>(), mgAnyAppeared, sortedGrades, mandatoryGpas) > 0)
                 passed = false;
 
@@ -1422,6 +1474,15 @@ public class ResultService {
                 subjectResults.add(sr);
             }
 
+            for (Integer subId : bundle.expelledSubjects.getOrDefault(enrollment.getId(), Collections.emptySet())) {
+                Integer gid = mergeGroupMap.get(subId);
+                if (gid != null && mgObtained.containsKey(gid)) {
+                    mgObtained.remove(gid); mgTotalMax.remove(gid); mgPassMarks.remove(gid);
+                    mgAnyAppeared.remove(gid); mgCompObtained.remove(gid); mgCompPassMarks.remove(gid);
+                    overallPassed = false;
+                    failedCount++;
+                }
+            }
             int mergedFailed = applyMergeGroupGpas(mgObtained, mgTotalMax, mgPassMarks, mgCompObtained, mgCompPassMarks, mgAnyAppeared, sortedGrades, mandatoryGpas);
             if (mergedFailed > 0) { overallPassed = false; failedCount += mergedFailed; }
 
@@ -2080,6 +2141,8 @@ public class ResultService {
         Map<Integer, List<MarkingStructureComponent>> sessionComponentsMap = new HashMap<>();
         // enrollmentId -> subjectId -> componentId -> marks
         Map<Long, Map<Integer, Map<Integer, BigDecimal>>> markMap = new HashMap<>();
+        // enrollmentId -> subjectIds where status is EXPELLED
+        Map<Long, Set<Integer>> expelledSubjects = new HashMap<>();
     }
 
     private SessionDataBundle loadSessionData(List<ExamSession> sessions, Integer classId, List<Enrollment> enrollments) {
@@ -2111,6 +2174,8 @@ public class ResultService {
             List<StudentMark> allMarks = studentMarkRepository
                     .findAllByEnrollmentIdsAndRoutineId(enrollmentIds, routineId);
             for (StudentMark m : allMarks) {
+                if ("EXPELLED".equals(m.getStatus()))
+                    bundle.expelledSubjects.computeIfAbsent(m.getEnrollmentId(), k -> new HashSet<>()).add(m.getSubjectId());
                 if ("ABSENT".equals(m.getStatus()) || "EXPELLED".equals(m.getStatus())) continue;
                 bundle.markMap.computeIfAbsent(m.getEnrollmentId(), k -> new HashMap<>())
                         .computeIfAbsent(m.getSubjectId(), k -> new HashMap<>())
@@ -2126,6 +2191,8 @@ public class ResultService {
         Map<Integer, List<MarkingStructureComponent>> sessionComponentsMap = new HashMap<>();
         // enrollmentId -> "routineId_subjectId" -> componentId -> marks
         Map<Long, Map<String, Map<Integer, BigDecimal>>> markMap = new HashMap<>();
+        // enrollmentId -> subjectIds where status is EXPELLED in any routine
+        Map<Long, Set<Integer>> expelledSubjects = new HashMap<>();
     }
 
     private AnnualDataBundle loadAnnualData(List<ExamSession> sessions, Integer classId, List<Enrollment> enrollments) {
@@ -2161,6 +2228,8 @@ public class ResultService {
             List<StudentMark> allMarks = studentMarkRepository
                     .findAllByEnrollmentIdsAndRoutineIds(enrollmentIds, routineIds);
             for (StudentMark m : allMarks) {
+                if ("EXPELLED".equals(m.getStatus()))
+                    bundle.expelledSubjects.computeIfAbsent(m.getEnrollmentId(), k -> new HashSet<>()).add(m.getSubjectId());
                 if ("ABSENT".equals(m.getStatus()) || "EXPELLED".equals(m.getStatus())) continue;
                 String key = m.getRoutineId() + "_" + m.getSubjectId();
                 bundle.markMap.computeIfAbsent(m.getEnrollmentId(), k -> new HashMap<>())
