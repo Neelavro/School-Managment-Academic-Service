@@ -37,6 +37,7 @@ public class SessionResultResponse {
         private String studentName;
         private Integer classRoll;
         private boolean appeared;
+        private String status; // null = present, "ABSENT", "EXPELLED"
         private List<ComponentMark> componentMarks;
         private BigDecimal marksObtained;
         private Integer maxMarks;

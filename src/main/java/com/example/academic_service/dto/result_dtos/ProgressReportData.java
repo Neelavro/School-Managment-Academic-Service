@@ -79,6 +79,7 @@ public class ProgressReportData {
         private Double gpaValue;
         private boolean passed;
         private boolean appeared;
+        private String status; // null = present, "ABSENT", "EXPELLED"
         private boolean fourthSubject;
     }
 }
