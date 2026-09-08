@@ -279,6 +279,7 @@ public class ProgressReportPdfService {
                     ProgressReportData.SubjectInfo msi = pair.get(i);
                     ProgressReportData.SubjectResult msr = resultMap.get(msi.getSubjectId());
                     boolean appeared = msr != null && msr.isAppeared();
+                    String statusLabel = nonAppearedStatusLabel(msr);
                     String totalCell = appeared && msr.getTotalMarks() != null ? fmtMark(msr.getTotalMarks()) : "—";
                     String highCell  = fmtMark(msi.getHighestMarks());
 
@@ -287,11 +288,16 @@ public class ProgressReportPdfService {
                     tbody.append("<td class=\"subject\">").append(msi.getSubjectName()).append("</td>");
                     tbody.append("<td>").append(msi.getTotalMarks()).append("</td>");
                     tbody.append("<td>").append(highCell).append("</td>");
-                    for (ProgressReportData.ComponentInfo c : components) {
-                        BigDecimal cm = msr != null ? msr.getComponentMarks().get(c.getComponentId()) : null;
-                        tbody.append("<td>").append(cm != null ? fmtMark(cm) : "—").append("</td>");
+                    if (statusLabel != null) {
+                        int span = components.size() + 1;
+                        tbody.append("<td colspan=\"").append(span).append("\" class=\"status-mark\">").append(statusLabel).append("</td>");
+                    } else {
+                        for (ProgressReportData.ComponentInfo c : components) {
+                            BigDecimal cm = msr != null ? msr.getComponentMarks().get(c.getComponentId()) : null;
+                            tbody.append("<td>").append(cm != null ? fmtMark(cm) : "—").append("</td>");
+                        }
+                        tbody.append("<td>").append(totalCell).append("</td>");
                     }
-                    tbody.append("<td>").append(totalCell).append("</td>");
                     if (i == 0) {
                         tbody.append("<td rowspan=\"").append(rowCount).append("\" class=\"merged-grade\">").append(combinedGrade).append("</td>");
                         tbody.append("<td rowspan=\"").append(rowCount).append("\" class=\"merged-grade\">").append(combinedGpa).append("</td>");
@@ -315,6 +321,7 @@ public class ProgressReportPdfService {
                     continue;
                 }
                 boolean appeared = sr != null && sr.isAppeared();
+                String statusLabel = nonAppearedStatusLabel(sr);
                 String totalCell = appeared && sr.getTotalMarks() != null ? fmtMark(sr.getTotalMarks()) : "—";
                 String gradeCell = appeared && sr.getGradeName() != null ? sr.getGradeName() : "—";
                 String gpaCell   = appeared && sr.getGpaValue()  != null ? fmtGpa(sr.getGpaValue()) : "—";
@@ -329,11 +336,16 @@ public class ProgressReportPdfService {
                         .append(isStudentFourth ? " (4<sup>th</sup>)" : "").append("</td>");
                 tbody.append("<td>").append(si.getTotalMarks()).append("</td>");
                 tbody.append("<td>").append(highCell).append("</td>");
-                for (ProgressReportData.ComponentInfo c : components) {
-                    BigDecimal cm = sr != null ? sr.getComponentMarks().get(c.getComponentId()) : null;
-                    tbody.append("<td>").append(cm != null ? fmtMark(cm) : "—").append("</td>");
+                if (statusLabel != null) {
+                    int span = components.size() + 1;
+                    tbody.append("<td colspan=\"").append(span).append("\" class=\"status-mark\">").append(statusLabel).append("</td>");
+                } else {
+                    for (ProgressReportData.ComponentInfo c : components) {
+                        BigDecimal cm = sr != null ? sr.getComponentMarks().get(c.getComponentId()) : null;
+                        tbody.append("<td>").append(cm != null ? fmtMark(cm) : "—").append("</td>");
+                    }
+                    tbody.append("<td>").append(totalCell).append("</td>");
                 }
-                tbody.append("<td>").append(totalCell).append("</td>");
                 tbody.append("<td>").append(gradeCell).append("</td>");
                 tbody.append("<td>").append(gpaCell).append("</td>");
                 tbody.append("</tr>");
@@ -525,6 +537,13 @@ public class ProgressReportPdfService {
         return (s != null && !s.isBlank()) ? s : fallback;
     }
 
+    private String nonAppearedStatusLabel(ProgressReportData.SubjectResult sr) {
+        if (sr == null || sr.isAppeared()) return null;
+        if ("EXPELLED".equals(sr.getStatus())) return "EXPELLED";
+        if ("ABSENT".equals(sr.getStatus())) return "ABSENT";
+        return null;
+    }
+
     private String fmtMark(BigDecimal v) {
         if (v == null) return "—";
         return v.stripTrailingZeros().toPlainString();
@@ -571,6 +590,7 @@ public class ProgressReportPdfService {
                 + ".marks tbody td { padding: 2px 4px; text-align: center; }"
                 + ".marks tbody td.subject { text-align: left; }"
                 + ".marks tbody td.merged-grade { vertical-align: middle; font-weight: 600; background: #FAF3E0; }"
+                + ".marks tbody td.status-mark { font-weight: 600; color: #C2185B; letter-spacing: 0.5px; }"
                 + ".marks tfoot td { padding: 4px; font-weight: 600; }"
                 + ".result-row { display: grid; grid-template-columns: 1fr 1fr 1fr; font-size: 7.5pt; margin-top: 2mm; }"
                 + ".checks { margin-top: 2mm; font-size: 9pt; }"
