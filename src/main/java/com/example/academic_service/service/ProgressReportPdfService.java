@@ -540,8 +540,7 @@ public class ProgressReportPdfService {
     private String nonAppearedStatusLabel(ProgressReportData.SubjectResult sr) {
         if (sr == null || sr.isAppeared()) return null;
         if ("EXPELLED".equals(sr.getStatus())) return "EXPELLED";
-        if ("ABSENT".equals(sr.getStatus())) return "ABSENT";
-        return null;
+        return "ABSENT";
     }
 
     private String fmtMark(BigDecimal v) {
