@@ -29,6 +29,7 @@ public class ResultService {
     private final GradeRepository gradeRepository;
     private final AcademicYearRepository academicYearRepository;
     private final StudentFourthSubjectOverrideRepository studentFourthSubjectOverrideRepository;
+    private final SubjectRepository subjectRepository;
 
     // ─── SESSION RESULT ──────────────────────────────────────────────────────────
 
@@ -159,7 +160,8 @@ public class ResultService {
         Set<Integer> defaultFourthSubjectIds = loadFourthSubjectIds(classId, groupId);
         Map<Integer, Integer> mergeGroupMap = loadMergeGroupMap(classId, groupId);
         Map<Integer, Integer> mergeOrderMap = loadMergeOrderMap(classId, groupId);
-        final List<ExamSession> sessions = sortSessionsByMergeOrder(rawSessions, mergeGroupMap, mergeOrderMap);
+        Map<Integer, Integer> subjectOrderMap = loadSubjectOrderMap();
+        final List<ExamSession> sessions = sortSessionsByMergeOrder(rawSessions, mergeGroupMap, mergeOrderMap, subjectOrderMap);
 
         Integer routineAcademicYearId = routine.getAcademicYear() != null ? routine.getAcademicYear().getId() : null;
         // load ALL class enrollments for rank computation
@@ -428,6 +430,7 @@ public class ResultService {
         Set<Integer> defaultFourthSubjectIds = loadFourthSubjectIds(classId, groupId);
         Map<Integer, Integer> mergeGroupMap = loadMergeGroupMap(classId, groupId);
         Map<Integer, Integer> mergeOrderMap = loadMergeOrderMap(classId, groupId);
+        Map<Integer, Integer> subjectOrderMap = loadSubjectOrderMap();
 
         // load ALL class enrollments for rank computation
         List<Enrollment> allEnrollments = enrollmentRepository.findAllByClassIdAndFilters(classId, academicYearId, shiftId, null, null, groupId, null, null);
@@ -443,7 +446,7 @@ public class ResultService {
                 bundle.sessionsBySubject.keySet().stream()
                         .filter(sid -> !defaultFourthSubjectIds.contains(sid) || includedFourthSubjectIds.contains(sid))
                         .sorted().collect(Collectors.toList()),
-                mergeGroupMap, mergeOrderMap);
+                mergeGroupMap, mergeOrderMap, subjectOrderMap);
 
         List<AnnualResultResponse.RoutineInfo> routineInfos = sessions.stream()
                 .map(ExamSession::getExamRoutine)
@@ -701,12 +704,13 @@ public class ResultService {
         Set<Integer> defaultFourthSubjectIds = loadFourthSubjectIds(classId, groupId);
         Map<Integer, Integer> mergeGroupMap = loadMergeGroupMap(classId, groupId);
         Map<Integer, Integer> mergeOrderMap = loadMergeOrderMap(classId, groupId);
+        Map<Integer, Integer> subjectOrderMap = loadSubjectOrderMap();
         Map<Long, Integer> overrideMap = loadOverrideMap(List.of(enrollment));
         Map<Long, Set<Integer>> compulsoryMap = loadCompulsoryMap(List.of(enrollment));
         Set<Integer> fourthSubjectIds = buildStudentFourthSet(enrollment.getId(), overrideMap, compulsoryMap);
         final List<ExamSession> sessions = sortSessionsByMergeOrder(
                 deduplicateBySubject(examSessionRepository.findForRoutineAndClassWithGroupFilter(examRoutineId, classId, groupId)),
-                mergeGroupMap, mergeOrderMap);
+                mergeGroupMap, mergeOrderMap, subjectOrderMap);
 
         SessionDataBundle bundle = loadSessionData(sessions, classId, List.of(enrollment));
 
@@ -853,13 +857,14 @@ public class ResultService {
         Map<Long, Integer> overrideMap = loadOverrideMap(List.of(enrollment));
         Map<Long, Set<Integer>> compulsoryMap = loadCompulsoryMap(List.of(enrollment));
         Set<Integer> fourthSubjectIds = buildStudentFourthSet(enrollment.getId(), overrideMap, compulsoryMap);
+        Map<Integer, Integer> subjectOrderMap = loadSubjectOrderMap();
 
         AnnualDataBundle bundle = loadAnnualData(sessions, classId, List.of(enrollment));
         List<Integer> orderedSubjectIds = sortSubjectIdsByMergeOrder(
                 bundle.sessionsBySubject.keySet().stream()
                         .filter(sid -> !defaultFourthSubjectIds.contains(sid) || fourthSubjectIds.contains(sid))
                         .sorted().collect(Collectors.toList()),
-                mergeGroupMap, mergeOrderMap);
+                mergeGroupMap, mergeOrderMap, subjectOrderMap);
 
         Map<Integer, String> subjectNameMap = sessions.stream()
                 .collect(Collectors.toMap(s -> s.getSubject().getId(), s -> s.getSubject().getName(), (a, b) -> a));
@@ -1315,7 +1320,8 @@ public class ResultService {
         Set<Integer> defaultFourthSubjectIds = loadFourthSubjectIds(classId, groupId);
         Map<Integer, Integer> mergeGroupMap = loadMergeGroupMap(classId, groupId);
         Map<Integer, Integer> mergeOrderMap = loadMergeOrderMap(classId, groupId);
-        final List<ExamSession> sessions = sortSessionsByMergeOrder(rawSessions, mergeGroupMap, mergeOrderMap);
+        Map<Integer, Integer> subjectOrderMap = loadSubjectOrderMap();
+        final List<ExamSession> sessions = sortSessionsByMergeOrder(rawSessions, mergeGroupMap, mergeOrderMap, subjectOrderMap);
 
         Integer routineAcademicYearId = routine.getAcademicYear() != null ? routine.getAcademicYear().getId() : null;
         List<Enrollment> allEnrollments = enrollmentRepository
@@ -1936,42 +1942,71 @@ public class ResultService {
                         (a, b) -> a));
     }
 
+    // Global subject order — Subject.orderIndex is a canonical, class-agnostic
+    // display order set by admins (Bangla → English → Math → Science → …).
+    // Falls back to 0 for subjects whose orderIndex hasn't been set yet.
+    private Map<Integer, Integer> loadSubjectOrderMap() {
+        return subjectRepository.findAll().stream()
+                .collect(Collectors.toMap(
+                        Subject::getId,
+                        s -> s.getOrderIndex() != null ? s.getOrderIndex() : 0,
+                        (a, b) -> a));
+    }
+
     private List<ExamSession> sortSessionsByMergeOrder(List<ExamSession> sessions,
                                                         Map<Integer, Integer> mergeGroupMap,
-                                                        Map<Integer, Integer> mergeOrderMap) {
+                                                        Map<Integer, Integer> mergeOrderMap,
+                                                        Map<Integer, Integer> subjectOrderMap) {
         Map<Integer, Integer> originalIdx = new HashMap<>();
-        Map<Integer, Integer> mgFirstPos = new HashMap<>();
+        Map<Integer, Integer> mgMinOrder = new HashMap<>();
         for (int i = 0; i < sessions.size(); i++) {
             ExamSession s = sessions.get(i);
+            int sid = s.getSubject().getId();
             originalIdx.put(s.getId(), i);
-            Integer mgId = mergeGroupMap.get(s.getSubject().getId());
-            if (mgId != null) mgFirstPos.putIfAbsent(mgId, i);
+            Integer mgId = mergeGroupMap.get(sid);
+            int so = subjectOrderMap.getOrDefault(sid, 0);
+            if (mgId != null) mgMinOrder.merge(mgId, so, Math::min);
         }
         List<ExamSession> sorted = new ArrayList<>(sessions);
-        sorted.sort(Comparator.comparingInt(s -> {
-            Integer mgId = mergeGroupMap.get(s.getSubject().getId());
-            if (mgId == null) return originalIdx.getOrDefault(s.getId(), 0) * 1000;
-            return mgFirstPos.getOrDefault(mgId, 0) * 1000 + mergeOrderMap.getOrDefault(s.getSubject().getId(), 0);
+        // Primary key: subject orderIndex (min across merge group members).
+        // Secondary key: mergeOrderIndex within a group; original position for
+        // non-merged subjects that share the same orderIndex.
+        sorted.sort(Comparator.<ExamSession>comparingInt(s -> {
+            int sid = s.getSubject().getId();
+            Integer mgId = mergeGroupMap.get(sid);
+            if (mgId != null) return mgMinOrder.getOrDefault(mgId, 0);
+            return subjectOrderMap.getOrDefault(sid, 0);
+        }).thenComparingInt(s -> {
+            int sid = s.getSubject().getId();
+            Integer mgId = mergeGroupMap.get(sid);
+            if (mgId != null) return mergeOrderMap.getOrDefault(sid, 0);
+            return originalIdx.getOrDefault(s.getId(), 0);
         }));
         return sorted;
     }
 
     private List<Integer> sortSubjectIdsByMergeOrder(List<Integer> subjectIds,
                                                       Map<Integer, Integer> mergeGroupMap,
-                                                      Map<Integer, Integer> mergeOrderMap) {
+                                                      Map<Integer, Integer> mergeOrderMap,
+                                                      Map<Integer, Integer> subjectOrderMap) {
         Map<Integer, Integer> originalIdx = new HashMap<>();
-        Map<Integer, Integer> mgFirstPos = new HashMap<>();
+        Map<Integer, Integer> mgMinOrder = new HashMap<>();
         for (int i = 0; i < subjectIds.size(); i++) {
             Integer sid = subjectIds.get(i);
             originalIdx.put(sid, i);
             Integer mgId = mergeGroupMap.get(sid);
-            if (mgId != null) mgFirstPos.putIfAbsent(mgId, i);
+            int so = subjectOrderMap.getOrDefault(sid, 0);
+            if (mgId != null) mgMinOrder.merge(mgId, so, Math::min);
         }
         List<Integer> sorted = new ArrayList<>(subjectIds);
-        sorted.sort(Comparator.comparingInt(sid -> {
+        sorted.sort(Comparator.<Integer>comparingInt(sid -> {
             Integer mgId = mergeGroupMap.get(sid);
-            if (mgId == null) return originalIdx.getOrDefault(sid, 0) * 1000;
-            return mgFirstPos.getOrDefault(mgId, 0) * 1000 + mergeOrderMap.getOrDefault(sid, 0);
+            if (mgId != null) return mgMinOrder.getOrDefault(mgId, 0);
+            return subjectOrderMap.getOrDefault(sid, 0);
+        }).thenComparingInt(sid -> {
+            Integer mgId = mergeGroupMap.get(sid);
+            if (mgId != null) return mergeOrderMap.getOrDefault(sid, 0);
+            return originalIdx.getOrDefault(sid, 0);
         }));
         return sorted;
     }

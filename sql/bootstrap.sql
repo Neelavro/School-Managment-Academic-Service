@@ -79,6 +79,7 @@ CREATE TABLE IF NOT EXISTS subject (
   id          INT          NOT NULL AUTO_INCREMENT,
   name        VARCHAR(255)     NULL,
   code        VARCHAR(255)     NULL,
+  order_index INT              NULL DEFAULT 0,
   is_active   BIT(1)           NULL DEFAULT b'1',
   PRIMARY KEY (id)
 );

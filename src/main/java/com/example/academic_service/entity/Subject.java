@@ -23,6 +23,9 @@ public class Subject {
     @Column
     private String code;
 
+    @Column(name = "order_index")
+    private Integer orderIndex = 0;
+
     @Column(name = "is_active")
     private Boolean isActive = true;
 }
