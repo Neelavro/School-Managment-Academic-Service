@@ -29,6 +29,7 @@ public class SubjectServiceImpl implements SubjectService {
         Subject subject = new Subject();
         subject.setName(dto.getName());
         subject.setCode(dto.getCode());
+        if (dto.getOrderIndex() != null) subject.setOrderIndex(dto.getOrderIndex());
         return ApiResponse.success("Subject created successfully", subjectRepository.save(subject));
     }
 
@@ -46,6 +47,7 @@ public class SubjectServiceImpl implements SubjectService {
         }
         subject.setName(dto.getName());
         subject.setCode(dto.getCode());
+        if (dto.getOrderIndex() != null) subject.setOrderIndex(dto.getOrderIndex());
         return ApiResponse.success("Subject updated successfully", subjectRepository.save(subject));
     }
 

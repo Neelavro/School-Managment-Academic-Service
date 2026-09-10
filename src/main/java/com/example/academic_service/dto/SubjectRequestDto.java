@@ -11,4 +11,6 @@ public class SubjectRequestDto {
     private String name;
 
     private String code; // optional
+
+    private Integer orderIndex; // optional; global display order across all classes
 }

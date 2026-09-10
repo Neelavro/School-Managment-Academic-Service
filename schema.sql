@@ -53,10 +53,11 @@ CREATE TABLE IF NOT EXISTS gender_section (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS subject (
-    id        INT          NOT NULL AUTO_INCREMENT,
-    name      VARCHAR(255) NOT NULL,
-    code      VARCHAR(50),
-    is_active TINYINT(1)   NOT NULL DEFAULT 1,
+    id          INT          NOT NULL AUTO_INCREMENT,
+    name        VARCHAR(255) NOT NULL,
+    code        VARCHAR(50),
+    order_index INT          NULL DEFAULT 0,
+    is_active   TINYINT(1)   NOT NULL DEFAULT 1,
     PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
