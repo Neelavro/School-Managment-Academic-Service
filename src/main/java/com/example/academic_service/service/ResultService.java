@@ -1920,10 +1920,15 @@ public class ResultService {
     }
 
     private Map<Integer, Integer> loadMergeGroupMap(Integer classId, Integer groupId) {
-        List<ClassSubjectGroup> groups = groupId != null
-                ? classSubjectGroupRepository.findSubjectsForStudent(classId, groupId)
-                : classSubjectGroupRepository.findByStudentClassIdAndIsActiveTrue(classId);
-        return groups.stream()
+        // Fetch every class CSG and filter in Java to match the curriculum
+        // filter at line 1303. The old JPQL query (findSubjectsForStudent)
+        // could silently drop null-group CSGs when a specific groupId was
+        // passed, which meant merges saved on compulsory subjects (group=null)
+        // vanished on per-group progress reports (DAKHIL NINE/TEN) even though
+        // they showed up correctly on the Merge Subjects page.
+        return classSubjectGroupRepository.findByStudentClassIdAndIsActiveTrue(classId).stream()
+                .filter(g -> g.getStudentGroup() == null
+                        || (groupId != null && g.getStudentGroup().getId().equals(groupId)))
                 .filter(g -> g.getMergeGroupId() != null)
                 .collect(Collectors.toMap(
                         g -> g.getSubject().getId(),
@@ -1932,10 +1937,9 @@ public class ResultService {
     }
 
     private Map<Integer, Integer> loadMergeOrderMap(Integer classId, Integer groupId) {
-        List<ClassSubjectGroup> groups = groupId != null
-                ? classSubjectGroupRepository.findSubjectsForStudent(classId, groupId)
-                : classSubjectGroupRepository.findByStudentClassIdAndIsActiveTrue(classId);
-        return groups.stream()
+        return classSubjectGroupRepository.findByStudentClassIdAndIsActiveTrue(classId).stream()
+                .filter(g -> g.getStudentGroup() == null
+                        || (groupId != null && g.getStudentGroup().getId().equals(groupId)))
                 .collect(Collectors.toMap(
                         g -> g.getSubject().getId(),
                         g -> g.getMergeOrderIndex() != null ? g.getMergeOrderIndex() : 0,
