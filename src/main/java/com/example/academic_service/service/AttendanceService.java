@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -26,8 +27,9 @@ public class AttendanceService {
         List<Enrollment> enrollments = enrollmentRepository.findBySectionAndYear(sectionId, academicYearId);
 
         List<Long> ids = enrollments.stream().map(Enrollment::getId).toList();
-        Set<Long> absentIds = ids.isEmpty() ? Set.of()
-                : attendanceRepository.findAbsentEnrollmentIds(ids, date);
+        Map<Long, String> absentSourceById = ids.isEmpty() ? Map.of()
+                : attendanceRepository.findByEnrollmentIdsAndDate(ids, date).stream()
+                        .collect(Collectors.toMap(Attendance::getEnrollmentId, Attendance::getSource, (a, b) -> a));
 
         return enrollments.stream()
                 .sorted(Comparator.comparingInt(e -> Optional.ofNullable(e.getClassRoll()).orElse(Integer.MAX_VALUE)))
@@ -37,7 +39,8 @@ public class AttendanceService {
                     m.put("studentName", e.getStudent() != null ? e.getStudent().getNameEnglish() : "");
                     m.put("studentSystemId", e.getStudentSystemId());
                     m.put("classRoll", e.getClassRoll());
-                    m.put("isAbsent", absentIds.contains(e.getId()));
+                    m.put("isAbsent", absentSourceById.containsKey(e.getId()));
+                    m.put("source", absentSourceById.get(e.getId()));
                     return m;
                 }).toList();
     }
@@ -49,7 +52,8 @@ public class AttendanceService {
         List<Long> allIds = enrollments.stream().map(Enrollment::getId).toList();
         if (allIds.isEmpty()) return;
 
-        // Replace: delete existing absences for this section+date, then insert new ones
+        // Replace: teacher save wipes both MANUAL and STELLER rows for this section+date,
+        // then inserts fresh MANUAL rows. Teacher is authoritative.
         attendanceRepository.deleteByEnrollmentIdsAndDate(allIds, date);
 
         if (absentEnrollmentIds != null && !absentEnrollmentIds.isEmpty()) {
@@ -60,6 +64,7 @@ public class AttendanceService {
                         Attendance a = new Attendance();
                         a.setEnrollmentId(eid);
                         a.setDate(date);
+                        a.setSource("MANUAL");
                         return a;
                     }).toList();
             attendanceRepository.saveAll(toSave);

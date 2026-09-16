@@ -27,14 +27,19 @@
 -- ── 1. attendance  (per-student per-day absence record) ───────────────────
 -- "Absent" is the recorded state; presence is implied for days with no row.
 -- UNIQUE on (enrollment_id, date) — only one record per student per day.
+-- source: 'MANUAL' = teacher/admin marked. 'STELLER' = auto-derived from
+-- biometric device sync (student did not punch that day). Teacher save
+-- always overwrites both sources for the (section, date) window.
 CREATE TABLE IF NOT EXISTS attendance (
   id              BIGINT       NOT NULL AUTO_INCREMENT,
   enrollment_id   BIGINT           NULL,
   date            DATE             NULL,
+  source          VARCHAR(16)  NOT NULL DEFAULT 'MANUAL',
   created_at      DATETIME         NULL,
   PRIMARY KEY (id),
   UNIQUE KEY uq_attendance (enrollment_id, date),
   KEY idx_att_date (date),
+  KEY idx_att_source (source),
   CONSTRAINT fk_attendance_enrollment FOREIGN KEY (enrollment_id)
       REFERENCES enrollment(id) ON DELETE CASCADE
 );

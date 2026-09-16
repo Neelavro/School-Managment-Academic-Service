@@ -27,6 +27,9 @@ public class Attendance {
     @Column(name = "date", nullable = false)
     private LocalDate date;
 
+    @Column(name = "source", nullable = false, length = 16)
+    private String source = "MANUAL";
+
     @Column(name = "created_at")
     private LocalDateTime createdAt = LocalDateTime.now();
 }

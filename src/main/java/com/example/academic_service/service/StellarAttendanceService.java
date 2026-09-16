@@ -31,6 +31,7 @@ public class StellarAttendanceService {
     private final StellarAttendanceLogRepository logRepo;
     private final StellarSyncStateRepository stateRepo;
     private final StellarProperties props;
+    private final AttendanceReconciler attendanceReconciler;
 
     // Called by the cron. Persists any new punches and updates the cursor.
     @Transactional
@@ -75,6 +76,15 @@ public class StellarAttendanceService {
         state.setLastTodayCountDate(today);
 
         stateRepo.save(state);
+
+        // Bridge to the manual attendance table: fill absentee rows for sections
+        // where a teacher hasn't already spoken. Teacher save always overrides.
+        try {
+            attendanceReconciler.reconcileDate(today);
+        } catch (Exception e) {
+            log.error("Attendance reconcile failed for {}", today, e);
+        }
+
         return new IngestResult(inserted, maxAccessId, true);
     }
 
