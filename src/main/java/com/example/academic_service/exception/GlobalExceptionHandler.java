@@ -8,6 +8,7 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.stream.Collectors;
 
@@ -29,8 +30,12 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<ApiResponse<?>> handleRuntimeException(RuntimeException ex) {
+        // ResponseStatusException's getMessage() is `403 FORBIDDEN "reason"`; send just the reason.
+        // The status stays 400, as clients have always received for these.
+        String message = ex instanceof ResponseStatusException rse && rse.getReason() != null
+                ? rse.getReason() : ex.getMessage();
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ApiResponse.error(ex.getMessage()));
+                .body(ApiResponse.error(message));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

@@ -266,8 +266,8 @@ public class ExamRoutineServiceImpl implements ExamRoutineService {
                 .map(p -> Boolean.TRUE.equals(p.getPublished())).orElse(false);
         if (published)
             return ApiResponse.error("Results already published for this class");
-        if (resultPublishService.isPublishing(routineId, classId))
-            return ApiResponse.error("Results are already being published for this class");
+        if (resultPublishService.hasActiveJob(routineId, classId))
+            return ApiResponse.error("Results are already being published or checked for this class");
         if (routine.getAcademicYear() == null)
             return ApiResponse.error("Exam routine has no academic year");
 
@@ -290,10 +290,10 @@ public class ExamRoutineServiceImpl implements ExamRoutineService {
         if (pub == null || !Boolean.TRUE.equals(pub.getPublished()))
             return ApiResponse.error("Results are not published for this class");
 
-        if (resultPublishService.isPublishing(routineId, classId))
-            return ApiResponse.error("Results are still being published for this class");
+        if (resultPublishService.hasActiveJob(routineId, classId))
+            return ApiResponse.error("Results are still being published or checked for this class");
 
-        // Also deletes the stored results, so marks can be edited and the class republished.
+        // Also deletes the stored results; publishing again works them out from the current marks.
         resultPublishService.unpublish(routineId, classId);
         auditLogService.log(AuditHelper.getUserId(), AuditHelper.getIp(),
             AuditActionType.UPDATE, Submodule.EXAM_ROUTINES, "ExamRoutine", routineId.toString(),
@@ -308,12 +308,14 @@ public class ExamRoutineServiceImpl implements ExamRoutineService {
         Map<Integer, ResultPublication> pubByClassId = pubs.stream()
                 .collect(Collectors.toMap(p -> p.getStudentClass().getId(), p -> p));
 
-        Map<Integer, Map<String, Object>> jobs = resultPublishService.latestJobs(routineId);
+        Map<Integer, Map<String, Map<String, Object>>> jobs = resultPublishService.latestJobs(routineId);
 
         List<Map<String, Object>> result = new java.util.ArrayList<>();
         for (com.example.academic_service.entity.Class c : classes) {
             ResultPublication pub = pubByClassId.get(c.getId());
-            Map<String, Object> job = jobs.get(c.getId());
+            Map<String, Map<String, Object>> classJobs = jobs.getOrDefault(c.getId(), Map.of());
+            Map<String, Object> job = classJobs.get(ResultPublishService.PUBLISH);
+            Map<String, Object> check = classJobs.get(ResultPublishService.CHECK);
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("classId", c.getId());
             m.put("className", c.getName());
@@ -324,9 +326,57 @@ public class ExamRoutineServiceImpl implements ExamRoutineService {
             m.put("publishDone", job != null ? job.get("done") : null);
             m.put("publishTotal", job != null ? job.get("total") : null);
             m.put("publishError", job != null ? job.get("error") : null);
+            // Latest update check: QUEUED / PROCESSING / DONE (changes waiting for review) / FAILED / APPLIED / DISCARDED.
+            m.put("checkJobId", check != null ? check.get("id") : null);
+            m.put("checkStatus", check != null ? check.get("status") : null);
+            m.put("checkDone", check != null ? check.get("done") : null);
+            m.put("checkTotal", check != null ? check.get("total") : null);
+            m.put("checkError", check != null ? check.get("error") : null);
+            m.put("checkChanged", check != null ? check.get("changed") : null);
+            m.put("checkAdded", check != null ? check.get("added") : null);
+            m.put("checkRemoved", check != null ? check.get("removed") : null);
             result.add(m);
         }
 
         return ApiResponse.success("Class publication status fetched", result);
+    }
+
+    @Override
+    public ApiResponse<Map<String, Object>> checkResultChanges(Integer routineId, Integer classId) {
+        ExamRoutine routine = examRoutineRepository.findById(routineId).orElse(null);
+        if (routine == null) return ApiResponse.error("Exam routine not found");
+        ResultPublication pub = resultPublicationRepository
+                .findByExamRoutine_IdAndStudentClass_Id(routineId, classId).orElse(null);
+        if (pub == null || !Boolean.TRUE.equals(pub.getPublished()))
+            return ApiResponse.error("Results are not published for this class");
+        if (resultPublishService.hasActiveJob(routineId, classId))
+            return ApiResponse.error("Results are already being published or checked for this class");
+
+        // Recomputes every result in the background and saves only the differences for review.
+        long jobId = resultPublishService.enqueueCheck(routineId, classId);
+        return ApiResponse.success("Checking results for " + pub.getStudentClass().getName(), Map.of("jobId", jobId));
+    }
+
+    @Override
+    public ApiResponse<Map<String, Object>> getResultChanges(Integer routineId, Long jobId, int page, int size) {
+        return ApiResponse.success("Result changes fetched", resultPublishService.changes(routineId, jobId, page, size));
+    }
+
+    @Override
+    public ApiResponse<Map<String, Object>> applyResultChanges(Integer routineId, Long jobId) {
+        ExamRoutine routine = examRoutineRepository.findById(routineId).orElse(null);
+        if (routine == null) return ApiResponse.error("Exam routine not found");
+        int[] c = resultPublishService.apply(routineId, jobId);
+        auditLogService.log(AuditHelper.getUserId(), AuditHelper.getIp(),
+            AuditActionType.UPDATE, Submodule.EXAM_ROUTINES, "ExamRoutine", routineId.toString(),
+            "Updated published results for routine: " + routine.getTitle() + " (check " + jobId + "): "
+                + c[0] + " changed, " + c[1] + " added, " + c[2] + " removed");
+        return ApiResponse.success("Results updated", Map.of("changed", c[0], "added", c[1], "removed", c[2]));
+    }
+
+    @Override
+    public ApiResponse<Void> discardResultChanges(Integer routineId, Long jobId) {
+        resultPublishService.discard(routineId, jobId);
+        return ApiResponse.success("Changes discarded", null);
     }
 }

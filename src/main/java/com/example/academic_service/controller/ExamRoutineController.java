@@ -97,4 +97,32 @@ public class ExamRoutineController {
             @PathVariable Integer id) {
         return ResponseEntity.ok(examRoutineService.getClassPublicationStatus(id));
     }
+
+    /** Recompute a published class's results and save the differences for review (background job). */
+    @PostMapping("/{id}/result-changes/check")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> checkResultChanges(
+            @PathVariable Integer id, @RequestParam Integer classId) {
+        return ResponseEntity.ok(examRoutineService.checkResultChanges(id, classId));
+    }
+
+    /** One page of a finished check's changes: each student's old and new values. */
+    @GetMapping("/{id}/result-changes/{jobId}")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getResultChanges(
+            @PathVariable Integer id, @PathVariable Long jobId,
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(examRoutineService.getResultChanges(id, jobId, page, size));
+    }
+
+    /** Write the reviewed changes to the stored results; the class stays published. */
+    @PostMapping("/{id}/result-changes/{jobId}/apply")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> applyResultChanges(
+            @PathVariable Integer id, @PathVariable Long jobId) {
+        return ResponseEntity.ok(examRoutineService.applyResultChanges(id, jobId));
+    }
+
+    @DeleteMapping("/{id}/result-changes/{jobId}")
+    public ResponseEntity<ApiResponse<Void>> discardResultChanges(
+            @PathVariable Integer id, @PathVariable Long jobId) {
+        return ResponseEntity.ok(examRoutineService.discardResultChanges(id, jobId));
+    }
 }

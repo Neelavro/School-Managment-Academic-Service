@@ -28,7 +28,6 @@ public class MarkingStructureService {
     private final StudentGroupRepository studentGroupRepository;
     private final ExamComponentRepository examComponentRepository;
     private final StudentMarkRepository studentMarkRepository;
-    private final ResultPublishService resultPublishService;
 
     @Transactional
     public Map<String, Object> create(MarkingStructureRequest request) {
@@ -40,8 +39,6 @@ public class MarkingStructureService {
 
         Subject subject = subjectRepository.findByIdAndIsActiveTrue(request.getSubjectId())
                 .orElseThrow(() -> new RuntimeException("Subject not found with id: " + request.getSubjectId()));
-
-        resultPublishService.assertStructureEditable(examType.getId(), examClass.getId());
 
         StudentGroup group = null;
         if (request.getGroupId() != null) {
@@ -96,7 +93,6 @@ public class MarkingStructureService {
     public Map<String, Object> update(Integer id, MarkingStructureRequest request) {
         MarkingStructure structure = markingStructureRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new RuntimeException("Marking structure not found with id: " + id));
-        resultPublishService.assertStructureEditable(structure.getExamType().getId(), structure.getExamClass().getId());
 
         // handle group change
         Integer newGroupId = request.getGroupId();
@@ -177,7 +173,6 @@ public class MarkingStructureService {
     public Map<String, String> clearMarks(Integer id) {
         MarkingStructure structure = markingStructureRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new RuntimeException("Marking structure not found with id: " + id));
-        resultPublishService.assertStructureEditable(structure.getExamType().getId(), structure.getExamClass().getId());
         List<Integer> componentIds = markingStructureComponentRepository
                 .findAllByMarkingStructureAndDeletedAtIsNull(structure).stream()
                 .map(c -> c.getExamComponent().getId())
@@ -194,7 +189,6 @@ public class MarkingStructureService {
     public Map<String, String> delete(Integer id) {
         MarkingStructure structure = markingStructureRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new RuntimeException("Marking structure not found with id: " + id));
-        resultPublishService.assertStructureEditable(structure.getExamType().getId(), structure.getExamClass().getId());
 
         List<MarkingStructureComponent> components =
                 markingStructureComponentRepository.findAllByMarkingStructureAndDeletedAtIsNull(structure);
@@ -300,8 +294,6 @@ public class MarkingStructureService {
             String label = examClass.getName() + " / " + subject.getName()
                     + (group != null ? " / " + group.getGroupName() : "");
 
-            resultPublishService.assertStructureEditable(toExamType.getId(), examClass.getId());
-
             boolean exists = markingStructureRepository
                     .existsByExamTypeAndExamClassAndSubjectAndGroupAndDeletedAtIsNull(
                             toExamType, examClass, subject, group);
@@ -374,7 +366,6 @@ public class MarkingStructureService {
         }
 
         validateComponents(request.getComponents(), request.getTotalMarks());
-        resultPublishService.assertStructureEditable(examType.getId(), examClass.getId());
 
         List<MarkingStructureResponse> created = new ArrayList<>();
         List<String> skipped = new ArrayList<>();

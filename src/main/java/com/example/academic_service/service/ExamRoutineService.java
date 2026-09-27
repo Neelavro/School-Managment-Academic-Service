@@ -23,4 +23,8 @@ public interface ExamRoutineService {
     ApiResponse<ExamRoutine> publishResults(Integer routineId, Integer classId);
     ApiResponse<ExamRoutine> unpublishResults(Integer routineId, Integer classId);
     ApiResponse<List<Map<String, Object>>> getClassPublicationStatus(Integer routineId);
+    ApiResponse<Map<String, Object>> checkResultChanges(Integer routineId, Integer classId);
+    ApiResponse<Map<String, Object>> getResultChanges(Integer routineId, Long jobId, int page, int size);
+    ApiResponse<Map<String, Object>> applyResultChanges(Integer routineId, Long jobId);
+    ApiResponse<Void> discardResultChanges(Integer routineId, Long jobId);
 }
