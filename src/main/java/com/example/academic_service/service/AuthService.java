@@ -6,9 +6,12 @@ import com.example.academic_service.entity.Student;
 import com.example.academic_service.entity.Submodule;
 import com.example.academic_service.entity.SystemUser;
 import com.example.academic_service.entity.UserType;
+import com.example.academic_service.repository.StudentLoginView;
 import com.example.academic_service.repository.StudentRepository;
 import com.example.academic_service.repository.SystemUserRepository;
+import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -28,6 +31,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final SystemUserService systemUserService;
     private final StudentRepository studentRepository;
+    private final StudentLoginLimiter studentLoginLimiter;
 
     public Map<String, Object> login(String phone, String rawPassword) {
         SystemUser user = userRepository.findByPhone(phone)
@@ -84,7 +88,7 @@ public class AuthService {
     }
 
     public Map<String, Object> studentLogin(String studentSystemId, String password) {
-        Student student = studentRepository.findByStudentSystemId(studentSystemId)
+        StudentLoginView student = studentRepository.findLoginViewByStudentSystemId(studentSystemId)
                 .orElseThrow(() -> new IllegalArgumentException("Invalid credentials"));
 
         if (!Boolean.TRUE.equals(student.getIsActive()))
@@ -98,23 +102,11 @@ public class AuthService {
             return response;
         }
 
-        if (!passwordEncoder.matches(password, hash))
+        boolean matches = studentLoginLimiter.run(() -> password != null && passwordEncoder.matches(password, hash));
+        if (!matches)
             throw new IllegalArgumentException("Invalid credentials");
 
-        Map<String, Object> extraClaims = new HashMap<>();
-        extraClaims.put("userType", "STUDENT");
-        extraClaims.put("role", "STUDENT");
-        extraClaims.put("studentSystemId", studentSystemId);
-
-        String token = jwtUtil.generateToken(studentSystemId, extraClaims);
-
-        Map<String, Object> response = new HashMap<>();
-        response.put("token", token);
-        response.put("userType", "STUDENT");
-        response.put("studentSystemId", studentSystemId);
-        response.put("studentName", student.getNameEnglish());
-        response.put("hasStudentPortal", true);
-        return response;
+        return studentSession(studentSystemId, student.getNameEnglish());
     }
 
     public Map<String, Object> studentSetPassword(String studentSystemId, String newPassword) {
@@ -124,21 +116,48 @@ public class AuthService {
         if (!Boolean.TRUE.equals(student.getIsActive()))
             throw new IllegalStateException("Student account is inactive");
 
-        student.setPasswordHash(passwordEncoder.encode(newPassword));
+        student.setPasswordHash(studentLoginLimiter.run(() -> passwordEncoder.encode(newPassword)));
         studentRepository.save(student);
 
+        return studentSession(studentSystemId, student.getNameEnglish());
+    }
+
+    /**
+     * Swaps a student refresh token for a new access + refresh token without a
+     * password check, so students only type their password about once a month.
+     * Still re-checks the account so deactivated students are cut off.
+     */
+    public Map<String, Object> studentRefresh(String refreshToken) {
+        Claims claims;
+        try {
+            claims = jwtUtil.extractClaims(refreshToken);
+        } catch (Exception e) {
+            throw new BadCredentialsException("Invalid or expired refresh token");
+        }
+        if (!JwtUtil.REFRESH.equals(claims.get(JwtUtil.TOKEN_TYPE_CLAIM)) || !"STUDENT".equals(claims.get("userType")))
+            throw new BadCredentialsException("Invalid or expired refresh token");
+
+        String studentSystemId = claims.getSubject();
+        StudentLoginView student = studentRepository.findLoginViewByStudentSystemId(studentSystemId)
+                .orElseThrow(() -> new BadCredentialsException("Invalid or expired refresh token"));
+        if (!Boolean.TRUE.equals(student.getIsActive()) || student.getPasswordHash() == null)
+            throw new BadCredentialsException("Invalid or expired refresh token");
+
+        return studentSession(studentSystemId, student.getNameEnglish());
+    }
+
+    private Map<String, Object> studentSession(String studentSystemId, String studentName) {
         Map<String, Object> extraClaims = new HashMap<>();
         extraClaims.put("userType", "STUDENT");
         extraClaims.put("role", "STUDENT");
         extraClaims.put("studentSystemId", studentSystemId);
 
-        String token = jwtUtil.generateToken(studentSystemId, extraClaims);
-
         Map<String, Object> response = new HashMap<>();
-        response.put("token", token);
+        response.put("token", jwtUtil.generateToken(studentSystemId, extraClaims));
+        response.put("refreshToken", jwtUtil.generateRefreshToken(studentSystemId, extraClaims));
         response.put("userType", "STUDENT");
         response.put("studentSystemId", studentSystemId);
-        response.put("studentName", student.getNameEnglish());
+        response.put("studentName", studentName);
         response.put("hasStudentPortal", true);
         return response;
     }

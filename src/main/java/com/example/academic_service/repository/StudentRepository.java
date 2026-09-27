@@ -13,6 +13,7 @@ import java.util.Optional;
 public interface StudentRepository extends JpaRepository<Student, Long>, JpaSpecificationExecutor<Student> {
     boolean existsByStudentSystemId(String studentSystemId);
     Optional<Student> findByStudentSystemId(String studentSystemId);
+    Optional<StudentLoginView> findLoginViewByStudentSystemId(String studentSystemId);
 
     @Query("SELECT s.studentSystemId FROM Student s WHERE s.studentSystemId LIKE CONCAT(:year, '%') ORDER BY s.studentSystemId DESC LIMIT 1")
     String findMaxStudentSystemIdByYear(@Param("year") String year);

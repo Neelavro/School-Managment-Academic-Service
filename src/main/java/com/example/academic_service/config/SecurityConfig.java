@@ -32,6 +32,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/login", "/api/auth/bootstrap",
                                          "/api/auth/student-login", "/api/auth/student-set-password",
+                                         "/api/auth/student-refresh",
                                          "/api/auth/forgot-password/check",
                                          "/api/auth/reset-password").permitAll()
                         // SSLCommerz IPN webhook — public; security via re-validation against gateway

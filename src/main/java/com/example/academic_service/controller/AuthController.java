@@ -44,6 +44,13 @@ public class AuthController {
         return ResponseEntity.ok(new ApiResponse("Password set successfully", result));
     }
 
+    /** Body: { refreshToken }. Returns a new token + refreshToken, same shape as student-login. */
+    @PostMapping("/student-refresh")
+    public ResponseEntity<ApiResponse> studentRefresh(@RequestBody Map<String, String> body) {
+        Map<String, Object> result = authService.studentRefresh(body.get("refreshToken"));
+        return ResponseEntity.ok(new ApiResponse("Token refreshed", result));
+    }
+
     @PutMapping("/change-password")
     public ResponseEntity<ApiResponse> changePassword(@RequestBody Map<String, Object> body) {
         Long userId = ((Number) body.get("userId")).longValue();
