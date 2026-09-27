@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS published_result (
   gpa                DOUBLE            NULL,
   passed             BIT(1)            NULL,
   result_json        MEDIUMTEXT    NOT NULL,   -- the portal's response body, stored ready to send
+  report_json        MEDIUMTEXT        NULL,   -- progress-report data (highest marks, positions…) for the portal PDF
   computed_at        DATETIME      NOT NULL,
   PRIMARY KEY (id),
   UNIQUE KEY uq_published_result_enrollment_routine (enrollment_id, routine_id),
@@ -101,6 +102,17 @@ CREATE TABLE IF NOT EXISTS result_update_change (
   result_json        MEDIUMTEXT        NULL,
   PRIMARY KEY (id),
   KEY idx_result_update_change_job (job_id, class_roll)
+);
+
+-- ── result_update_report  (a check's new report data, one row per student) ──
+-- Copied to published_result.report_json on apply; deleted on apply or discard.
+CREATE TABLE IF NOT EXISTS result_update_report (
+  id             BIGINT       NOT NULL AUTO_INCREMENT,
+  job_id         BIGINT       NOT NULL,
+  enrollment_id  BIGINT       NOT NULL,
+  report_json    MEDIUMTEXT   NOT NULL,
+  PRIMARY KEY (id),
+  KEY idx_result_update_report_job (job_id, enrollment_id)
 );
 
 -- ============================================================================

@@ -1,10 +1,14 @@
 package com.example.academic_service.service;
 
+import com.example.academic_service.dto.result_dtos.ProgressReportData;
 import com.example.academic_service.dto.result_dtos.StudentRoutineResultResponse;
 import com.example.academic_service.entity.Enrollment;
 import com.example.academic_service.entity.ExamRoutine;
+import com.example.academic_service.entity.Grade;
+import com.example.academic_service.entity.GradingPolicy;
 import com.example.academic_service.repository.EnrollmentRepository;
 import com.example.academic_service.repository.ExamRoutineRepository;
+import com.example.academic_service.repository.GradingPolicyRepository;
 import tools.jackson.databind.json.JsonMapper;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
@@ -43,6 +47,12 @@ import java.util.concurrent.Executors;
  * it down, a CHECK job recomputes every result and saves only the differences as a preview
  * (result_update_change). The admin reviews it, then applies it (the class stays live and only the
  * changed rows are written) or discards it.
+ *
+ * Each stored row also carries the student's progress-report data (report_json), built with the same
+ * code as the admin progress-report PDF: highest marks, positions, merged-subject grades and the grading
+ * table need the whole class, so they're computed here once and the student portal draws the PDF from them.
+ * A check recomputes them for the whole class (one changed mark can move everyone's position) and applying
+ * it replaces them. REPORT jobs fill them in for classes published before report_json existed.
  */
 @Service
 @RequiredArgsConstructor
@@ -53,6 +63,7 @@ public class ResultPublishService {
     // Job kinds
     public static final String PUBLISH = "PUBLISH";
     public static final String CHECK = "CHECK";
+    public static final String REPORT = "REPORT";
 
     // Job statuses. A CHECK job that is DONE holds a preview waiting for apply or discard.
     public static final String QUEUED = "QUEUED";
@@ -74,6 +85,7 @@ public class ResultPublishService {
     private final ResultService resultService;
     private final EnrollmentRepository enrollmentRepository;
     private final ExamRoutineRepository examRoutineRepository;
+    private final GradingPolicyRepository gradingPolicyRepository;
     private final JsonMapper objectMapper; // Spring's own HTTP mapper, so stored JSON matches what the API used to send
 
     // One thread: classes are processed one at a time so a "publish all" doesn't swamp the CPU.
@@ -161,11 +173,23 @@ public class ResultPublishService {
                 jdbc.update("INSERT INTO result_publish_job (routine_id, class_id, kind, status, done, created_at) VALUES (?, ?, ?, ?, 0, ?)",
                         m.get("routine_id"), m.get("class_id"), PUBLISH, QUEUED, Timestamp.valueOf(LocalDateTime.now()));
             }
+            // Published classes whose stored rows have no progress-report data yet.
+            List<Map<String, Object>> noReports = jdbc.queryForList("""
+                    SELECT DISTINCT pr.routine_id, pr.class_id FROM published_result pr
+                    WHERE pr.report_json IS NULL
+                      AND NOT EXISTS (SELECT 1 FROM result_publish_job j
+                                      WHERE j.routine_id = pr.routine_id AND j.class_id = pr.class_id AND j.status = ?)
+                    """, QUEUED);
+            for (Map<String, Object> m : noReports) {
+                jdbc.update("INSERT INTO result_publish_job (routine_id, class_id, kind, status, done, created_at) VALUES (?, ?, ?, ?, 0, ?)",
+                        m.get("routine_id"), m.get("class_id"), REPORT, QUEUED, Timestamp.valueOf(LocalDateTime.now()));
+            }
             List<Long> queued = jdbc.queryForList(
                     "SELECT id FROM result_publish_job WHERE status = ? ORDER BY id", Long.class, QUEUED);
             queued.forEach(id -> worker.submit(() -> process(id)));
             if (!queued.isEmpty())
-                log.info("Result publish: {} job(s) queued on startup ({} backfill)", queued.size(), missing.size());
+                log.info("Result publish: {} job(s) queued on startup ({} backfill, {} report backfill)",
+                        queued.size(), missing.size(), noReports.size());
         } catch (Exception e) {
             // Most likely the migration hasn't been run yet; the portal would fail loudly anyway.
             log.error("Result publish: startup resume failed — is sql/2026_09_27__published_results.sql applied? {}",
@@ -190,12 +214,26 @@ public class ResultPublishService {
         String kind = (String) job.get("kind");
         long started = System.currentTimeMillis();
         try {
+            if (REPORT.equals(kind)) {
+                Map<Long, String> reports = computeReports(routineId, classId);
+                jdbc.batchUpdate("UPDATE published_result SET report_json = ? WHERE routine_id = ? AND class_id = ? AND enrollment_id = ?",
+                        reports.entrySet().stream().map(e -> new Object[]{e.getValue(), routineId, classId, e.getKey()}).toList());
+                jdbc.update("UPDATE result_publish_job SET status = ?, total = ?, done = ?, finished_at = ? WHERE id = ?",
+                        DONE, reports.size(), reports.size(), Timestamp.valueOf(LocalDateTime.now()), jobId);
+                log.info("Result reports: routine={} class={} stored {} progress report(s) in {} ms",
+                        routineId, classId, reports.size(), System.currentTimeMillis() - started);
+                return;
+            }
+
             List<String> skipped = new ArrayList<>();
             List<Computed> results = computeClass(jobId, routineId, classId, skipped);
+            Map<Long, String> reports = computeReports(routineId, classId);
             String note = skipped.isEmpty() ? null : truncate(skipped.size() + " student(s) skipped. First: " + skipped.get(0));
 
             if (CHECK.equals(kind)) {
                 int[] counts = saveDiff(jobId, routineId, classId, results, skipped);
+                jdbc.batchUpdate("INSERT INTO result_update_report (job_id, enrollment_id, report_json) VALUES (?, ?, ?)",
+                        reports.entrySet().stream().map(e -> new Object[]{jobId, e.getKey(), e.getValue()}).toList());
                 jdbc.update("""
                         UPDATE result_publish_job SET status = ?, done = ?, error = ?, changed = ?, added = ?, removed = ?, finished_at = ?
                         WHERE id = ?
@@ -206,7 +244,7 @@ public class ResultPublishService {
                 return;
             }
 
-            storeClass(routineId, classId, results);
+            storeClass(routineId, classId, results, reports);
             jdbc.update("UPDATE result_publish_job SET status = ?, done = ?, error = ?, finished_at = ? WHERE id = ?",
                     DONE, results.size() + skipped.size(), note, Timestamp.valueOf(LocalDateTime.now()), jobId);
             log.info("Result publish: routine={} class={} stored {} result(s), skipped {} in {} ms",
@@ -261,18 +299,18 @@ public class ResultPublishService {
     }
 
     /** Replaces the class's stored rows and marks it published, in one transaction. */
-    private void storeClass(Integer routineId, Integer classId, List<Computed> results) {
+    private void storeClass(Integer routineId, Integer classId, List<Computed> results, Map<Long, String> reports) {
         Timestamp now = Timestamp.valueOf(LocalDateTime.now());
         List<Object[]> rows = results.stream()
                 .map(c -> new Object[]{routineId, classId, c.enrollmentId(), c.studentSystemId(),
-                        c.totalMarks(), c.gpa(), c.passed(), c.json(), now})
+                        c.totalMarks(), c.gpa(), c.passed(), c.json(), reports.get(c.enrollmentId()), now})
                 .toList();
         new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
             jdbc.update("DELETE FROM published_result WHERE routine_id = ? AND class_id = ?", routineId, classId);
             jdbc.batchUpdate("""
                     INSERT INTO published_result (routine_id, class_id, enrollment_id, student_system_id,
-                                                  total_marks, gpa, passed, result_json, computed_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                                  total_marks, gpa, passed, result_json, report_json, computed_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, rows);
             int updated = jdbc.update("""
                     UPDATE result_publication SET published = 1, published_at = COALESCE(published_at, ?)
@@ -286,6 +324,61 @@ public class ResultPublishService {
 
     private static String truncate(String s) {
         return s.length() > 1000 ? s.substring(0, 1000) : s;
+    }
+
+    /**
+     * Each student's progress-report data (enrollmentId → JSON), from the same code as the admin
+     * progress-report PDF, plus the grading table it prints. Student details (name, phones, photo)
+     * are left to the portal, which reads them fresh from the profile. A failure here doesn't stop
+     * publishing: the portal then says the report isn't available.
+     */
+    private Map<Long, String> computeReports(Integer routineId, Integer classId) {
+        Map<Long, String> reports = new HashMap<>();
+        try {
+            TransactionTemplate readTx = new TransactionTemplate(transactionManager);
+            readTx.setReadOnly(true);
+            readTx.executeWithoutResult(status -> {
+                List<Map<String, Object>> grades = gradingTable();
+                for (ProgressReportData part : resultService.getProgressReportDataPartitioned(
+                        routineId, classId, null, null, null, null, null, null)) {
+                    for (ProgressReportData.StudentReport student : part.getStudents()) {
+                        Map<String, Object> r = new LinkedHashMap<>();
+                        r.put("routineTitle", part.getRoutineTitle());
+                        r.put("examTypeName", part.getExamTypeName());
+                        r.put("className", part.getClassName());
+                        r.put("academicYearName", part.getAcademicYearName());
+                        r.put("useGpaForResult", part.isUseGpaForResult());
+                        r.put("components", part.getComponents());
+                        r.put("subjects", part.getSubjects());
+                        r.put("student", student);
+                        r.put("grades", grades);
+                        reports.put(student.getEnrollmentId(), objectMapper.writeValueAsString(r));
+                    }
+                }
+            });
+        } catch (Exception e) {
+            log.error("Progress report data failed: routine={} class={}", routineId, classId, e);
+        }
+        return reports;
+    }
+
+    /** The grading table the progress report prints: the first active policy, highest grade first. */
+    private List<Map<String, Object>> gradingTable() {
+        List<GradingPolicy> active = gradingPolicyRepository.findByIsActive(true);
+        if (active.isEmpty()) return List.of();
+        List<Grade> grades = new ArrayList<>(active.get(0).getGrades());
+        grades.sort(Comparator.comparingDouble(Grade::getMinMark).reversed());
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Grade g : grades) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("name", g.getName());
+            m.put("minMark", g.getMinMark());
+            m.put("maxMark", g.getMaxMark());
+            m.put("gpaValue", g.getGpaValue());
+            m.put("comment", g.getComment());
+            out.add(m);
+        }
+        return out;
     }
 
     // ── Update: check, review, apply ─────────────────────────────────────────
@@ -494,7 +587,15 @@ public class ResultPublishService {
                       ON c.job_id = ? AND c.change_type = ? AND c.enrollment_id = pr.enrollment_id
                     WHERE pr.routine_id = ? AND pr.class_id = ?
                     """, jobId, REMOVED, routineId, classId);
+            // Positions and highest marks can move for everyone, so every student's report data is replaced.
+            jdbc.update("""
+                    UPDATE published_result pr JOIN result_update_report r
+                      ON r.job_id = ? AND r.enrollment_id = pr.enrollment_id
+                    SET pr.report_json = r.report_json
+                    WHERE pr.routine_id = ? AND pr.class_id = ?
+                    """, jobId, routineId, classId);
             jdbc.update("DELETE FROM result_update_change WHERE job_id = ?", jobId);
+            jdbc.update("DELETE FROM result_update_report WHERE job_id = ?", jobId);
         });
         log.info("Result update applied: routine={} class={} changed {}, added {}, removed {}",
                 routineId, classId, counts[0], counts[1], counts[2]);
@@ -508,6 +609,7 @@ public class ResultPublishService {
             jdbc.update("UPDATE result_publish_job SET status = ?, finished_at = ? WHERE id = ? AND status = ?",
                     DISCARDED, Timestamp.valueOf(LocalDateTime.now()), jobId, DONE);
             jdbc.update("DELETE FROM result_update_change WHERE job_id = ?", jobId);
+            jdbc.update("DELETE FROM result_update_report WHERE job_id = ?", jobId);
         });
     }
 
@@ -519,6 +621,7 @@ public class ResultPublishService {
         for (Long id : ids) {
             jdbc.update("UPDATE result_publish_job SET status = ? WHERE id = ?", DISCARDED, id);
             jdbc.update("DELETE FROM result_update_change WHERE job_id = ?", id);
+            jdbc.update("DELETE FROM result_update_report WHERE job_id = ?", id);
         }
     }
 
@@ -561,6 +664,20 @@ public class ResultPublishService {
     public Optional<StoredResult> findForStudent(String studentSystemId, Integer routineId) {
         List<StoredResult> rows = jdbc.query("""
                 SELECT id, computed_at, result_json FROM published_result
+                WHERE student_system_id = ? AND routine_id = ? ORDER BY id DESC LIMIT 1
+                """,
+                (rs, i) -> new StoredResult(rs.getLong(1) + "-" + rs.getTimestamp(2).getTime(), rs.getString(3)),
+                studentSystemId, routineId);
+        return rows.stream().findFirst();
+    }
+
+    /**
+     * The student's stored progress-report data for a routine: empty if the class isn't published;
+     * a row with null json while the report data is still being prepared.
+     */
+    public Optional<StoredResult> findReportForStudent(String studentSystemId, Integer routineId) {
+        List<StoredResult> rows = jdbc.query("""
+                SELECT id, computed_at, report_json FROM published_result
                 WHERE student_system_id = ? AND routine_id = ? ORDER BY id DESC LIMIT 1
                 """,
                 (rs, i) -> new StoredResult(rs.getLong(1) + "-" + rs.getTimestamp(2).getTime(), rs.getString(3)),
