@@ -344,13 +344,13 @@ public class ExamRoutineServiceImpl implements ExamRoutineService {
     @Override
     public ApiResponse<Map<String, Object>> checkResultChanges(Integer routineId, Integer classId) {
         ExamRoutine routine = examRoutineRepository.findById(routineId).orElse(null);
-        if (routine == null) return ApiResponse.error("Exam routine not found");
+        if (routine == null) throw new RuntimeException("Exam routine not found");
         ResultPublication pub = resultPublicationRepository
                 .findByExamRoutine_IdAndStudentClass_Id(routineId, classId).orElse(null);
         if (pub == null || !Boolean.TRUE.equals(pub.getPublished()))
-            return ApiResponse.error("Results are not published for this class");
+            throw new RuntimeException("Results are not published for this class");
         if (resultPublishService.hasActiveJob(routineId, classId))
-            return ApiResponse.error("Results are already being published or checked for this class");
+            throw new RuntimeException("Results are already being published or checked for this class");
 
         // Recomputes every result in the background and saves only the differences for review.
         long jobId = resultPublishService.enqueueCheck(routineId, classId);
@@ -365,7 +365,7 @@ public class ExamRoutineServiceImpl implements ExamRoutineService {
     @Override
     public ApiResponse<Map<String, Object>> applyResultChanges(Integer routineId, Long jobId) {
         ExamRoutine routine = examRoutineRepository.findById(routineId).orElse(null);
-        if (routine == null) return ApiResponse.error("Exam routine not found");
+        if (routine == null) throw new RuntimeException("Exam routine not found");
         int[] c = resultPublishService.apply(routineId, jobId);
         auditLogService.log(AuditHelper.getUserId(), AuditHelper.getIp(),
             AuditActionType.UPDATE, Submodule.EXAM_ROUTINES, "ExamRoutine", routineId.toString(),
