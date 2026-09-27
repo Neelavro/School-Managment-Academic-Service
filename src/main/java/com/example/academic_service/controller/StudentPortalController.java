@@ -88,6 +88,25 @@ public class StudentPortalController {
                 .body("{\"message\":\"Result fetched\",\"data\":" + stored.json() + "}");
     }
 
+    /**
+     * The student's progress-report data for a routine, stored at publish (see ResultPublishService):
+     * subjects, components, highest marks, positions and the grading table. The portal draws the PDF.
+     */
+    @GetMapping("/progress-report")
+    public ResponseEntity<String> getMyProgressReport(@RequestParam Integer examRoutineId) {
+        ResultPublishService.StoredResult stored = resultPublishService
+                .findReportForStudent(resolveStudentSystemId(), examRoutineId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN,
+                        "Results for this routine have not been released yet"));
+        if (stored.json() == null)
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "The progress report is still being prepared. Please try again in a few minutes.");
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_JSON)
+                .cacheControl(CacheControl.noCache().cachePrivate())
+                .body("{\"message\":\"Progress report fetched\",\"data\":" + stored.json() + "}");
+    }
+
     @PutMapping("/change-password")
     public ResponseEntity<ApiResponse<Void>> changePassword(@RequestBody Map<String, String> body) {
         return ResponseEntity.ok(service.changePassword(
