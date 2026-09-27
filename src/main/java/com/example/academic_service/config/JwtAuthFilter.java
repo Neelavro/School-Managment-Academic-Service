@@ -44,6 +44,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         }
 
         Claims claims = jwtUtil.extractClaims(token);
+        if (JwtUtil.REFRESH.equals(claims.get(JwtUtil.TOKEN_TYPE_CLAIM))) {
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.setContentType("application/json");
+            response.getWriter().write("{\"message\":\"Invalid or expired token\",\"data\":null}");
+            return;
+        }
         String phone = claims.getSubject();
         String role = (String) claims.get("role");
         Object userIdRaw = claims.get("userId");
