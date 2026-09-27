@@ -13,7 +13,7 @@ import com.example.academic_service.repository.ResultPublicationRepository;
 import com.example.academic_service.entity.AuditActionType;
 import com.example.academic_service.entity.Submodule;
 import com.example.academic_service.service.AuditLogService;
-import com.example.academic_service.service.CacheWarmingService;
+import com.example.academic_service.service.ResultPublishService;
 import com.example.academic_service.service.ExamRoutineService;
 import com.example.academic_service.util.AuditHelper;
 import lombok.RequiredArgsConstructor;
@@ -35,7 +35,7 @@ public class ExamRoutineServiceImpl implements ExamRoutineService {
     private final AcademicYearRepository academicYearRepository;
     private final ExamSessionRepository examSessionRepository;
     private final ResultPublicationRepository resultPublicationRepository;
-    private final CacheWarmingService cacheWarmingService;
+    private final ResultPublishService resultPublishService;
     private final AuditLogService auditLogService;
 
     @Override
@@ -262,28 +262,22 @@ public class ExamRoutineServiceImpl implements ExamRoutineService {
         com.example.academic_service.entity.Class targetClass = classes.stream().filter(c -> c.getId().equals(classId)).findFirst().orElse(null);
         if (targetClass == null) return ApiResponse.error("Class not found in this routine");
 
-        ResultPublication pub = resultPublicationRepository
-                .findByExamRoutine_IdAndStudentClass_Id(routineId, classId)
-                .orElseGet(() -> {
-                    ResultPublication rp = new ResultPublication();
-                    rp.setExamRoutine(routine);
-                    rp.setStudentClass(targetClass);
-                    return rp;
-                });
-
-        if (Boolean.TRUE.equals(pub.getPublished()))
+        boolean published = resultPublicationRepository.findByExamRoutine_IdAndStudentClass_Id(routineId, classId)
+                .map(p -> Boolean.TRUE.equals(p.getPublished())).orElse(false);
+        if (published)
             return ApiResponse.error("Results already published for this class");
+        if (resultPublishService.isPublishing(routineId, classId))
+            return ApiResponse.error("Results are already being published for this class");
+        if (routine.getAcademicYear() == null)
+            return ApiResponse.error("Exam routine has no academic year");
 
-        pub.setPublished(true);
-        pub.setPublishedAt(LocalDateTime.now());
-        resultPublicationRepository.save(pub);
-
-        Integer academicYearId = routine.getAcademicYear() != null ? routine.getAcademicYear().getId() : null;
-        if (academicYearId != null) cacheWarmingService.warmStudentResultCache(routineId, classId, academicYearId);
+        // Computes and stores every student's result in the background, one class at a time;
+        // the class becomes visible to students once all its results are stored.
+        resultPublishService.enqueue(routineId, classId);
         auditLogService.log(AuditHelper.getUserId(), AuditHelper.getIp(),
             AuditActionType.UPDATE, Submodule.EXAM_ROUTINES, "ExamRoutine", routineId.toString(),
             "Published results for routine: " + routine.getTitle() + ", class: " + targetClass.getName());
-        return ApiResponse.success("Results published for " + targetClass.getName(), routine);
+        return ApiResponse.success("Publishing results for " + targetClass.getName(), routine);
     }
 
     @Override
@@ -296,12 +290,11 @@ public class ExamRoutineServiceImpl implements ExamRoutineService {
         if (pub == null || !Boolean.TRUE.equals(pub.getPublished()))
             return ApiResponse.error("Results are not published for this class");
 
-        pub.setPublished(false);
-        pub.setPublishedAt(null);
-        resultPublicationRepository.save(pub);
+        if (resultPublishService.isPublishing(routineId, classId))
+            return ApiResponse.error("Results are still being published for this class");
 
-        Integer academicYearId = routine.getAcademicYear() != null ? routine.getAcademicYear().getId() : null;
-        if (academicYearId != null) cacheWarmingService.evictStudentResultCache(routineId, classId, academicYearId);
+        // Also deletes the stored results, so marks can be edited and the class republished.
+        resultPublishService.unpublish(routineId, classId);
         auditLogService.log(AuditHelper.getUserId(), AuditHelper.getIp(),
             AuditActionType.UPDATE, Submodule.EXAM_ROUTINES, "ExamRoutine", routineId.toString(),
             "Unpublished results for routine: " + routine.getTitle() + ", class: " + pub.getStudentClass().getName());
@@ -315,14 +308,22 @@ public class ExamRoutineServiceImpl implements ExamRoutineService {
         Map<Integer, ResultPublication> pubByClassId = pubs.stream()
                 .collect(Collectors.toMap(p -> p.getStudentClass().getId(), p -> p));
 
+        Map<Integer, Map<String, Object>> jobs = resultPublishService.latestJobs(routineId);
+
         List<Map<String, Object>> result = new java.util.ArrayList<>();
         for (com.example.academic_service.entity.Class c : classes) {
             ResultPublication pub = pubByClassId.get(c.getId());
+            Map<String, Object> job = jobs.get(c.getId());
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("classId", c.getId());
             m.put("className", c.getName());
             m.put("published", pub != null && Boolean.TRUE.equals(pub.getPublished()));
             m.put("publishedAt", pub != null ? pub.getPublishedAt() : null);
+            // Latest publish job: QUEUED / PROCESSING / DONE / FAILED, with progress and any error.
+            m.put("publishStatus", job != null ? job.get("status") : null);
+            m.put("publishDone", job != null ? job.get("done") : null);
+            m.put("publishTotal", job != null ? job.get("total") : null);
+            m.put("publishError", job != null ? job.get("error") : null);
             result.add(m);
         }
 

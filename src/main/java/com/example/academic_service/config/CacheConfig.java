@@ -18,11 +18,6 @@ public class CacheConfig {
     @Bean
     public CacheManager cacheManager() {
         CaffeineCacheManager manager = new CaffeineCacheManager();
-        manager.registerCustomCache("studentResult",
-                Caffeine.newBuilder()
-                        .maximumSize(2000)
-                        .expireAfterWrite(10, TimeUnit.DAYS)
-                        .build());
         // Platform metrics snapshot — recomputed at most once per minute
         // so repeated polls don't hammer the DB.
         manager.registerCustomCache("platformMetrics",

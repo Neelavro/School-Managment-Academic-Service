@@ -5,16 +5,18 @@ import com.example.academic_service.dto.InvoiceResponse;
 import com.example.academic_service.dto.PaymentInitRequest;
 import com.example.academic_service.dto.PaymentInitResponse;
 import com.example.academic_service.dto.PaymentResponse;
-import com.example.academic_service.dto.result_dtos.StudentRoutineResultResponse;
 import com.example.academic_service.dto.student_portal_dtos.StudentPortalProfileDto;
 import com.example.academic_service.dto.student_portal_dtos.UpcomingExamDto;
 import com.example.academic_service.entity.InvoiceStatus;
+import com.example.academic_service.service.ResultPublishService;
 import com.example.academic_service.service.StudentPortalPaymentService;
 import com.example.academic_service.service.StudentPortalService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -31,6 +33,7 @@ public class StudentPortalController {
 
     private final StudentPortalService service;
     private final StudentPortalPaymentService paymentService;
+    private final ResultPublishService resultPublishService;
 
     private String resolveStudentSystemId() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -61,10 +64,28 @@ public class StudentPortalController {
         return ResponseEntity.ok(service.getAvailableRoutines(resolveStudentSystemId()));
     }
 
+    /**
+     * The stored result, sent as-is: one indexed read, no computation or serialization.
+     * The ETag changes whenever the class is republished, so the app can revalidate
+     * with If-None-Match and get a body-less 304.
+     */
     @GetMapping("/result")
-    public ResponseEntity<ApiResponse<StudentRoutineResultResponse>> getMyResult(
-            @RequestParam Integer examRoutineId) {
-        return ResponseEntity.ok(service.getMyResult(resolveStudentSystemId(), examRoutineId));
+    public ResponseEntity<String> getMyResult(
+            @RequestParam Integer examRoutineId,
+            @RequestHeader(value = "If-None-Match", required = false) String ifNoneMatch) {
+        ResultPublishService.StoredResult stored = resultPublishService
+                .findForStudent(resolveStudentSystemId(), examRoutineId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN,
+                        "Results for this routine have not been released yet"));
+        String etag = "\"r" + stored.id() + "\"";
+        CacheControl cache = CacheControl.noCache().cachePrivate();
+        if (etag.equals(ifNoneMatch))
+            return ResponseEntity.status(HttpStatus.NOT_MODIFIED).eTag(etag).cacheControl(cache).build();
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_JSON)
+                .eTag(etag)
+                .cacheControl(cache)
+                .body("{\"message\":\"Result fetched\",\"data\":" + stored.json() + "}");
     }
 
     @PutMapping("/change-password")
