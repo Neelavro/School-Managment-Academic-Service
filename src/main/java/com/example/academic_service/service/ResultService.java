@@ -7,8 +7,8 @@ import com.example.academic_service.entity.Section;
 import com.example.academic_service.entity.StudentGroup;
 import com.example.academic_service.repository.*;
 import lombok.RequiredArgsConstructor;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -689,7 +689,10 @@ public class ResultService {
 
     // ─── STUDENT ROUTINE RESULT ──────────────────────────────────────────────────
 
-    @Cacheable(value = "studentResult", key = "#enrollmentId + ':' + #examRoutineId")
+    // Not cached: the student portal reads the stored copy in published_result
+    // (see ResultPublishService). Read-only transaction so the eager entities
+    // loaded by each query are shared instead of re-fetched per repository call.
+    @Transactional(readOnly = true)
     public StudentRoutineResultResponse getStudentRoutineResult(Long enrollmentId, Integer examRoutineId) {
         Enrollment enrollment = enrollmentRepository.findById(enrollmentId)
                 .orElseThrow(() -> new RuntimeException("Enrollment not found: " + enrollmentId));

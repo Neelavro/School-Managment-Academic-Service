@@ -29,6 +29,7 @@ public class StudentMarkService {
     private final StudentFourthSubjectOverrideRepository studentFourthSubjectOverrideRepository;
     private final ClassSubjectGroupRepository classSubjectGroupRepository;
     private final AuditLogService auditLogService;
+    private final ResultPublishService resultPublishService;
 
     public Map<String, Object> getMarkSheet(
             Integer routineId,
@@ -204,6 +205,7 @@ public class StudentMarkService {
         if (request.getSubjectId() == null) throw new RuntimeException("Subject id is required");
         if (request.getClassId() == null) throw new RuntimeException("Class id is required");
         if (request.getMarks() == null || request.getMarks().isEmpty()) throw new RuntimeException("No marks provided");
+        resultPublishService.assertMarksEditable(request.getRoutineId(), request.getClassId());
 
         ExamRoutine routine = examRoutineRepository.findById(request.getRoutineId())
                 .orElseThrow(() -> new RuntimeException("Exam routine not found: " + request.getRoutineId()));

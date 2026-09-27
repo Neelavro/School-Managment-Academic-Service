@@ -1,7 +1,6 @@
 package com.example.academic_service.service;
 
 import com.example.academic_service.dto.ApiResponse;
-import com.example.academic_service.dto.result_dtos.StudentRoutineResultResponse;
 import com.example.academic_service.dto.student_portal_dtos.StudentPortalProfileDto;
 import com.example.academic_service.dto.student_portal_dtos.UpcomingExamDto;
 import com.example.academic_service.entity.*;
@@ -28,7 +27,6 @@ public class StudentPortalService {
     private final ClassRoutineRepository classRoutineRepository;
     private final ExamRoutineRepository examRoutineRepository;
     private final ResultPublicationRepository resultPublicationRepository;
-    private final ResultService resultService;
     private final PasswordEncoder passwordEncoder;
 
     private Enrollment requireActiveEnrollment(String studentSystemId) {
@@ -125,19 +123,6 @@ public class StudentPortalService {
                 .collect(Collectors.toList());
 
         return ApiResponse.success("Routines fetched", routines);
-    }
-
-    public ApiResponse<StudentRoutineResultResponse> getMyResult(String studentSystemId, Integer examRoutineId) {
-        Enrollment e = requireActiveEnrollment(studentSystemId);
-        Integer classId = e.getStudentClass() != null ? e.getStudentClass().getId() : null;
-
-        resultPublicationRepository.findByExamRoutine_IdAndStudentClass_Id(examRoutineId, classId)
-                .filter(rp -> Boolean.TRUE.equals(rp.getPublished()))
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN,
-                        "Results for this routine have not been released yet"));
-
-        StudentRoutineResultResponse result = resultService.getStudentRoutineResult(e.getId(), examRoutineId);
-        return ApiResponse.success("Result fetched", result);
     }
 
     public ApiResponse<Void> changePassword(String studentSystemId, String currentPassword, String newPassword) {

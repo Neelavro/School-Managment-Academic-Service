@@ -29,8 +29,15 @@ public class JwtUtil {
     public static final String TOKEN_TYPE_CLAIM = "tokenType";
     public static final String REFRESH = "refresh";
 
+    private volatile Key signingKey;
+
     private Key getSigningKey() {
-        return Keys.hmacShaKeyFor(secretKey.getBytes(StandardCharsets.UTF_8));
+        Key key = signingKey;
+        if (key == null) {
+            key = Keys.hmacShaKeyFor(secretKey.getBytes(StandardCharsets.UTF_8));
+            signingKey = key;
+        }
+        return key;
     }
 
     public String generateToken(String subject, Map<String, Object> extraClaims) {
@@ -63,10 +70,16 @@ public class JwtUtil {
     }
 
     public boolean isTokenValid(String token) {
+        return parseValid(token) != null;
+    }
+
+    /** Claims of a valid, unexpired token, or null. Parses the token once. */
+    public Claims parseValid(String token) {
         try {
-            return extractClaims(token).getExpiration().after(new Date());
+            Claims claims = extractClaims(token);
+            return claims.getExpiration().after(new Date()) ? claims : null;
         } catch (Exception e) {
-            return false;
+            return null;
         }
     }
 }
