@@ -66,7 +66,7 @@ public class StudentPortalController {
 
     /**
      * The stored result, sent as-is: one indexed read, no computation or serialization.
-     * The ETag changes whenever the class is republished, so the app can revalidate
+     * The ETag changes whenever the stored row is rewritten (republish or update), so the app can revalidate
      * with If-None-Match and get a body-less 304.
      */
     @GetMapping("/result")
@@ -77,7 +77,7 @@ public class StudentPortalController {
                 .findForStudent(resolveStudentSystemId(), examRoutineId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN,
                         "Results for this routine have not been released yet"));
-        String etag = "\"r" + stored.id() + "\"";
+        String etag = "\"r" + stored.version() + "\"";
         CacheControl cache = CacheControl.noCache().cachePrivate();
         if (etag.equals(ifNoneMatch))
             return ResponseEntity.status(HttpStatus.NOT_MODIFIED).eTag(etag).cacheControl(cache).build();

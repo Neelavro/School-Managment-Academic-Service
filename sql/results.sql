@@ -7,7 +7,8 @@
 --
 -- "Publish Results" is backed by result_publication, plus published_result
 -- (each student's stored result, written on publish and read by the student
--- portal) and result_publish_job (the publish queue). The other five are COMPUTED VIEWS over student_mark,
+-- portal), result_publish_job (the publish/check queue) and result_update_change
+-- (a check's differences, waiting for review). The other five are COMPUTED VIEWS over student_mark,
 -- exam_routine, marking_structure, etc. — no tables of their own.
 --
 -- Foundation used:
@@ -56,23 +57,50 @@ CREATE TABLE IF NOT EXISTS published_result (
   KEY idx_published_result_routine_class (routine_id, class_id)
 );
 
--- ── result_publish_job  (one row per "publish this class" request) ────────
--- Processed one at a time by ResultPublishService. status:
---   QUEUED → PROCESSING → DONE | FAILED
+-- ── result_publish_job  (one row per "publish" or "check for changes" request) ─
+-- Processed one at a time by ResultPublishService.
+-- kind:   PUBLISH | CHECK
+-- status: QUEUED → PROCESSING → DONE | FAILED; a CHECK that is DONE holds a
+--         preview, which then becomes APPLIED or DISCARDED.
 CREATE TABLE IF NOT EXISTS result_publish_job (
   id           BIGINT         NOT NULL AUTO_INCREMENT,
   routine_id   INT            NOT NULL,
   class_id     INT            NOT NULL,
+  kind         VARCHAR(10)    NOT NULL DEFAULT 'PUBLISH',
   status       VARCHAR(20)    NOT NULL,
   total        INT                NULL,
   done         INT                NULL,
   error        VARCHAR(1000)      NULL,
+  changed      INT                NULL,
+  added        INT                NULL,
+  removed      INT                NULL,
   created_at   DATETIME       NOT NULL,
   started_at   DATETIME           NULL,
   finished_at  DATETIME           NULL,
   PRIMARY KEY (id),
   KEY idx_result_publish_job_routine (routine_id, class_id),
   KEY idx_result_publish_job_status (status)
+);
+
+-- ── result_update_change  (one row per student whose result would change) ──
+-- change_type: CHANGED | ADDED (newly enrolled) | REMOVED (no longer enrolled)
+-- diff_json is what the admin reviews; result_json and the summary columns are
+-- the new stored row, written on apply. Deleted on apply or discard.
+CREATE TABLE IF NOT EXISTS result_update_change (
+  id                 BIGINT        NOT NULL AUTO_INCREMENT,
+  job_id             BIGINT        NOT NULL,
+  enrollment_id      BIGINT        NOT NULL,
+  student_system_id  VARCHAR(255)      NULL,
+  student_name       VARCHAR(255)      NULL,
+  class_roll         INT               NULL,
+  change_type        VARCHAR(10)   NOT NULL,
+  diff_json          MEDIUMTEXT    NOT NULL,
+  total_marks        DECIMAL(10,2)     NULL,
+  gpa                DOUBLE            NULL,
+  passed             BIT(1)            NULL,
+  result_json        MEDIUMTEXT        NULL,
+  PRIMARY KEY (id),
+  KEY idx_result_update_change_job (job_id, class_roll)
 );
 
 -- ============================================================================
