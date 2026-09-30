@@ -51,6 +51,8 @@ import java.util.concurrent.Executors;
  * Each stored row also carries the student's progress-report data (report_json), built with the same
  * code as the admin progress-report PDF: highest marks, positions, merged-subject grades and the grading
  * table need the whole class, so they're computed here once and the student portal draws the PDF from them.
+ * The positions from that data are also stored in each result (see positionsOf), so the portal's result
+ * screen can show them.
  * A check recomputes them for the whole class (one changed mark can move everyone's position) and applying
  * it replaces them. REPORT jobs fill them in for classes published before report_json existed.
  */
@@ -215,7 +217,7 @@ public class ResultPublishService {
         long started = System.currentTimeMillis();
         try {
             if (REPORT.equals(kind)) {
-                Map<Long, String> reports = computeReports(routineId, classId);
+                Map<Long, String> reports = computeReports(routineId, classId).json();
                 jdbc.batchUpdate("UPDATE published_result SET report_json = ? WHERE routine_id = ? AND class_id = ? AND enrollment_id = ?",
                         reports.entrySet().stream().map(e -> new Object[]{e.getValue(), routineId, classId, e.getKey()}).toList());
                 jdbc.update("UPDATE result_publish_job SET status = ?, total = ?, done = ?, finished_at = ? WHERE id = ?",
@@ -226,8 +228,10 @@ public class ResultPublishService {
             }
 
             List<String> skipped = new ArrayList<>();
-            List<Computed> results = computeClass(jobId, routineId, classId, skipped);
-            Map<Long, String> reports = computeReports(routineId, classId);
+            // Reports first: their ranks are the positions stored with each result.
+            ClassReports classReports = computeReports(routineId, classId);
+            Map<Long, String> reports = classReports.json();
+            List<Computed> results = computeClass(jobId, routineId, classId, skipped, classReports.positions());
             String note = skipped.isEmpty() ? null : truncate(skipped.size() + " student(s) skipped. First: " + skipped.get(0));
 
             if (CHECK.equals(kind)) {
@@ -263,7 +267,8 @@ public class ResultPublishService {
     }
 
     /** Computes every active student's result in the class, reporting progress on the job row. */
-    private List<Computed> computeClass(Long jobId, Integer routineId, Integer classId, List<String> skipped) {
+    private List<Computed> computeClass(Long jobId, Integer routineId, Integer classId, List<String> skipped,
+                                        Map<Long, StudentRoutineResultResponse.Positions> positions) {
         ExamRoutine routine = examRoutineRepository.findById(routineId)
                 .orElseThrow(() -> new IllegalStateException("Exam routine not found: " + routineId));
         if (routine.getAcademicYear() == null)
@@ -286,6 +291,7 @@ public class ResultPublishService {
                 for (Enrollment e : chunk) {
                     try {
                         StudentRoutineResultResponse r = resultService.getStudentRoutineResult(e.getId(), routineId);
+                        r.setPositions(r.isPassed() ? positions.get(e.getId()) : null);
                         results.add(new Computed(e.getId(), e.getStudentSystemId(), r.getTotalMarks(),
                                 r.getOverallGpa(), r.isPassed(), objectMapper.writeValueAsString(r)));
                     } catch (Exception ex) {
@@ -332,8 +338,9 @@ public class ResultPublishService {
      * are left to the portal, which reads them fresh from the profile. A failure here doesn't stop
      * publishing: the portal then says the report isn't available.
      */
-    private Map<Long, String> computeReports(Integer routineId, Integer classId) {
+    private ClassReports computeReports(Integer routineId, Integer classId) {
         Map<Long, String> reports = new HashMap<>();
+        Map<Long, StudentRoutineResultResponse.Positions> positions = new HashMap<>();
         try {
             TransactionTemplate readTx = new TransactionTemplate(transactionManager);
             readTx.setReadOnly(true);
@@ -342,6 +349,8 @@ public class ResultPublishService {
                 for (ProgressReportData part : resultService.getProgressReportDataPartitioned(
                         routineId, classId, null, null, null, null, null, null)) {
                     for (ProgressReportData.StudentReport student : part.getStudents()) {
+                        StudentRoutineResultResponse.Positions pos = positionsOf(student);
+                        positions.put(student.getEnrollmentId(), pos);
                         Map<String, Object> r = new LinkedHashMap<>();
                         r.put("routineTitle", part.getRoutineTitle());
                         r.put("examTypeName", part.getExamTypeName());
@@ -352,6 +361,7 @@ public class ResultPublishService {
                         r.put("subjects", part.getSubjects());
                         r.put("student", student);
                         r.put("grades", grades);
+                        r.put("positions", pos);
                         reports.put(student.getEnrollmentId(), objectMapper.writeValueAsString(r));
                     }
                 }
@@ -359,7 +369,24 @@ public class ResultPublishService {
         } catch (Exception e) {
             log.error("Progress report data failed: routine={} class={}", routineId, classId, e);
         }
-        return reports;
+        return new ClassReports(reports, positions);
+    }
+
+    /** Progress-report data (enrollmentId → JSON) and the positions taken from it (enrollmentId → positions). */
+    private record ClassReports(Map<Long, String> json, Map<Long, StudentRoutineResultResponse.Positions> positions) {}
+
+    /**
+     * The positions a student sees: the progress report's ranks (MeritRanking — class position within the group,
+     * shift position only with more than one gender section, section position only in a section). Null for a
+     * failed student.
+     */
+    private static StudentRoutineResultResponse.Positions positionsOf(ProgressReportData.StudentReport s) {
+        if (!s.isPassed()) return null;
+        StudentRoutineResultResponse.Positions p = new StudentRoutineResultResponse.Positions();
+        p.setClassPosition(s.getClassRank());
+        p.setShiftPosition(s.getGenderSectionRank());
+        p.setSectionPosition(s.getSectionRank());
+        return p;
     }
 
     /** The grading table the progress report prints: the first active policy, highest grade first. */
@@ -460,15 +487,13 @@ public class ResultPublishService {
         Set<String> keys = new LinkedHashSet<>(prev.keySet());
         keys.addAll(next.keySet());
         keys.remove("subjectResults");
-        for (String k : keys) {
-            if (!Objects.equals(prev.get(k), next.get(k))) {
-                Map<String, Object> f = new LinkedHashMap<>();
-                f.put("field", k);
-                f.put("old", prev.get(k));
-                f.put("new", next.get(k));
-                fields.add(f);
-            }
-        }
+        keys.remove("positions");
+        for (String k : keys) addFieldChange(fields, k, prev.get(k), next.get(k));
+        // Positions are reported one by one (classPosition, shiftPosition, sectionPosition) so each shows as a plain value.
+        Map<String, Object> prevPos = prev.get("positions") instanceof Map<?, ?> p ? (Map<String, Object>) p : Map.of();
+        Map<String, Object> nextPos = next.get("positions") instanceof Map<?, ?> p ? (Map<String, Object>) p : Map.of();
+        for (String k : List.of("classPosition", "shiftPosition", "sectionPosition"))
+            addFieldChange(fields, k, prevPos.get(k), nextPos.get(k));
 
         Map<Object, Map<String, Object>> before = bySubject((List<Map<String, Object>>) prev.get("subjectResults"));
         Map<Object, Map<String, Object>> after = bySubject((List<Map<String, Object>>) next.get("subjectResults"));
@@ -492,6 +517,15 @@ public class ResultPublishService {
         d.put("fields", fields);
         d.put("subjects", subjects);
         return d;
+    }
+
+    private static void addFieldChange(List<Map<String, Object>> fields, String field, Object old, Object now) {
+        if (Objects.equals(old, now)) return;
+        Map<String, Object> f = new LinkedHashMap<>();
+        f.put("field", field);
+        f.put("old", old);
+        f.put("new", now);
+        fields.add(f);
     }
 
     private static Map<Object, Map<String, Object>> bySubject(List<Map<String, Object>> list) {

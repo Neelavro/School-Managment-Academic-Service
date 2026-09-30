@@ -51,6 +51,15 @@ AND (:endRoll IS NULL OR e.classRoll <= :endRoll)
             @Param("endRoll") Integer endRoll
     );
 
+    /** How many gender sections the class's active students are in (a shift position only exists when > 1). */
+    @Query("""
+SELECT COUNT(DISTINCT e.genderSection.id) FROM Enrollment e
+WHERE e.studentClass.id = :classId
+AND e.isActive = true
+AND (:academicYearId IS NULL OR e.academicYear.id = :academicYearId)
+""")
+    long countGenderSectionsInClass(@Param("classId") Integer classId, @Param("academicYearId") Integer academicYearId);
+
     List<Enrollment> findByAcademicYearIdAndIsActiveTrue(Integer academicYearId);
 
     List<Enrollment> findByStudentClass_IdAndAcademicYear_IdAndIsActiveTrue(Integer classId, Integer academicYearId);

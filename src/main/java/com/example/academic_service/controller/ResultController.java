@@ -1,6 +1,7 @@
 package com.example.academic_service.controller;
 
 import com.example.academic_service.dto.ApiResponse;
+import com.example.academic_service.service.MeritBoardService;
 import com.example.academic_service.service.ResultService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -12,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 public class ResultController {
 
     private final ResultService resultService;
+    private final MeritBoardService meritBoardService;
 
     // ─── RESULTS ─────────────────────────────────────────────────────────────────
 
@@ -83,6 +85,18 @@ public class ResultController {
             @RequestParam(required = false) Integer endRoll) {
         return ResponseEntity.ok(ApiResponse.success("Merit list fetched",
                 resultService.getMeritList(academicYearId, classId, shiftId, genderSectionId, sectionId, groupId, startRoll, endRoll)));
+    }
+
+    /** One exam's merit list with class, shift and section positions (the admin Merit List page). */
+    @GetMapping("/merit-list/routine")
+    public ResponseEntity<?> getRoutineMeritList(@RequestParam Integer examRoutineId, @RequestParam Integer classId) {
+        return ResponseEntity.ok(ApiResponse.success("Merit list fetched", meritBoardService.forRoutine(examRoutineId, classId)));
+    }
+
+    /** The year's merit list with class, shift and section positions (the admin Merit List page). */
+    @GetMapping("/merit-list/annual")
+    public ResponseEntity<?> getAnnualMeritList(@RequestParam Integer academicYearId, @RequestParam Integer classId) {
+        return ResponseEntity.ok(ApiResponse.success("Merit list fetched", meritBoardService.forYear(academicYearId, classId)));
     }
 
     // ─── STATS ───────────────────────────────────────────────────────────────────

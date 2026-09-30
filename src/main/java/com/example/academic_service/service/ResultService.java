@@ -165,7 +165,7 @@ public class ResultService {
 
         Integer routineAcademicYearId = routine.getAcademicYear() != null ? routine.getAcademicYear().getId() : null;
         // load ALL class enrollments for rank computation
-        List<Enrollment> allEnrollments = enrollmentRepository.findAllByClassIdAndFilters(classId, routineAcademicYearId, shiftId, null, null, groupId, null, null);
+        List<Enrollment> allEnrollments = enrollmentRepository.findAllByClassIdAndFilters(classId, routineAcademicYearId, null, null, null, groupId, null, null);
         SessionDataBundle bundle = loadSessionData(sessions, classId, allEnrollments);
 
         Map<Long, Integer> overrideMap = loadOverrideMap(allEnrollments);
@@ -182,6 +182,7 @@ public class ResultService {
             List<Double> mandatoryGpas = new ArrayList<>();
             Double fourthGpa = null;
             BigDecimal grandTotal = BigDecimal.ZERO;
+            BigDecimal fourthTotal = BigDecimal.ZERO;
             boolean overallPassed = true;
             Map<Integer, BigDecimal> mgObtained = new HashMap<>();
             Map<Integer, Integer> mgTotalMax = new HashMap<>();
@@ -226,8 +227,10 @@ public class ResultService {
                         grandTotal = grandTotal.add(total);
                         if (grade != null) mandatoryGpas.add(grade.getGpaValue());
                         if (!passed) overallPassed = false;
-                    } else if (grade != null && s.getSubject().getId().equals(overrideMap.get(enrollment.getId()))) {
-                        fourthGpa = grade.getGpaValue();
+                    } else {
+                        fourthTotal = fourthTotal.add(total);
+                        if (grade != null && s.getSubject().getId().equals(overrideMap.get(enrollment.getId())))
+                            fourthGpa = grade.getGpaValue();
                     }
                 } else if (!isFourth) {
                     overallPassed = false;
@@ -245,14 +248,14 @@ public class ResultService {
             if (applyMergeGroupGpas(mgObtained, mgTotalMax, mgPassMarks, mgCompObtained, mgCompPassMarks, mgAnyAppeared, sortedGrades, mandatoryGpas) > 0)
                 overallPassed = false;
 
-            totalMarksMap.put(enrollment.getId(), grandTotal);
+            totalMarksMap.put(enrollment.getId(), withFourth(grandTotal, fourthTotal, overallPassed));
             passedMap.put(enrollment.getId(), overallPassed);
             if (!mandatoryGpas.isEmpty())
                 gpaMap.put(enrollment.getId(), round2(computeOverallGpa(mandatoryGpas, fourthGpa)));
         }
 
         // compute rank maps across all scopes
-        RankMaps rankMaps = computeRankMaps(allEnrollments, totalMarksMap, gpaMap);
+        RankMaps rankMaps = computeRankMaps(allEnrollments, totalMarksMap, gpaMap, passedMap, examClass, routineAcademicYearId);
 
         // build subject infos (group-level default for the column header)
         List<RoutineResultResponse.SubjectInfo> subjectInfos = sessions.stream()
@@ -271,7 +274,7 @@ public class ResultService {
 
         // filter enrollments for display
         List<Enrollment> filteredEnrollments = allEnrollments.stream()
-                .filter(e -> matchesFilter(e, genderSectionId, sectionId, groupId, startRoll, endRoll))
+                .filter(e -> matchesFilter(e, shiftId, genderSectionId, sectionId, groupId, startRoll, endRoll))
                 .collect(Collectors.toList());
 
         // build student rows for filtered enrollments
@@ -305,6 +308,7 @@ public class ResultService {
             List<Double> mandatoryGpas = new ArrayList<>();
             Double fourthGpa = null;
             BigDecimal grandTotal = BigDecimal.ZERO;
+            BigDecimal fourthTotal = BigDecimal.ZERO;
             boolean overallPassed = true;
             Map<Integer, BigDecimal> mgObtained = new HashMap<>();
             Map<Integer, Integer> mgTotalMax = new HashMap<>();
@@ -365,8 +369,10 @@ public class ResultService {
                         grandTotal = grandTotal.add(total);
                         if (grade != null) mandatoryGpas.add(grade.getGpaValue());
                         if (!passed) overallPassed = false;
-                    } else if (grade != null && s.getSubject().getId().equals(overrideMap.get(enrollment.getId()))) {
-                        fourthGpa = grade.getGpaValue();
+                    } else {
+                        fourthTotal = fourthTotal.add(total);
+                        if (grade != null && s.getSubject().getId().equals(overrideMap.get(enrollment.getId())))
+                            fourthGpa = grade.getGpaValue();
                     }
                 } else if (mergeGroupId != null) {
                     mgObtained.merge(mergeGroupId, BigDecimal.ZERO, BigDecimal::add);
@@ -391,13 +397,13 @@ public class ResultService {
                 overallPassed = false;
 
             row.setSubjectResults(subjectResults);
-            row.setTotalMarks(grandTotal);
+            row.setTotalMarks(withFourth(grandTotal, fourthTotal, overallPassed));
             row.setOverallGpa(overallPassed && !mandatoryGpas.isEmpty()
                     ? round2(computeOverallGpa(mandatoryGpas, fourthGpa)) : 0.0);
             row.setPassed(overallPassed);
             if (!overallPassed) {
-                merit.setClassRank(0); merit.setGenderSectionRank(0);
-                merit.setSectionRank(0); merit.setGroupRank(0);
+                merit.setClassRank(null); merit.setGenderSectionRank(null);
+                merit.setSectionRank(null); merit.setGroupRank(null);
             }
             return row;
         }).collect(Collectors.toList());
@@ -433,7 +439,7 @@ public class ResultService {
         Map<Integer, Integer> subjectOrderMap = loadSubjectOrderMap();
 
         // load ALL class enrollments for rank computation
-        List<Enrollment> allEnrollments = enrollmentRepository.findAllByClassIdAndFilters(classId, academicYearId, shiftId, null, null, groupId, null, null);
+        List<Enrollment> allEnrollments = enrollmentRepository.findAllByClassIdAndFilters(classId, academicYearId, null, null, null, groupId, null, null);
         AnnualDataBundle bundle = loadAnnualData(sessions, classId, allEnrollments);
 
         Map<Long, Integer> overrideMap = loadOverrideMap(allEnrollments);
@@ -472,6 +478,8 @@ public class ResultService {
             Double fourthGpa = null;
             BigDecimal grandTotalRaw = BigDecimal.ZERO;
             int grandMaxRaw = 0;
+            BigDecimal fourthRaw = BigDecimal.ZERO;
+            int fourthMax = 0;
             boolean overallPassed = true;
             Map<Integer, BigDecimal> mgObtained = new HashMap<>();
             Map<Integer, Integer> mgTotalMax = new HashMap<>();
@@ -502,8 +510,11 @@ public class ResultService {
                         grandMaxRaw += asd.totalMax;
                         if (asd.grade != null) mandatoryGpas.add(asd.grade.getGpaValue());
                         if (!asd.passed) overallPassed = false;
-                    } else if (asd.grade != null && subjectId.equals(overrideMap.get(enrollment.getId()))) {
-                        fourthGpa = asd.grade.getGpaValue();
+                    } else {
+                        fourthRaw = fourthRaw.add(asd.totalObtained);
+                        fourthMax += asd.totalMax;
+                        if (asd.grade != null && subjectId.equals(overrideMap.get(enrollment.getId())))
+                            fourthGpa = asd.grade.getGpaValue();
                     }
                 } else if (!isFourth) {
                     overallPassed = false;
@@ -520,6 +531,7 @@ public class ResultService {
             if (applyMergeGroupGpas(mgObtained, mgTotalMax, Collections.emptyMap(), new HashMap<>(), new HashMap<>(), mgAnyAppeared, sortedGrades, mandatoryGpas) > 0)
                 overallPassed = false;
 
+            if (overallPassed) { grandTotalRaw = grandTotalRaw.add(fourthRaw); grandMaxRaw += fourthMax; }
             BigDecimal scaled = grandMaxRaw > 0
                     ? grandTotalRaw.multiply(BigDecimal.valueOf(100)).divide(BigDecimal.valueOf(grandMaxRaw), 2, RoundingMode.HALF_UP)
                     : BigDecimal.ZERO;
@@ -530,7 +542,7 @@ public class ResultService {
         }
 
         // compute rank maps
-        RankMaps rankMaps = computeRankMaps(allEnrollments, totalScaledMap, gpaMap);
+        RankMaps rankMaps = computeRankMaps(allEnrollments, totalScaledMap, gpaMap, passedMap, examClass, academicYearId);
 
         // group-level default for column headers
         List<AnnualResultResponse.SubjectInfo> subjectInfos = orderedSubjectIds.stream()
@@ -545,7 +557,7 @@ public class ResultService {
 
         // filter enrollments for display
         List<Enrollment> filteredEnrollments = allEnrollments.stream()
-                .filter(e -> matchesFilter(e, genderSectionId, sectionId, groupId, startRoll, endRoll))
+                .filter(e -> matchesFilter(e, shiftId, genderSectionId, sectionId, groupId, startRoll, endRoll))
                 .collect(Collectors.toList());
 
         List<AnnualResultResponse.StudentResultRow> studentRows = filteredEnrollments.stream().map(enrollment -> {
@@ -579,6 +591,8 @@ public class ResultService {
             Double fourthGpa = null;
             BigDecimal grandTotalRaw = BigDecimal.ZERO;
             int grandMaxRaw = 0;
+            BigDecimal fourthRaw = BigDecimal.ZERO;
+            int fourthMax = 0;
             boolean overallPassed = true;
             Map<Integer, BigDecimal> mgObtained = new HashMap<>();
             Map<Integer, Integer> mgTotalMax = new HashMap<>();
@@ -629,8 +643,11 @@ public class ResultService {
                         grandMaxRaw += asd.totalMax;
                         if (asd.grade != null) mandatoryGpas.add(asd.grade.getGpaValue());
                         if (!asd.passed) overallPassed = false;
-                    } else if (asd.grade != null && subjectId.equals(overrideMap.get(enrollment.getId()))) {
-                        fourthGpa = asd.grade.getGpaValue();
+                    } else {
+                        fourthRaw = fourthRaw.add(asd.totalObtained);
+                        fourthMax += asd.totalMax;
+                        if (asd.grade != null && subjectId.equals(overrideMap.get(enrollment.getId())))
+                            fourthGpa = asd.grade.getGpaValue();
                     }
                 } else if (mergeGroupId != null) {
                     mgObtained.merge(mergeGroupId, BigDecimal.ZERO, BigDecimal::add);
@@ -659,6 +676,7 @@ public class ResultService {
             }
 
             row.setSubjectResults(subjectResults);
+            if (overallPassed) { grandTotalRaw = grandTotalRaw.add(fourthRaw); grandMaxRaw += fourthMax; }
             row.setTotalMarksRaw(grandTotalRaw);
             if (grandMaxRaw > 0) {
                 row.setTotalMarksScaled(grandTotalRaw.multiply(BigDecimal.valueOf(100))
@@ -668,8 +686,8 @@ public class ResultService {
                     ? round2(computeOverallGpa(mandatoryGpas, fourthGpa)) : 0.0);
             row.setPassed(overallPassed);
             if (!overallPassed) {
-                merit.setClassRank(0); merit.setGenderSectionRank(0);
-                merit.setSectionRank(0); merit.setGroupRank(0);
+                merit.setClassRank(null); merit.setGenderSectionRank(null);
+                merit.setSectionRank(null); merit.setGroupRank(null);
             }
             return row;
         }).collect(Collectors.toList());
@@ -721,6 +739,7 @@ public class ResultService {
         List<Double> mandatoryGpas = new ArrayList<>();
         Double fourthGpa = null;
         BigDecimal grandTotal = BigDecimal.ZERO;
+        BigDecimal fourthTotal = BigDecimal.ZERO;
         boolean overallPassed = true;
         Map<Integer, BigDecimal> mgObtained = new HashMap<>();
         Map<Integer, Integer> mgTotalMax = new HashMap<>();
@@ -795,8 +814,10 @@ public class ResultService {
                     grandTotal = grandTotal.add(total);
                     if (grade != null) mandatoryGpas.add(grade.getGpaValue());
                     if (!passed) overallPassed = false;
-                } else if (grade != null && s.getSubject().getId().equals(overrideMap.get(enrollment.getId()))) {
-                    fourthGpa = grade.getGpaValue();
+                } else {
+                    fourthTotal = fourthTotal.add(total);
+                    if (grade != null && s.getSubject().getId().equals(overrideMap.get(enrollment.getId())))
+                        fourthGpa = grade.getGpaValue();
                 }
             } else if (mergeGroupId != null) {
                 mgObtained.merge(mergeGroupId, BigDecimal.ZERO, BigDecimal::add);
@@ -831,7 +852,7 @@ public class ResultService {
         response.setExamTypeName(routine.getExamType().getName());
         response.setUseGpaForResult(Boolean.TRUE.equals(examClass.getUseGpaForResult()));
         response.setSubjectResults(subjectResults);
-        response.setTotalMarks(grandTotal);
+        response.setTotalMarks(withFourth(grandTotal, fourthTotal, overallPassed));
         response.setOverallGpa(overallPassed && !mandatoryGpas.isEmpty()
                 ? round2(computeOverallGpa(mandatoryGpas, fourthGpa)) : 0.0);
         response.setPassed(overallPassed);
@@ -890,6 +911,8 @@ public class ResultService {
         Double fourthGpa = null;
         BigDecimal grandTotalRaw = BigDecimal.ZERO;
         int grandMaxRaw = 0;
+        BigDecimal fourthRaw = BigDecimal.ZERO;
+        int fourthMax = 0;
         boolean overallPassed = true;
         Map<Integer, BigDecimal> mgObtained = new HashMap<>();
         Map<Integer, Integer> mgTotalMax = new HashMap<>();
@@ -940,8 +963,11 @@ public class ResultService {
                     grandMaxRaw += asd.totalMax;
                     if (asd.grade != null) mandatoryGpas.add(asd.grade.getGpaValue());
                     if (!asd.passed) overallPassed = false;
-                } else if (asd.grade != null && subjectId.equals(overrideMap.get(enrollment.getId()))) {
-                    fourthGpa = asd.grade.getGpaValue();
+                } else {
+                    fourthRaw = fourthRaw.add(asd.totalObtained);
+                    fourthMax += asd.totalMax;
+                    if (asd.grade != null && subjectId.equals(overrideMap.get(enrollment.getId())))
+                        fourthGpa = asd.grade.getGpaValue();
                 }
             } else if (mergeGroupId != null) {
                 mgObtained.merge(mergeGroupId, BigDecimal.ZERO, BigDecimal::add);
@@ -981,6 +1007,7 @@ public class ResultService {
         response.setUseGpaForResult(Boolean.TRUE.equals(examClass.getUseGpaForResult()));
         response.setRoutines(studentRoutineInfos);
         response.setSubjectResults(subjectResults);
+        if (overallPassed) { grandTotalRaw = grandTotalRaw.add(fourthRaw); grandMaxRaw += fourthMax; }
         response.setTotalMarksRaw(grandTotalRaw);
         if (grandMaxRaw > 0) {
             response.setTotalMarksScaled(grandTotalRaw.multiply(BigDecimal.valueOf(100))
@@ -1007,8 +1034,9 @@ public class ResultService {
         Set<Integer> defaultFourthSubjectIds = loadFourthSubjectIds(classId, groupId);
         Map<Integer, Integer> mergeGroupMap = loadMergeGroupMap(classId, groupId);
 
+        // The whole class (or group): positions don't depend on the display filters, which are applied after ranking.
         List<Enrollment> enrollments = enrollmentRepository
-                .findAllByClassIdAndFilters(classId, academicYearId, shiftId, genderSectionId, sectionId, groupId, startRoll, endRoll);
+                .findAllByClassIdAndFilters(classId, academicYearId, null, null, null, groupId, null, null);
         AnnualDataBundle bundle = loadAnnualData(sessions, classId, enrollments);
         List<Integer> orderedSubjectIds = bundle.sessionsBySubject.keySet().stream().sorted().collect(Collectors.toList());
 
@@ -1019,6 +1047,8 @@ public class ResultService {
             Set<Integer> fourthSubjectIds = buildStudentFourthSet(enrollment.getId(), overrideMap, compulsoryMap);
             BigDecimal totalRaw = BigDecimal.ZERO;
             int totalMax = 0;
+            BigDecimal fourthRaw = BigDecimal.ZERO;
+            int fourthMax = 0;
             List<Double> mandatoryGpas = new ArrayList<>();
             Double fourthGpa = null;
             boolean passed = true;
@@ -1052,8 +1082,11 @@ public class ResultService {
                         totalMax += asd.totalMax;
                         if (asd.grade != null) mandatoryGpas.add(asd.grade.getGpaValue());
                         if (!asd.passed) passed = false;
-                    } else if (asd.grade != null && subjectId.equals(overrideMap.get(enrollment.getId()))) {
-                        fourthGpa = asd.grade.getGpaValue();
+                    } else {
+                        fourthRaw = fourthRaw.add(asd.totalObtained);
+                        fourthMax += asd.totalMax;
+                        if (asd.grade != null && subjectId.equals(overrideMap.get(enrollment.getId())))
+                            fourthGpa = asd.grade.getGpaValue();
                     }
                 } else if (!isFourth) {
                     passed = false;
@@ -1075,6 +1108,7 @@ public class ResultService {
             entry.setStudentSystemId(enrollment.getStudentSystemId());
             entry.setStudentName(enrollment.getStudent() != null ? enrollment.getStudent().getNameEnglish() : null);
             entry.setClassRoll(enrollment.getClassRoll());
+            if (passed) { totalRaw = totalRaw.add(fourthRaw); totalMax += fourthMax; }
             entry.setTotalMarksRaw(totalRaw);
             if (totalMax > 0) {
                 entry.setTotalMarksScaled(totalRaw.multiply(BigDecimal.valueOf(100))
@@ -1086,18 +1120,30 @@ public class ResultService {
             return entry;
         }).collect(Collectors.toList());
 
-        entries.sort(Comparator.comparing(
-                (MeritListResponse.MeritEntry e) -> e.getTotalMarksRaw() != null ? e.getTotalMarksRaw() : BigDecimal.ZERO,
-                Comparator.reverseOrder()));
-
-        int rank = 1;
-        for (MeritListResponse.MeritEntry entry : entries) {
-            if (entry.isPassed()) {
-                entry.setRank(rank++);
-            } else {
-                entry.setRank(0);
-            }
+        // Rank the whole class (MeritRanking: class position within the group), then apply the display filters.
+        // rank stays 0 for failed students, as this endpoint always sent.
+        Map<Long, Enrollment> byId = enrollments.stream().collect(Collectors.toMap(Enrollment::getId, e -> e));
+        Map<Long, BigDecimal> totals = new HashMap<>();
+        Map<Long, Double> gpas = new HashMap<>();
+        Map<Long, Boolean> passedMap = new HashMap<>();
+        for (MeritListResponse.MeritEntry e : entries) {
+            totals.put(e.getEnrollmentId(), e.getTotalMarksRaw());
+            gpas.put(e.getEnrollmentId(), e.getOverallGpa());
+            passedMap.put(e.getEnrollmentId(), e.isPassed());
         }
+        RankMaps rankMaps = computeRankMaps(enrollments, totals, gpas, passedMap, examClass, academicYearId);
+        for (MeritListResponse.MeritEntry entry : entries)
+            entry.setRank(rankMaps.classRankMap.getOrDefault(entry.getEnrollmentId(), 0));
+        entries.removeIf(e -> !matchesFilter(byId.get(e.getEnrollmentId()), shiftId, genderSectionId, sectionId, groupId, startRoll, endRoll));
+
+        // Group by group, then passed by rank, then failed by roll.
+        entries.sort(Comparator.comparing((MeritListResponse.MeritEntry e) -> {
+                    Enrollment en = byId.get(e.getEnrollmentId());
+                    return en.getStudentGroup() != null ? en.getStudentGroup().getId() : Integer.MIN_VALUE;
+                })
+                .thenComparing(e -> e.isPassed() ? 0 : 1)
+                .thenComparing(e -> e.getRank() > 0 ? e.getRank() : Integer.MAX_VALUE)
+                .thenComparing(e -> e.getClassRoll() != null ? e.getClassRoll() : Integer.MAX_VALUE));
 
         MeritListResponse response = new MeritListResponse();
         response.setAcademicYearId(academicYearId);
@@ -1328,7 +1374,7 @@ public class ResultService {
 
         Integer routineAcademicYearId = routine.getAcademicYear() != null ? routine.getAcademicYear().getId() : null;
         List<Enrollment> allEnrollments = enrollmentRepository
-                .findAllByClassIdAndFilters(classId, routineAcademicYearId, shiftId, null, null, groupId, null, null);
+                .findAllByClassIdAndFilters(classId, routineAcademicYearId, null, null, null, groupId, null, null);
         SessionDataBundle bundle = loadSessionData(sessions, classId, allEnrollments);
 
         Map<Long, Integer> overrideMap = loadOverrideMap(allEnrollments);
@@ -1534,7 +1580,7 @@ public class ResultService {
             // Passed students get the 4th subject folded into their total —
             // matches the marksheet footer and lines up the rank with what
             // the reader sees on the page.
-            report.setTotalMarks(overallPassed ? grandTotal.add(fourthTotal) : grandTotal);
+            report.setTotalMarks(withFourth(grandTotal, fourthTotal, overallPassed));
             report.setPassed(overallPassed);
             report.setFailedSubjectCount(failedCount);
 
@@ -1549,34 +1595,26 @@ public class ResultService {
             return report;
         }).collect(Collectors.toList());
 
-        // Rank by the with-4th total for passed students; failed students
-        // are pinned to 0 so they sort last and don't create rank gaps.
+        // Rank by the with-4th total; failed students get no position (MeritRanking).
         Map<Long, BigDecimal> totalMarksMap = new HashMap<>();
         Map<Long, Double> gpaMap = new HashMap<>();
+        Map<Long, Boolean> passedMap = new HashMap<>();
         for (ProgressReportData.StudentReport r : allReports) {
-            totalMarksMap.put(r.getEnrollmentId(),
-                    r.isPassed() ? r.getTotalMarks() : BigDecimal.ZERO);
-            gpaMap.put(r.getEnrollmentId(),
-                    r.isPassed() ? r.getOverallGpa() : 0.0);
+            totalMarksMap.put(r.getEnrollmentId(), r.getTotalMarks());
+            gpaMap.put(r.getEnrollmentId(), r.getOverallGpa());
+            passedMap.put(r.getEnrollmentId(), r.isPassed());
         }
-        RankMaps rankMaps = computeRankMaps(allEnrollments, totalMarksMap, gpaMap);
+        RankMaps rankMaps = computeRankMaps(allEnrollments, totalMarksMap, gpaMap, passedMap, examClass, routineAcademicYearId);
         for (ProgressReportData.StudentReport r : allReports) {
-            if (r.isPassed()) {
-                r.setClassRank(rankMaps.classRankMap.get(r.getEnrollmentId()));
-                r.setGenderSectionRank(rankMaps.genderSectionRankMap.get(r.getEnrollmentId()));
-                r.setSectionRank(rankMaps.sectionRankMap.get(r.getEnrollmentId()));
-                r.setGroupRank(rankMaps.groupRankMap.get(r.getEnrollmentId()));
-            } else {
-                r.setClassRank(0);
-                r.setGenderSectionRank(0);
-                r.setSectionRank(0);
-                r.setGroupRank(0);
-            }
+            r.setClassRank(rankMaps.classRankMap.get(r.getEnrollmentId()));
+            r.setGenderSectionRank(rankMaps.genderSectionRankMap.get(r.getEnrollmentId()));
+            r.setSectionRank(rankMaps.sectionRankMap.get(r.getEnrollmentId()));
+            r.setGroupRank(rankMaps.groupRankMap.get(r.getEnrollmentId()));
         }
 
         // Apply the display filter now that ranks are assigned
         Set<Long> filteredEnrollmentIds = allEnrollments.stream()
-                .filter(e -> matchesFilter(e, genderSectionId, sectionId, groupId, startRoll, endRoll))
+                .filter(e -> matchesFilter(e, shiftId, genderSectionId, sectionId, groupId, startRoll, endRoll))
                 .map(Enrollment::getId)
                 .collect(Collectors.toSet());
         List<ProgressReportData.StudentReport> studentReports = allReports.stream()
@@ -2099,6 +2137,15 @@ public class ResultService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
+    /**
+     * A result's total: a passed student's 4th subject marks count (user decision 2026-09-30, as the progress
+     * report always did); a failed student's total is the compulsory subjects only. Every total that is shown
+     * or ranked goes through here (annual totals add the 4th subject's marks and maximum the same way).
+     */
+    private static BigDecimal withFourth(BigDecimal total, BigDecimal fourth, boolean passed) {
+        return passed ? total.add(fourth) : total;
+    }
+
     private double round2(double value) {
         return Math.round(value * 100.0) / 100.0;
     }
@@ -2112,59 +2159,35 @@ public class ResultService {
         Map<Long, Integer> groupRankMap = new HashMap<>();
     }
 
-    private RankMaps computeRankMaps(List<Enrollment> allEnrollments, Map<Long, BigDecimal> totalMarksMap, Map<Long, Double> gpaMap) {
+    /**
+     * Class, shift and section positions for a class's students (MeritRanking: passed students only, within the
+     * group, GPA or total first by the class's setting). groupRankMap is the same as classRankMap, since the
+     * class position is already within the group. A position that doesn't apply is simply absent (null).
+     */
+    private RankMaps computeRankMaps(List<Enrollment> allEnrollments, Map<Long, BigDecimal> totalMarksMap, Map<Long, Double> gpaMap,
+                                     Map<Long, Boolean> passedMap, Class examClass, Integer academicYearId) {
+        List<MeritRanking.Candidate> candidates = allEnrollments.stream().map(e -> new MeritRanking.Candidate(
+                e.getId(),
+                e.getStudentGroup() != null ? e.getStudentGroup().getId() : null,
+                e.getGenderSection() != null ? e.getGenderSection().getId() : null,
+                e.getSection() != null ? e.getSection().getId() : null,
+                e.getClassRoll(), gpaMap.get(e.getId()), totalMarksMap.get(e.getId()),
+                Boolean.TRUE.equals(passedMap.get(e.getId())))).toList();
+        // Counted over the whole class, since the students here may be one group only.
+        boolean severalShifts = enrollmentRepository.countGenderSectionsInClass(examClass.getId(), academicYearId) > 1;
+        Map<Long, MeritRanking.Positions> positions = MeritRanking.rank(candidates, Boolean.TRUE.equals(examClass.getUseGpaForResult()), severalShifts);
+
         RankMaps rm = new RankMaps();
-        // Tie-break: higher GPA wins; then lower class roll wins (nulls last);
-        // then lower enrollment id — so ordering is fully deterministic.
-        Comparator<Enrollment> byMarksDesc = Comparator
-                .comparing((Enrollment e) -> totalMarksMap.getOrDefault(e.getId(), BigDecimal.ZERO), Comparator.reverseOrder())
-                .thenComparing(e -> gpaMap.getOrDefault(e.getId(), 0.0), Comparator.reverseOrder())
-                .thenComparing(e -> e.getClassRoll() != null ? e.getClassRoll() : Integer.MAX_VALUE)
-                .thenComparing(Enrollment::getId);
-
-        // class rank — all students
-        List<Enrollment> sortedAll = allEnrollments.stream().sorted(byMarksDesc).collect(Collectors.toList());
-        for (int i = 0; i < sortedAll.size(); i++) rm.classRankMap.put(sortedAll.get(i).getId(), i + 1);
-
-        // gender section rank
-        allEnrollments.stream()
-                .filter(e -> e.getGenderSection() != null)
-                .collect(Collectors.groupingBy(e -> e.getGenderSection().getId()))
-                .forEach((gsId, group) -> {
-                    List<Enrollment> sorted = group.stream().sorted(byMarksDesc).collect(Collectors.toList());
-                    for (int i = 0; i < sorted.size(); i++) rm.genderSectionRankMap.put(sorted.get(i).getId(), i + 1);
-                });
-
-        // section rank — use section if set, fall back to genderSection for students without a section
-        allEnrollments.stream()
-                .filter(e -> e.getSection() != null)
-                .collect(Collectors.groupingBy(e -> e.getSection().getId()))
-                .forEach((secId, group) -> {
-                    List<Enrollment> sorted = group.stream().sorted(byMarksDesc).collect(Collectors.toList());
-                    for (int i = 0; i < sorted.size(); i++) rm.sectionRankMap.put(sorted.get(i).getId(), i + 1);
-                });
-
-        allEnrollments.stream()
-                .filter(e -> e.getSection() == null && e.getGenderSection() != null)
-                .collect(Collectors.groupingBy(e -> e.getGenderSection().getId()))
-                .forEach((gsId, group) -> {
-                    List<Enrollment> sorted = group.stream().sorted(byMarksDesc).collect(Collectors.toList());
-                    for (int i = 0; i < sorted.size(); i++) rm.sectionRankMap.put(sorted.get(i).getId(), i + 1);
-                });
-
-        // group rank
-        allEnrollments.stream()
-                .filter(e -> e.getStudentGroup() != null)
-                .collect(Collectors.groupingBy(e -> e.getStudentGroup().getId()))
-                .forEach((grpId, group) -> {
-                    List<Enrollment> sorted = group.stream().sorted(byMarksDesc).collect(Collectors.toList());
-                    for (int i = 0; i < sorted.size(); i++) rm.groupRankMap.put(sorted.get(i).getId(), i + 1);
-                });
-
+        positions.forEach((id, p) -> {
+            if (p.classPosition() != null) { rm.classRankMap.put(id, p.classPosition()); rm.groupRankMap.put(id, p.classPosition()); }
+            if (p.shiftPosition() != null) rm.genderSectionRankMap.put(id, p.shiftPosition());
+            if (p.sectionPosition() != null) rm.sectionRankMap.put(id, p.sectionPosition());
+        });
         return rm;
     }
 
-    private boolean matchesFilter(Enrollment e, Integer genderSectionId, Long sectionId, Integer groupId, Integer startRoll, Integer endRoll) {
+    private boolean matchesFilter(Enrollment e, Integer shiftId, Integer genderSectionId, Long sectionId, Integer groupId, Integer startRoll, Integer endRoll) {
+        if (shiftId != null && (e.getShift() == null || !e.getShift().getId().equals(shiftId))) return false;
         if (genderSectionId != null && (e.getGenderSection() == null || !e.getGenderSection().getId().equals(genderSectionId))) return false;
         if (sectionId != null && (e.getSection() == null || !e.getSection().getId().equals(sectionId))) return false;
         if (groupId != null && (e.getStudentGroup() == null || !e.getStudentGroup().getId().equals(groupId))) return false;

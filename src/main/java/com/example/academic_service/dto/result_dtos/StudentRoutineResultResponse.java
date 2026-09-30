@@ -21,6 +21,21 @@ public class StudentRoutineResultResponse {
     private BigDecimal totalMarks;
     private Double overallGpa;
     private boolean passed;
+    /** Set only on results stored at publish (the student portal); null elsewhere. */
+    private Positions positions;
+
+    /**
+     * The student's positions, the same numbers as the admin progress report (MeritRanking), with the
+     * ones that don't apply left null: all of them for a failed student, the shift (gender section)
+     * position when the class has only one, and the section position when the student has no section.
+     */
+    @Getter
+    @Setter
+    public static class Positions {
+        private Integer classPosition;
+        private Integer shiftPosition;
+        private Integer sectionPosition;
+    }
 
     @Getter
     @Setter
