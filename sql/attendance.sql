@@ -48,21 +48,32 @@ ALTER TABLE attendance
 ALTER TABLE attendance
     ADD KEY idx_att_source (source);
 
--- ── 2. class_teacher  (which staff is the class-teacher of a section/year) ─
--- UNIQUE on (section_id, academic_year_id) — one class teacher per section per year.
+-- ── 2. class_teacher  (which staff is the class-teacher of a register/year) ─
+-- A register is a section, or — when a class has no sections for a gender
+-- section — the class + gender section (section_id NULL). class_id and
+-- gender_section_id are always filled. One class teacher per register per
+-- year: UNIQUE (section_id, academic_year_id) for sections; the app checks
+-- class + gender section registers (MySQL UNIQUE ignores NULL section_id).
 CREATE TABLE IF NOT EXISTS class_teacher (
-  id                BIGINT       NOT NULL AUTO_INCREMENT,
-  staff_id          BIGINT           NULL,
-  section_id        BIGINT           NULL,
-  academic_year_id  INT              NULL,
-  created_at        DATETIME         NULL,
+  id                 BIGINT       NOT NULL AUTO_INCREMENT,
+  staff_id           BIGINT           NULL,
+  class_id           INT              NULL,
+  gender_section_id  INT              NULL,
+  section_id         BIGINT           NULL,
+  academic_year_id   INT              NULL,
+  created_at         DATETIME         NULL,
   PRIMARY KEY (id),
   UNIQUE KEY uq_class_teacher (section_id, academic_year_id),
   KEY idx_ct_staff (staff_id),
+  KEY idx_ct_class_gender (class_id, gender_section_id, academic_year_id),
   KEY idx_ct_section (section_id),
   KEY idx_ct_year (academic_year_id),
   CONSTRAINT fk_ct_staff   FOREIGN KEY (staff_id)
       REFERENCES staff(id)         ON DELETE CASCADE,
+  CONSTRAINT fk_ct_class   FOREIGN KEY (class_id)
+      REFERENCES class(id)         ON DELETE CASCADE,
+  CONSTRAINT fk_ct_gender_section FOREIGN KEY (gender_section_id)
+      REFERENCES gender_section(id) ON DELETE SET NULL,
   CONSTRAINT fk_ct_section FOREIGN KEY (section_id)
       REFERENCES section(id)       ON DELETE SET NULL,
   CONSTRAINT fk_ct_year    FOREIGN KEY (academic_year_id)

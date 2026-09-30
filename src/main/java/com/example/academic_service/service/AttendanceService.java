@@ -6,8 +6,10 @@ import com.example.academic_service.entity.Enrollment;
 import com.example.academic_service.repository.AttendanceRepository;
 import com.example.academic_service.repository.EnrollmentRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
 import java.util.*;
@@ -23,8 +25,20 @@ public class AttendanceService {
 
     // ── Shared logic ──────────────────────────────────────────────────────────
 
-    public List<Map<String, Object>> getStudentsWithStatus(Long sectionId, Integer academicYearId, LocalDate date) {
-        List<Enrollment> enrollments = enrollmentRepository.findBySectionAndYear(sectionId, academicYearId);
+    /**
+     * A register's students: a section's, or — for a class + gender section without sections (sectionId null) —
+     * the class + gender section's students who have no section.
+     */
+    public List<Enrollment> register(Long sectionId, Integer classId, Integer genderSectionId, Integer academicYearId) {
+        if (sectionId != null) return enrollmentRepository.findBySectionAndYear(sectionId, academicYearId);
+        if (classId == null || genderSectionId == null)
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Choose a section, or a class and a gender section");
+        return enrollmentRepository.findByClassGenderWithoutSection(classId, genderSectionId, academicYearId);
+    }
+
+    public List<Map<String, Object>> getStudentsWithStatus(Long sectionId, Integer classId, Integer genderSectionId,
+                                                           Integer academicYearId, LocalDate date) {
+        List<Enrollment> enrollments = register(sectionId, classId, genderSectionId, academicYearId);
 
         List<Long> ids = enrollments.stream().map(Enrollment::getId).toList();
         Map<Long, String> absentSourceById = ids.isEmpty() ? Map.of()
@@ -46,13 +60,14 @@ public class AttendanceService {
     }
 
     @Transactional
-    public void saveAttendance(Long sectionId, Integer academicYearId, LocalDate date, List<Long> absentEnrollmentIds) {
-        List<Enrollment> enrollments = enrollmentRepository.findBySectionAndYear(sectionId, academicYearId);
+    public void saveAttendance(Long sectionId, Integer classId, Integer genderSectionId, Integer academicYearId,
+                               LocalDate date, List<Long> absentEnrollmentIds) {
+        List<Enrollment> enrollments = register(sectionId, classId, genderSectionId, academicYearId);
 
         List<Long> allIds = enrollments.stream().map(Enrollment::getId).toList();
         if (allIds.isEmpty()) return;
 
-        // Replace: teacher save wipes both MANUAL and STELLER rows for this section+date,
+        // Replace: teacher save wipes both MANUAL and STELLER rows for this register+date,
         // then inserts fresh MANUAL rows. Teacher is authoritative.
         attendanceRepository.deleteByEnrollmentIdsAndDate(allIds, date);
 
@@ -75,13 +90,25 @@ public class AttendanceService {
 
     public List<Map<String, Object>> getTeacherStudentsWithStatus(Long staffId, Integer academicYearId, LocalDate date) {
         ClassTeacher ct = classTeacherService.getByStaffAndYear(staffId, academicYearId);
-        return getStudentsWithStatus(ct.getSection().getId(), academicYearId, date);
+        return getStudentsWithStatus(sectionIdOf(ct), classIdOf(ct), genderSectionIdOf(ct), academicYearId, date);
     }
 
     @Transactional
     public void saveTeacherAttendance(Long staffId, Integer academicYearId, LocalDate date, List<Long> absentEnrollmentIds) {
         ClassTeacher ct = classTeacherService.getByStaffAndYear(staffId, academicYearId);
-        saveAttendance(ct.getSection().getId(), academicYearId, date, absentEnrollmentIds);
+        saveAttendance(sectionIdOf(ct), classIdOf(ct), genderSectionIdOf(ct), academicYearId, date, absentEnrollmentIds);
+    }
+
+    private static Long sectionIdOf(ClassTeacher ct) {
+        return ct.getSection() != null ? ct.getSection().getId() : null;
+    }
+
+    private static Integer classIdOf(ClassTeacher ct) {
+        return ct.getStudentClass() != null ? ct.getStudentClass().getId() : null;
+    }
+
+    private static Integer genderSectionIdOf(ClassTeacher ct) {
+        return ct.getGenderSection() != null ? ct.getGenderSection().getId() : null;
     }
 
     // ── Student portal ────────────────────────────────────────────────────────

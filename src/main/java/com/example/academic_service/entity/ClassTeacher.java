@@ -23,8 +23,18 @@ public class ClassTeacher {
     @JoinColumn(name = "staff_id", nullable = false)
     private Staff staff;
 
+    // A class teacher keeps one register: a section, or — in a class/gender section without sections —
+    // the class + gender section (section null). class_id and gender_section_id are always set.
     @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "section_id", nullable = false)
+    @JoinColumn(name = "class_id", nullable = false)
+    private Class studentClass;
+
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "gender_section_id")
+    private GenderSection genderSection;
+
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "section_id")
     private Section section;
 
     @ManyToOne(fetch = FetchType.EAGER)

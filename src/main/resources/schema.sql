@@ -7793,14 +7793,19 @@
        add column merge_group_id integer;
 
     -- Attendance module
+    -- A class teacher's register: a section, or (section_id null) the class + gender section
+    -- when the class has no sections for that gender section.
     create table if not exists class_teacher (
         id bigint not null auto_increment,
         staff_id bigint not null,
-        section_id bigint not null,
+        class_id integer,
+        gender_section_id integer,
+        section_id bigint,
         academic_year_id integer not null,
         created_at datetime(6),
         primary key (id),
-        unique key uq_class_teacher (section_id, academic_year_id)
+        unique key uq_class_teacher (section_id, academic_year_id),
+        index idx_ct_class_gender (class_id, gender_section_id, academic_year_id)
     ) engine=InnoDB;
 
     create table if not exists attendance (

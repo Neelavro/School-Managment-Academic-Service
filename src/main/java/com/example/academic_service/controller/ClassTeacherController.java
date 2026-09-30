@@ -29,12 +29,15 @@ public class ClassTeacherController {
 
     @PostMapping
     @RequirePermission(submodule = Submodule.CLASS_TEACHER, action = "CREATE")
+    /** {staffId, academicYearId, sectionId} — or {…, classId, genderSectionId} when the class has no sections for that gender section. */
     public ResponseEntity<ApiResponse> assign(@RequestBody Map<String, Object> body) {
         Long staffId = ((Number) body.get("staffId")).longValue();
-        Long sectionId = ((Number) body.get("sectionId")).longValue();
         Integer academicYearId = ((Number) body.get("academicYearId")).intValue();
+        Long sectionId = body.get("sectionId") instanceof Number n ? n.longValue() : null;
+        Integer classId = body.get("classId") instanceof Number n ? n.intValue() : null;
+        Integer genderSectionId = body.get("genderSectionId") instanceof Number n ? n.intValue() : null;
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(new ApiResponse("Assigned", classTeacherService.assign(staffId, sectionId, academicYearId)));
+                .body(new ApiResponse("Assigned", classTeacherService.assign(staffId, sectionId, classId, genderSectionId, academicYearId)));
     }
 
     @DeleteMapping("/{id}")

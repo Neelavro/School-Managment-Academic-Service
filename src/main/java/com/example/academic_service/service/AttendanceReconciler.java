@@ -60,16 +60,19 @@ public class AttendanceReconciler {
             return new ReconcileResult(0, 0, 0, "no-active-enrollments");
         }
 
-        // Group by section so we can honor the "teacher already saved this section" rule per-section.
-        Map<Long, List<Enrollment>> bySection = enrollments.stream()
-                .filter(e -> e.getSection() != null)
-                .collect(Collectors.groupingBy(e -> e.getSection().getId()));
+        // Group by register (a section, or a class + gender section for students without one) so we can honor
+        // the "teacher already saved this register" rule per register.
+        Map<String, List<Enrollment>> bySection = enrollments.stream()
+                .filter(e -> e.getSection() != null || (e.getStudentClass() != null && e.getGenderSection() != null))
+                .collect(Collectors.groupingBy(e -> e.getSection() != null
+                        ? "s" + e.getSection().getId()
+                        : "c" + e.getStudentClass().getId() + "/g" + e.getGenderSection().getId()));
 
         int sectionsSkipped = 0;
         int sectionsProcessed = 0;
         int rowsInserted = 0;
 
-        for (Map.Entry<Long, List<Enrollment>> entry : bySection.entrySet()) {
+        for (Map.Entry<String, List<Enrollment>> entry : bySection.entrySet()) {
             List<Enrollment> sectionEnrollments = entry.getValue();
             List<Long> enrollmentIds = sectionEnrollments.stream().map(Enrollment::getId).toList();
 

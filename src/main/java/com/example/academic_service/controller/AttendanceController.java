@@ -28,24 +28,29 @@ public class AttendanceController {
 
     @GetMapping("/students")
     @RequirePermission(submodule = Submodule.ATTENDANCE, action = "READ")
+    /** sectionId, or classId + genderSectionId for a class/gender section without sections. */
     public ResponseEntity<ApiResponse> getStudents(
-            @RequestParam Long sectionId,
+            @RequestParam(required = false) Long sectionId,
+            @RequestParam(required = false) Integer classId,
+            @RequestParam(required = false) Integer genderSectionId,
             @RequestParam Integer academicYearId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
         return ResponseEntity.ok(new ApiResponse("OK",
-                attendanceService.getStudentsWithStatus(sectionId, academicYearId, date)));
+                attendanceService.getStudentsWithStatus(sectionId, classId, genderSectionId, academicYearId, date)));
     }
 
     @PostMapping("/save")
     @RequirePermission(submodule = Submodule.ATTENDANCE, action = "CREATE")
     public ResponseEntity<ApiResponse> save(@RequestBody Map<String, Object> body) {
-        Long sectionId = ((Number) body.get("sectionId")).longValue();
+        Long sectionId = body.get("sectionId") instanceof Number n ? n.longValue() : null;
+        Integer classId = body.get("classId") instanceof Number n ? n.intValue() : null;
+        Integer genderSectionId = body.get("genderSectionId") instanceof Number n ? n.intValue() : null;
         Integer academicYearId = ((Number) body.get("academicYearId")).intValue();
         LocalDate date = LocalDate.parse((String) body.get("date"));
         @SuppressWarnings("unchecked")
         List<Long> absentIds = ((List<Number>) body.get("absentEnrollmentIds"))
                 .stream().map(Number::longValue).toList();
-        attendanceService.saveAttendance(sectionId, academicYearId, date, absentIds);
+        attendanceService.saveAttendance(sectionId, classId, genderSectionId, academicYearId, date, absentIds);
         return ResponseEntity.ok(new ApiResponse("Attendance saved", null));
     }
 

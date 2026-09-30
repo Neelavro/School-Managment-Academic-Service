@@ -17,4 +17,7 @@ public interface ClassTeacherRepository extends JpaRepository<ClassTeacher, Long
     Optional<ClassTeacher> findByStaffIdAndAcademicYearId(Long staffId, Integer academicYearId);
 
     boolean existsBySectionIdAndAcademicYearId(Long sectionId, Integer academicYearId);
+
+    /** A class-teacher for a class + gender section without sections (section null). */
+    boolean existsByStudentClassIdAndGenderSectionIdAndSectionIsNullAndAcademicYearId(Integer classId, Integer genderSectionId, Integer academicYearId);
 }

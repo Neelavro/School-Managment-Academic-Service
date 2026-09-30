@@ -95,6 +95,22 @@ ORDER BY e.classRoll ASC
             @Param("academicYearId") Integer academicYearId
     );
 
+    /** The register of a class + gender section that has no sections: its active students without a section. */
+    @Query("""
+SELECT e FROM Enrollment e
+WHERE e.studentClass.id = :classId
+AND e.genderSection.id = :genderSectionId
+AND e.section IS NULL
+AND e.academicYear.id = :academicYearId
+AND e.isActive = true
+ORDER BY e.classRoll ASC
+""")
+    List<Enrollment> findByClassGenderWithoutSection(
+            @Param("classId") Integer classId,
+            @Param("genderSectionId") Integer genderSectionId,
+            @Param("academicYearId") Integer academicYearId
+    );
+
     // Dashboard summary: aggregate active enrollments in a year, grouped
     // by class + gender section, so a chart can render (class, boys/girls)
     // splits without pulling every row across the wire.
