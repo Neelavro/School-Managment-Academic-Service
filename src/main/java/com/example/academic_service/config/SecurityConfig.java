@@ -40,6 +40,10 @@ public class SecurityConfig {
                         .requestMatchers("/api/payments/ipn").permitAll()
                         // Platform metrics — auth via X-Platform-Secret header (checked in controller)
                         .requestMatchers("/api/platform/metrics").permitAll()
+                        // Public online-admission form (options + submit)
+                        .requestMatchers("/api/public/admission/**").permitAll()
+                        // Public website notice board (published notices only)
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/public/notices", "/api/public/notices/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
