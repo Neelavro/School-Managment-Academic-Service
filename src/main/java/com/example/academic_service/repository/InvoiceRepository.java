@@ -18,6 +18,18 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
 
     Optional<Invoice> findByInvoiceNumber(String invoiceNumber);
 
+    /** Unpaid monthly fees past their due date that don't carry a late fee yet. */
+    @Query("""
+        SELECT i.id FROM Invoice i
+        WHERE i.lateFeeAmount IS NULL
+          AND i.dueDate < :today
+          AND i.paidAmount < i.totalAmount
+          AND i.status IN (com.example.academic_service.entity.InvoiceStatus.PENDING,
+                           com.example.academic_service.entity.InvoiceStatus.PARTIAL,
+                           com.example.academic_service.entity.InvoiceStatus.OVERDUE)
+    """)
+    List<Long> findLateFeeCandidates(@Param("today") LocalDate today);
+
     Optional<Invoice> findByEnrollmentIdAndBillingPeriod(Long enrollmentId, LocalDate billingPeriod);
 
     List<Invoice> findByEnrollmentIdAndBillingPeriodIn(Long enrollmentId, List<LocalDate> periods);

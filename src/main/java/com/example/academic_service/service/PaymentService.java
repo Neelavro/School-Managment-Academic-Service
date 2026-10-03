@@ -49,6 +49,7 @@ public class PaymentService {
     private final AccountingSettingsService settingsService;
     private final JournalEntryService journalService;
     private final SslCommerzClient ssl;
+    private final LateFeeService lateFeeService;
 
     private final ObjectMapper json = new ObjectMapper();
 
@@ -78,6 +79,8 @@ public class PaymentService {
         if (invoice.getStatus() == InvoiceStatus.PAID) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Invoice is already fully paid");
         }
+        // Past the due date: the late fee is part of what's paid.
+        lateFeeService.applyIfDue(invoice, initiatedBy);
         BigDecimal outstanding = invoice.getTotalAmount().subtract(invoice.getPaidAmount());
         if (outstanding.compareTo(BigDecimal.ZERO) <= 0) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Nothing outstanding to pay");
@@ -212,6 +215,7 @@ public class PaymentService {
         if (invoice.getStatus() == InvoiceStatus.PAID) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Invoice is already fully paid");
         }
+        lateFeeService.applyIfDue(invoice, receivedBy);
         BigDecimal outstanding = invoice.getTotalAmount().subtract(invoice.getPaidAmount());
         if (req.getAmount().compareTo(outstanding) > 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,

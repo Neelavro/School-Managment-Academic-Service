@@ -49,6 +49,7 @@ public class InvoiceService {
     private final AcademicYearRepository academicYearRepo;
     private final InvoiceGenerationProgressTracker progressTracker;
     private final PlatformFeeService platformFeeService;
+    private final LateFeeService lateFeeService;
 
     /**
      * Self-injected lazy proxy so we can call our own @Transactional method
@@ -76,7 +77,8 @@ public class InvoiceService {
                 trimmedInvNo,
                 pageable);
         if (invoices.isEmpty()) return invoices.map(i -> InvoiceResponse.from(i, null, null, null, List.of()));
-        return invoices.map(this::hydrate);
+        Map<Integer, BigDecimal> lateFees = lateFeeService.amountsByClass();
+        return invoices.map(i -> hydrate(i, lateFees));
     }
 
     public InvoiceResponse getOne(Long id) {
@@ -102,9 +104,13 @@ public class InvoiceService {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "Only PENDING invoices can be cancelled (status: " + inv.getStatus() + ")");
         }
+        String why = (reason != null && !reason.isBlank() ? ": " + reason : "");
         if (inv.getJournalEntryId() != null) {
-            journalService.reverse(inv.getJournalEntryId(), "Invoice " + inv.getInvoiceNumber() + " cancelled"
-                    + (reason != null && !reason.isBlank() ? ": " + reason : ""), user);
+            journalService.reverse(inv.getJournalEntryId(), "Invoice " + inv.getInvoiceNumber() + " cancelled" + why, user);
+        }
+        if (inv.getLateFeeJournalEntryId() != null) {
+            journalService.reverse(inv.getLateFeeJournalEntryId(),
+                    "Late fee on " + inv.getInvoiceNumber() + " cancelled" + why, user);
         }
         inv.setStatus(InvoiceStatus.CANCELLED);
         invoiceRepo.save(inv);
@@ -169,11 +175,13 @@ public class InvoiceService {
         LocalDate issuedDate = LocalDate.now();
         LocalDate dueDate = issuedDate.plusDays(dueDays);
 
-        // Active fee categories.
-        List<FeeCategory> activeCategories = feeCategoryRepo.findByIsActive(true);
+        // Active monthly fees. One-time fees and the late fee are never billed here.
+        List<FeeCategory> activeCategories = feeCategoryRepo.findByIsActive(true).stream()
+                .filter(c -> Boolean.TRUE.equals(c.getIsRecurring()) && !Boolean.TRUE.equals(c.getIsLateFee()))
+                .toList();
         if (activeCategories.isEmpty()) {
             InvoiceGenerationResult empty = new InvoiceGenerationResult(period, 0, 0, 0, 0, new ArrayList<>());
-            empty.getWarnings().add("No active fee categories — nothing to invoice");
+            empty.getWarnings().add("No active monthly fees (\"Charged every month\") — nothing to generate");
             return empty;
         }
 
@@ -391,19 +399,13 @@ public class InvoiceService {
     }
 
     private InvoiceResponse hydrate(Invoice inv) {
-        List<InvoiceLine> lines = lineRepo.findByInvoiceId(inv.getId());
-        List<InvoiceLineResponse> lineDtos = lines.stream().map(InvoiceLineResponse::from).toList();
-        String studentSystemId = null, studentName = null, className = null;
+        return hydrate(inv, lateFeeService.amountsByClass());
+    }
+
+    private InvoiceResponse hydrate(Invoice inv, Map<Integer, BigDecimal> lateFees) {
+        List<InvoiceLineResponse> lineDtos = lineRepo.findByInvoiceId(inv.getId()).stream()
+                .map(InvoiceLineResponse::from).toList();
         Enrollment e = enrollmentRepo.findById(inv.getEnrollmentId()).orElse(null);
-        if (e != null) {
-            if (e.getStudent() != null) {
-                studentSystemId = e.getStudent().getStudentSystemId();
-                studentName = e.getStudent().getNameEnglish();
-            }
-            if (e.getStudentClass() != null) {
-                className = e.getStudentClass().getName();
-            }
-        }
-        return InvoiceResponse.from(inv, studentSystemId, studentName, className, lineDtos);
+        return InvoiceResponse.from(inv, e, lineDtos, lateFees);
     }
 }

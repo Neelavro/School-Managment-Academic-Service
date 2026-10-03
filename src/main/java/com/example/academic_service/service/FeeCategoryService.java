@@ -70,8 +70,11 @@ public class FeeCategoryService {
         c.setName(name);
         c.setIncomeLedgerId(req.getIncomeLedgerId());
         c.setDescription(req.getDescription());
-        c.setIsRecurring(req.getIsRecurring() != null ? req.getIsRecurring() : false);
+        c.setIsLateFee(Boolean.TRUE.equals(req.getIsLateFee()));
+        // A late fee is only ever added after a due date, never billed monthly.
+        c.setIsRecurring(!c.getIsLateFee() && Boolean.TRUE.equals(req.getIsRecurring()));
         c.setIsActive(req.getIsActive() != null ? req.getIsActive() : true);
+        ensureSingleLateFee(c, null);
         FeeCategory saved = repo.save(c);
         ChartOfAccount l = coaRepo.findById(saved.getIncomeLedgerId()).orElse(null);
         return FeeCategoryResponse.from(saved,
@@ -99,8 +102,11 @@ public class FeeCategoryService {
         existing.setName(name);
         existing.setIncomeLedgerId(req.getIncomeLedgerId());
         existing.setDescription(req.getDescription());
+        if (req.getIsLateFee() != null) existing.setIsLateFee(req.getIsLateFee());
         if (req.getIsRecurring() != null) existing.setIsRecurring(req.getIsRecurring());
+        if (Boolean.TRUE.equals(existing.getIsLateFee())) existing.setIsRecurring(false);
         if (req.getIsActive() != null) existing.setIsActive(req.getIsActive());
+        ensureSingleLateFee(existing, id);
         FeeCategory saved = repo.save(existing);
         ChartOfAccount l = coaRepo.findById(saved.getIncomeLedgerId()).orElse(null);
         return FeeCategoryResponse.from(saved,
@@ -118,6 +124,17 @@ public class FeeCategoryService {
         }
         // NOTE: once invoices reference this category, deletion should be blocked here too.
         repo.delete(existing);
+    }
+
+    /** Only one active late fee: its per-class amount is THE late fee for that class. */
+    private void ensureSingleLateFee(FeeCategory c, Long selfId) {
+        if (!Boolean.TRUE.equals(c.getIsLateFee()) || !Boolean.TRUE.equals(c.getIsActive())) return;
+        boolean another = repo.findByIsActive(true).stream()
+                .anyMatch(o -> Boolean.TRUE.equals(o.getIsLateFee()) && !o.getId().equals(selfId));
+        if (another) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "There is already an active late fee. Edit that one or turn it off first.");
+        }
     }
 
     /**

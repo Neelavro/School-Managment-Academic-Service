@@ -11,6 +11,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.math.BigDecimal;
 import java.util.*;
 
 /**
@@ -29,6 +30,7 @@ public class StudentPortalPaymentService {
     private final InvoiceLineRepository invoiceLineRepo;
     private final PaymentRepository paymentRepo;
     private final PaymentService paymentService;
+    private final LateFeeService lateFeeService;
 
     /**
      * Lists invoices for the logged-in student.
@@ -59,7 +61,8 @@ public class StudentPortalPaymentService {
         invoices.sort((a, b) -> b.getBillingPeriod().compareTo(a.getBillingPeriod()));
 
         // Hydrate with line items + student/class info.
-        return invoices.stream().map(this::hydrate).toList();
+        Map<Integer, BigDecimal> lateFees = lateFeeService.amountsByClass();
+        return invoices.stream().map(i -> hydrate(i, lateFees)).toList();
     }
 
     /**
@@ -133,20 +136,10 @@ public class StudentPortalPaymentService {
         return new org.springframework.data.domain.PageImpl<>(sub, pageable, total);
     }
 
-    private InvoiceResponse hydrate(Invoice inv) {
-        List<InvoiceLine> lines = invoiceLineRepo.findByInvoiceId(inv.getId());
-        List<InvoiceLineResponse> lineDtos = lines.stream().map(InvoiceLineResponse::from).toList();
-        String studentSystemId = null, studentName = null, className = null;
+    private InvoiceResponse hydrate(Invoice inv, Map<Integer, BigDecimal> lateFees) {
+        List<InvoiceLineResponse> lineDtos = invoiceLineRepo.findByInvoiceId(inv.getId()).stream()
+                .map(InvoiceLineResponse::from).toList();
         Enrollment e = enrollmentRepo.findById(inv.getEnrollmentId()).orElse(null);
-        if (e != null) {
-            if (e.getStudent() != null) {
-                studentSystemId = e.getStudent().getStudentSystemId();
-                studentName = e.getStudent().getNameEnglish();
-            }
-            if (e.getStudentClass() != null) {
-                className = e.getStudentClass().getName();
-            }
-        }
-        return InvoiceResponse.from(inv, studentSystemId, studentName, className, lineDtos);
+        return InvoiceResponse.from(inv, e, lineDtos, lateFees);
     }
 }

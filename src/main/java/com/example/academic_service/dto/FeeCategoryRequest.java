@@ -25,5 +25,7 @@ public class FeeCategoryRequest {
 
     private Boolean isRecurring;
 
+    private Boolean isLateFee;
+
     private Boolean isActive;
 }

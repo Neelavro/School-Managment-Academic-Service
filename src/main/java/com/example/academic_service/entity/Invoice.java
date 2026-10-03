@@ -61,6 +61,17 @@ public class Invoice {
     @Column(name = "status", nullable = false, length = 20)
     private InvoiceStatus status;
 
+    /** Late fee added once the due date passed unpaid (also an invoice line). Null = not added. */
+    @Column(name = "late_fee_amount", precision = 15, scale = 2)
+    private BigDecimal lateFeeAmount;
+
+    @Column(name = "late_fee_applied_at")
+    private LocalDateTime lateFeeAppliedAt;
+
+    /** The late fee's own accrual entry — reversed too when the invoice is cancelled. */
+    @Column(name = "late_fee_journal_entry_id")
+    private Long lateFeeJournalEntryId;
+
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
 

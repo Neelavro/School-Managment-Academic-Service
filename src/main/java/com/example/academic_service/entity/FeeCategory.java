@@ -46,6 +46,13 @@ public class FeeCategory {
     @Column(name = "is_recurring", nullable = false)
     private Boolean isRecurring;
 
+    /**
+     * True for the late fee: never billed by monthly generation; its per-class
+     * amount is added to an unpaid monthly fee once the due date has passed.
+     */
+    @Column(name = "is_late_fee", nullable = false)
+    private Boolean isLateFee;
+
     @Column(name = "is_active", nullable = false)
     private Boolean isActive;
 
@@ -61,6 +68,7 @@ public class FeeCategory {
         updatedAt = LocalDateTime.now();
         if (isActive == null) isActive = true;
         if (isRecurring == null) isRecurring = false;
+        if (isLateFee == null) isLateFee = false;
     }
 
     @PreUpdate

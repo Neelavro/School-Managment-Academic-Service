@@ -52,6 +52,7 @@ CREATE TABLE IF NOT EXISTS fee_categories (
   income_ledger_id  BIGINT       NOT NULL,
   description       TEXT             NULL,
   is_recurring      BIT(1)       NOT NULL DEFAULT b'0',
+  is_late_fee       BIT(1)       NOT NULL DEFAULT b'0',
   is_active         BIT(1)       NOT NULL DEFAULT b'1',
   created_at        DATETIME(6)      NULL,
   updated_at        DATETIME(6)      NULL,
@@ -172,9 +173,12 @@ CREATE TABLE IF NOT EXISTS invoices (
   due_date          DATE            NOT NULL,
   total_amount      DECIMAL(15,2)   NOT NULL,
   paid_amount       DECIMAL(15,2)   NOT NULL DEFAULT 0,
+  late_fee_amount   DECIMAL(15,2)       NULL,
+  late_fee_applied_at DATETIME(6)       NULL,
   status            VARCHAR(20)     NOT NULL,
   notes             TEXT                NULL,
   journal_entry_id  BIGINT              NULL,
+  late_fee_journal_entry_id BIGINT      NULL,
   created_at        DATETIME(6)     NOT NULL,
   updated_at        DATETIME(6)     NOT NULL,
   PRIMARY KEY (id),
@@ -187,7 +191,9 @@ CREATE TABLE IF NOT EXISTS invoices (
   CONSTRAINT fk_invoice_enrollment
       FOREIGN KEY (enrollment_id)    REFERENCES enrollment(id)      ON DELETE RESTRICT,
   CONSTRAINT fk_invoice_journal
-      FOREIGN KEY (journal_entry_id) REFERENCES journal_entries(id) ON DELETE RESTRICT
+      FOREIGN KEY (journal_entry_id) REFERENCES journal_entries(id) ON DELETE RESTRICT,
+  CONSTRAINT fk_invoice_late_fee_journal
+      FOREIGN KEY (late_fee_journal_entry_id) REFERENCES journal_entries(id) ON DELETE RESTRICT
 );
 
 -- ── invoice_lines ─────────────────────────────────────────────────────────

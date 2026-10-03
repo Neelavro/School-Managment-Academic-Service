@@ -17,6 +17,7 @@ public class FeeCategoryResponse {
     private String incomeLedgerName;
     private String description;
     private Boolean isRecurring;
+    private Boolean isLateFee;
     private Boolean isActive;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -31,6 +32,7 @@ public class FeeCategoryResponse {
         r.incomeLedgerName = ledgerName;
         r.description = c.getDescription();
         r.isRecurring = c.getIsRecurring();
+        r.isLateFee = Boolean.TRUE.equals(c.getIsLateFee());
         r.isActive = c.getIsActive();
         r.createdAt = c.getCreatedAt();
         r.updatedAt = c.getUpdatedAt();
