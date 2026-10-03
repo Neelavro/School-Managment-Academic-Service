@@ -52,6 +52,21 @@ public class InvoiceController {
                         page, size)));
     }
 
+    /** Fee Collection: students with something still to pay (their unpaid months inside), a page at a time. */
+    @GetMapping("/dues")
+    @RequirePermission(submodule = Submodule.ACCOUNTS_PAYMENTS, action = "READ")
+    public ResponseEntity<ApiResponse<Page<InvoiceService.DueStudent>>> dues(
+            @RequestParam(required = false) Integer classId,
+            @RequestParam(required = false) Integer academicYearId,
+            @RequestParam(required = false) Integer shiftId,
+            @RequestParam(required = false) Integer genderSectionId,
+            @RequestParam(required = false) String studentSearch,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "60") int size) {
+        return ResponseEntity.ok(new ApiResponse<>("OK",
+                service.dues(classId, academicYearId, shiftId, genderSectionId, studentSearch, page, size)));
+    }
+
     @GetMapping("/{id}")
     @RequirePermission(submodule = Submodule.ACCOUNTS_INVOICES, action = "READ")
     public ResponseEntity<ApiResponse<InvoiceResponse>> getOne(@PathVariable Long id) {

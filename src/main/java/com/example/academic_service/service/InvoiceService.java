@@ -87,6 +87,37 @@ public class InvoiceService {
         return hydrate(inv);
     }
 
+    // ── Fee Collection: students with dues, a page at a time ──────────────
+
+    /** One student on the Fee Collection page: what they still owe and the months it comes from (oldest first). */
+    public record DueStudent(Long enrollmentId, String studentSystemId, String studentName, String className,
+                             String sectionName, Integer classRoll, BigDecimal outstanding, List<InvoiceResponse> invoices) {}
+
+    private static final List<InvoiceStatus> UNPAID = List.of(InvoiceStatus.PENDING, InvoiceStatus.PARTIAL, InvoiceStatus.OVERDUE);
+
+    public Page<DueStudent> dues(Integer classId, Integer academicYearId, Integer shiftId, Integer genderSectionId,
+                                 String studentSearch, int page, int size) {
+        Pageable pageable = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 200));
+        String search = (studentSearch == null || studentSearch.isBlank()) ? null : studentSearch.trim();
+        Page<Long> enrollments = invoiceRepo.findEnrollmentsWithDues(classId, academicYearId, shiftId, genderSectionId, search, pageable);
+        if (enrollments.isEmpty()) return enrollments.map(id -> null);
+        Map<Integer, BigDecimal> lateFees = lateFeeService.amountsByClass();
+        Map<Long, List<InvoiceResponse>> byEnrollment = new HashMap<>();
+        invoiceRepo.findByEnrollmentIdInAndStatusIn(enrollments.getContent(), UNPAID).stream()
+                .filter(i -> i.getPaidAmount().compareTo(i.getTotalAmount()) < 0)
+                .sorted(Comparator.comparing(Invoice::getBillingPeriod))
+                .forEach(i -> byEnrollment.computeIfAbsent(i.getEnrollmentId(), k -> new ArrayList<>()).add(hydrate(i, lateFees)));
+        return enrollments.map(id -> {
+            List<InvoiceResponse> list = byEnrollment.getOrDefault(id, List.of());
+            InvoiceResponse first = list.isEmpty() ? null : list.get(0);
+            BigDecimal owed = list.stream().map(InvoiceResponse::getOutstandingAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+            return new DueStudent(id,
+                    first != null ? first.getStudentSystemId() : null, first != null ? first.getStudentName() : null,
+                    first != null ? first.getClassName() : null, first != null ? first.getSectionName() : null,
+                    first != null ? first.getClassRoll() : null, owed, list);
+        });
+    }
+
     // ── Cancel ────────────────────────────────────────────────────────────
 
     /**

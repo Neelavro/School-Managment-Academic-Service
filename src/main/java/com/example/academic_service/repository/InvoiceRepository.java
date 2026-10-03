@@ -103,4 +103,70 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
         ORDER BY i.id DESC
     """)
     List<String> findRecentNumbersByPrefix(@Param("prefix") String prefix, Pageable pageable);
+
+    /**
+     * Fee Collection: students (enrollments) with something still to pay, a page at a time.
+     * Same student filters as search(); oldest enrollment first.
+     */
+    @Query(value = """
+        SELECT i.enrollmentId FROM Invoice i
+        WHERE i.status IN (com.example.academic_service.entity.InvoiceStatus.PENDING,
+                           com.example.academic_service.entity.InvoiceStatus.PARTIAL,
+                           com.example.academic_service.entity.InvoiceStatus.OVERDUE)
+          AND i.paidAmount < i.totalAmount
+          AND (
+               (:classId IS NULL AND :academicYearId IS NULL
+                AND :shiftId IS NULL AND :genderSectionId IS NULL
+                AND :studentSearch IS NULL)
+            OR i.enrollmentId IN (
+                  SELECT e.id FROM Enrollment e
+                  WHERE (:classId IS NULL OR e.studentClass.id = :classId)
+                    AND (:academicYearId IS NULL OR e.academicYear.id = :academicYearId)
+                    AND (:shiftId IS NULL OR e.shift.id = :shiftId)
+                    AND (:genderSectionId IS NULL OR e.genderSection.id = :genderSectionId)
+                    AND (
+                          :studentSearch IS NULL
+                       OR LOWER(e.studentSystemId) LIKE LOWER(CONCAT('%', :studentSearch, '%'))
+                       OR (e.student IS NOT NULL AND LOWER(e.student.nameEnglish) LIKE LOWER(CONCAT('%', :studentSearch, '%')))
+                       OR (e.student IS NOT NULL AND LOWER(e.student.nameBangla)  LIKE LOWER(CONCAT('%', :studentSearch, '%')))
+                       )
+              )
+          )
+        GROUP BY i.enrollmentId
+        ORDER BY i.enrollmentId
+    """, countQuery = """
+        SELECT COUNT(DISTINCT i.enrollmentId) FROM Invoice i
+        WHERE i.status IN (com.example.academic_service.entity.InvoiceStatus.PENDING,
+                           com.example.academic_service.entity.InvoiceStatus.PARTIAL,
+                           com.example.academic_service.entity.InvoiceStatus.OVERDUE)
+          AND i.paidAmount < i.totalAmount
+          AND (
+               (:classId IS NULL AND :academicYearId IS NULL
+                AND :shiftId IS NULL AND :genderSectionId IS NULL
+                AND :studentSearch IS NULL)
+            OR i.enrollmentId IN (
+                  SELECT e.id FROM Enrollment e
+                  WHERE (:classId IS NULL OR e.studentClass.id = :classId)
+                    AND (:academicYearId IS NULL OR e.academicYear.id = :academicYearId)
+                    AND (:shiftId IS NULL OR e.shift.id = :shiftId)
+                    AND (:genderSectionId IS NULL OR e.genderSection.id = :genderSectionId)
+                    AND (
+                          :studentSearch IS NULL
+                       OR LOWER(e.studentSystemId) LIKE LOWER(CONCAT('%', :studentSearch, '%'))
+                       OR (e.student IS NOT NULL AND LOWER(e.student.nameEnglish) LIKE LOWER(CONCAT('%', :studentSearch, '%')))
+                       OR (e.student IS NOT NULL AND LOWER(e.student.nameBangla)  LIKE LOWER(CONCAT('%', :studentSearch, '%')))
+                       )
+              )
+          )
+    """)
+    Page<Long> findEnrollmentsWithDues(
+            @Param("classId") Integer classId,
+            @Param("academicYearId") Integer academicYearId,
+            @Param("shiftId") Integer shiftId,
+            @Param("genderSectionId") Integer genderSectionId,
+            @Param("studentSearch") String studentSearch,
+            Pageable pageable);
+
+    List<Invoice> findByEnrollmentIdInAndStatusIn(java.util.Collection<Long> enrollmentIds,
+                                                  java.util.Collection<com.example.academic_service.entity.InvoiceStatus> statuses);
 }
