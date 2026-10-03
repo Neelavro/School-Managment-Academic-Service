@@ -96,7 +96,7 @@ CREATE TABLE IF NOT EXISTS accounting_settings (
   platform_fee_percent          DECIMAL(5,2)        NULL,
   platform_fee_flat             DECIMAL(15,2)       NULL,
   invoice_due_days              INT             NOT NULL DEFAULT 7,
-  invoice_number_prefix         VARCHAR(16)     NOT NULL DEFAULT 'INV',
+  invoice_number_prefix         VARCHAR(16)     NOT NULL DEFAULT 'FEE',
   journal_number_prefix         VARCHAR(16)     NOT NULL DEFAULT 'JE',
   created_at                    DATETIME(6)         NULL,
   updated_at                    DATETIME(6)         NULL,
@@ -117,7 +117,7 @@ CREATE TABLE IF NOT EXISTS accounting_settings (
 INSERT IGNORE INTO accounting_settings
   (id, invoice_due_days, invoice_number_prefix, journal_number_prefix, created_at, updated_at)
 VALUES
-  (1, 7, 'INV', 'JE', NOW(6), NOW(6));
+  (1, 7, 'FEE', 'JE', NOW(6), NOW(6));
 
 -- ── journal_entries ───────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS journal_entries (

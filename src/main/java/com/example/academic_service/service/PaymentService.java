@@ -72,12 +72,12 @@ public class PaymentService {
         AccountingSettings settings = settingsService.getRequiredForOnlinePayment();
 
         Invoice invoice = invoiceRepo.findById(req.getInvoiceId()).orElseThrow(() ->
-                new ResponseStatusException(HttpStatus.NOT_FOUND, "Invoice not found"));
+                new ResponseStatusException(HttpStatus.NOT_FOUND, "Monthly fee not found"));
         if (invoice.getStatus() == InvoiceStatus.CANCELLED) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Invoice is cancelled");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "This monthly fee is cancelled");
         }
         if (invoice.getStatus() == InvoiceStatus.PAID) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Invoice is already fully paid");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "This monthly fee is already paid in full");
         }
         // Past the due date: the late fee is part of what's paid.
         lateFeeService.applyIfDue(invoice, initiatedBy);
@@ -208,12 +208,12 @@ public class PaymentService {
         AccountingSettings settings = settingsService.getRequiredForCashPayment();
 
         Invoice invoice = invoiceRepo.findById(req.getInvoiceId()).orElseThrow(() ->
-                new ResponseStatusException(HttpStatus.NOT_FOUND, "Invoice not found"));
+                new ResponseStatusException(HttpStatus.NOT_FOUND, "Monthly fee not found"));
         if (invoice.getStatus() == InvoiceStatus.CANCELLED) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Invoice is cancelled");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "This monthly fee is cancelled");
         }
         if (invoice.getStatus() == InvoiceStatus.PAID) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Invoice is already fully paid");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "This monthly fee is already paid in full");
         }
         lateFeeService.applyIfDue(invoice, receivedBy);
         BigDecimal outstanding = invoice.getTotalAmount().subtract(invoice.getPaidAmount());
@@ -393,7 +393,7 @@ public class PaymentService {
         AccountingSettings settings = settingsService.getRequiredForOnlinePayment();
 
         Invoice invoice = invoiceRepo.findById(payment.getInvoiceId()).orElseThrow(() ->
-                new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Invoice gone"));
+                new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Monthly fee not found"));
 
         BigDecimal amount = payment.getAmount();
         // Receipt entry: Dr Gateway Clearing / Cr AR.

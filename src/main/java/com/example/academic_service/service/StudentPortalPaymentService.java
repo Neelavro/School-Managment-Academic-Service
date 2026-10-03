@@ -76,12 +76,12 @@ public class StudentPortalPaymentService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "invoiceId is required");
         }
         Invoice inv = invoiceRepo.findById(req.getInvoiceId()).orElseThrow(() ->
-                new ResponseStatusException(HttpStatus.NOT_FOUND, "Invoice not found"));
+                new ResponseStatusException(HttpStatus.NOT_FOUND, "Monthly fee not found"));
         Enrollment enrollment = enrollmentRepo.findById(inv.getEnrollmentId()).orElseThrow(() ->
-                new ResponseStatusException(HttpStatus.NOT_FOUND, "Invoice enrollment not found"));
+                new ResponseStatusException(HttpStatus.NOT_FOUND, "Monthly fee not found"));
         if (!studentSystemId.equals(enrollment.getStudentSystemId())) {
             // Don't leak the existence of the invoice — same 404 we'd give for nonexistent.
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Invoice not found");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Monthly fee not found");
         }
         return paymentService.initOnlinePayment(req,
                 "student:" + studentSystemId, ipAddress);

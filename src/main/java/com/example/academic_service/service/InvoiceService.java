@@ -83,7 +83,7 @@ public class InvoiceService {
 
     public InvoiceResponse getOne(Long id) {
         Invoice inv = invoiceRepo.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Invoice not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Monthly fee not found"));
         return hydrate(inv);
     }
 
@@ -96,17 +96,17 @@ public class InvoiceService {
     @Transactional
     public InvoiceResponse cancel(Long id, String reason, String user) {
         Invoice inv = invoiceRepo.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Invoice not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Monthly fee not found"));
         if (inv.getStatus() == InvoiceStatus.CANCELLED) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Invoice already cancelled");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "This monthly fee is already cancelled");
         }
         if (inv.getStatus() != InvoiceStatus.PENDING) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "Only PENDING invoices can be cancelled (status: " + inv.getStatus() + ")");
+                    "Only a monthly fee with nothing paid can be cancelled");
         }
         String why = (reason != null && !reason.isBlank() ? ": " + reason : "");
         if (inv.getJournalEntryId() != null) {
-            journalService.reverse(inv.getJournalEntryId(), "Invoice " + inv.getInvoiceNumber() + " cancelled" + why, user);
+            journalService.reverse(inv.getJournalEntryId(), "Monthly fee " + inv.getInvoiceNumber() + " cancelled" + why, user);
         }
         if (inv.getLateFeeJournalEntryId() != null) {
             journalService.reverse(inv.getLateFeeJournalEntryId(),
@@ -171,7 +171,7 @@ public class InvoiceService {
         Long arAccountId = settings.getArAccountId();
         int dueDays = settings.getInvoiceDueDays() != null ? settings.getInvoiceDueDays() : 7;
         String invoicePrefix = settings.getInvoiceNumberPrefix() != null
-                ? settings.getInvoiceNumberPrefix() : "INV";
+                ? settings.getInvoiceNumberPrefix() : "FEE";
         LocalDate issuedDate = LocalDate.now();
         LocalDate dueDate = issuedDate.plusDays(dueDays);
 
@@ -345,7 +345,7 @@ public class InvoiceService {
         // Accrual journal: Dr AR (total), Cr each unique income ledger (summed).
         JournalEntryRequest jReq = new JournalEntryRequest();
         jReq.setEntryDate(issuedDate);
-        jReq.setDescription("Invoice " + savedInv.getInvoiceNumber()
+        jReq.setDescription("Monthly fee " + savedInv.getInvoiceNumber()
                 + " — enrollment " + enrollment.getId()
                 + " — " + period.format(DateTimeFormatter.ofPattern("MMM yyyy")));
         jReq.setReferenceType(JournalReferenceType.INVOICE);

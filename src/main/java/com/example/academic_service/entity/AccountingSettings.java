@@ -72,7 +72,7 @@ public class AccountingSettings {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
         if (invoiceDueDays == null) invoiceDueDays = 7;
-        if (invoiceNumberPrefix == null) invoiceNumberPrefix = "INV";
+        if (invoiceNumberPrefix == null) invoiceNumberPrefix = "FEE";
         if (journalNumberPrefix == null) journalNumberPrefix = "JE";
     }
 

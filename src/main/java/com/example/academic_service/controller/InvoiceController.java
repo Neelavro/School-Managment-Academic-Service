@@ -95,7 +95,7 @@ public class InvoiceController {
             @PathVariable Long id,
             @RequestBody(required = false) Map<String, String> body) {
         String reason = body != null ? body.get("reason") : null;
-        return ResponseEntity.ok(new ApiResponse<>("Invoice cancelled",
+        return ResponseEntity.ok(new ApiResponse<>("Monthly fee cancelled",
                 service.cancel(id, reason, currentUser())));
     }
 
