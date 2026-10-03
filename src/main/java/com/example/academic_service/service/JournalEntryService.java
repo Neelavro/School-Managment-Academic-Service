@@ -247,19 +247,21 @@ public class JournalEntryService {
     /**
      * Generates next sequential entry number: PREFIX-YYYYMMDD-NNNN.
      * Reads the highest existing for today's date and increments.
-     * NOTE: relies on the unique constraint on entry_number to detect concurrent
-     * inserts — if two transactions race and pick the same number, one will fail
-     * with a unique-constraint violation and the caller should retry.
+     * Takes a row lock on the settings row first (held until the posting transaction
+     * commits), so two postings at the same moment — two cashiers, a gateway callback —
+     * can't both read the same "last number" and collide on uq_journal_entry_number.
+     * The number itself is read with a locking read, so it sees what the previous
+     * posting committed (a plain read would use this transaction's older snapshot).
      */
     private String nextEntryNumber(LocalDate date) {
-        String prefix = settingsRepo.findById(1L)
+        String prefix = settingsRepo.lockById(1L)
                 .map(AccountingSettings::getJournalNumberPrefix)
                 .filter(p -> p != null && !p.isBlank())
                 .orElse("JE");
         String dateTag = date.format(DATE_TAG);
         String search = prefix + "-" + dateTag + "-";
         // Look at top 1.
-        List<String> recent = entryRepo.findRecentNumbersByPrefix(search, PageRequest.of(0, 1));
+        List<String> recent = entryRepo.lastNumberByPrefixForUpdate(search);
         int next = 1;
         if (!recent.isEmpty()) {
             String last = recent.get(0);

@@ -43,4 +43,17 @@ public interface JournalEntryRepository extends JpaRepository<JournalEntry, Long
         ORDER BY j.id DESC
     """)
     List<String> findRecentNumbersByPrefix(@Param("prefix") String prefix, Pageable pageable);
+
+    /**
+     * Same as findRecentNumbersByPrefix, but a locking read: under MySQL's REPEATABLE READ a plain
+     * SELECT would read the transaction's old snapshot and miss an entry another posting has just
+     * committed. Used together with the settings-row lock in JournalEntryService.nextEntryNumber.
+     */
+    @Query(value = """
+        SELECT entry_number FROM journal_entries
+        WHERE entry_number LIKE CONCAT(:prefix, '%')
+        ORDER BY id DESC LIMIT 1
+        FOR UPDATE
+    """, nativeQuery = true)
+    List<String> lastNumberByPrefixForUpdate(@Param("prefix") String prefix);
 }
