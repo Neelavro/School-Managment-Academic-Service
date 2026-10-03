@@ -13,5 +13,7 @@ public enum JournalReferenceType {
     PAYMENT_VOUCHER,    // Manual payment voucher
     CONTRA,             // Cash ↔ Bank transfer voucher
     MANUAL,             // Generic journal voucher
-    ADJUSTMENT          // Reversing entry posted to correct a prior entry
+    ADJUSTMENT,         // Reversing entry posted to correct a prior entry
+    PAYROLL,            // Payroll finalised: Dr salary/bonus expense / Cr Salary Payable
+    PAYROLL_PAYMENT     // Payslips paid: Dr Salary Payable / Cr Cash or Bank
 }
