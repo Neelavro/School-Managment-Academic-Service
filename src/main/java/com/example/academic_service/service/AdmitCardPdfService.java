@@ -8,6 +8,7 @@ import com.example.academic_service.dto.admit_card_dtos.AdmitCardStudentDto;
 import com.example.academic_service.entity.Enrollment;
 import com.example.academic_service.repository.EnrollmentRepository;
 import com.example.academic_service.repository.EnrollmentSpecification;
+import com.example.academic_service.repository.ExamRoutineRepository;
 import com.example.academic_service.service.impl.AdmitCardServiceImpl;
 import com.microsoft.playwright.*;
 import com.microsoft.playwright.options.Margin;
@@ -31,6 +32,7 @@ public class AdmitCardPdfService {
 
     private final AdmitCardServiceImpl admitCardService;
     private final EnrollmentRepository enrollmentRepository;
+    private final ExamRoutineRepository examRoutineRepository;
     private final IdCardPdfService idCardPdfService;
     private final SystemSettingsService systemSettingsService;
 
@@ -179,6 +181,10 @@ public class AdmitCardPdfService {
             }
         }
 
+        if (routine.getSessions().isEmpty())
+            addStudentsWithoutSessions(routineId, classId, sectionId, genderSectionId, groupId,
+                    startRoll, endRoll, enrollmentMap, studentDataMap);
+
         for (Map.Entry<String, StudentAdmitDataBySection> entry : studentDataMap.entrySet()) {
             EnrollmentResponseDto e = enrollmentMap.get(entry.getKey());
             if (e == null) continue;
@@ -285,6 +291,10 @@ public class AdmitCardPdfService {
             }
         }
 
+        if (routine.getSessions().isEmpty())
+            addStudentsWithoutSessions(routineId, classId, sectionId, genderSectionId, groupId,
+                    startRoll, endRoll, enrollmentMap, studentDataMap);
+
         for (Map.Entry<String, StudentAdmitDataBySection> entry : studentDataMap.entrySet()) {
             EnrollmentResponseDto e = enrollmentMap.get(entry.getKey());
             if (e == null) continue;
@@ -347,6 +357,38 @@ public class AdmitCardPdfService {
                 .filter(e -> e.getStudent() != null)
                 .map(e -> EnrollmentResponseDto.from(e, e.getStudent()))
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * The routine has no admit-card papers for this class yet (schools print admit cards before the
+     * timetable exists), so take the students straight from the routine year's enrollments.
+     */
+    private void addStudentsWithoutSessions(
+            Integer routineId, Integer classId, Long sectionId, Integer genderSectionId, Integer groupId,
+            Integer startRoll, Integer endRoll,
+            Map<String, EnrollmentResponseDto> enrollmentMap,
+            Map<String, StudentAdmitDataBySection> studentDataMap
+    ) {
+        Integer academicYearId = examRoutineRepository.findById(routineId)
+                .map(r -> r.getAcademicYear() != null ? r.getAcademicYear().getId() : null)
+                .orElse(null);
+        List<EnrollmentResponseDto> enrollments = fetchEnrollments(
+                academicYearId, classId, sectionId, null, genderSectionId, groupId, startRoll, endRoll);
+        enrollments.stream()
+                .filter(e -> e.getStudentSystemId() != null)
+                .sorted(Comparator
+                        .comparing((EnrollmentResponseDto e) -> e.getStudentClass() != null && e.getStudentClass().getOrderIndex() != null
+                                ? e.getStudentClass().getOrderIndex() : Integer.MAX_VALUE)
+                        .thenComparing(e -> e.getClassRoll() != null ? e.getClassRoll() : Integer.MAX_VALUE))
+                .forEach(e -> {
+                    enrollmentMap.putIfAbsent(e.getStudentSystemId(), e);
+                    studentDataMap.computeIfAbsent(e.getStudentSystemId(), k -> new StudentAdmitDataBySection(
+                            k,
+                            e.getClassRoll(),
+                            null,
+                            null,
+                            e.getStudentClass() != null ? e.getStudentClass().getName() : null));
+                });
     }
 
     private Integer getGroupId(Map<String, EnrollmentResponseDto> enrollmentMap, String studentSystemId) {
