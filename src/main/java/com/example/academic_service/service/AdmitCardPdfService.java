@@ -52,6 +52,13 @@ public class AdmitCardPdfService {
         }
     }
 
+    /** School name and address from Institute Setup (system_settings), not hardcoded. */
+    private String schoolNameAndAddress() {
+        var settings = systemSettingsService.getSettings();
+        return "<div class=\"ac-school\">" + nvl(settings.getInstitutionName(), "") + "</div>"
+                + "<div class=\"ac-address\">" + nvl(settings.getAddress(), "") + "</div>";
+    }
+
     // ═══════════════════════════════════════════════════════════════════════
     //  FLOW 1 — Room-based
     // ═══════════════════════════════════════════════════════════════════════
@@ -536,8 +543,7 @@ public class AdmitCardPdfService {
                 + "<div class=\"ac-logo\">" + logoTag + "</div>"
                 + "<div class=\"ac-header-center\">"
                 + (heading != null && !heading.isBlank() ? "<div class=\"ac-arabic\">" + heading + "</div>" : "")
-                + "<div class=\"ac-school\">LUTFUR RAHMAN ALIM MADRASAH</div>"
-                + "<div class=\"ac-address\">LUTFUR RAHMAN ROAD, NATULLABAD, BARISHAL</div>"
+                + schoolNameAndAddress()
                 + "</div>"
                 + "<div class=\"ac-photo\">" + photoTag + "</div>"
                 + "</div>"
@@ -691,8 +697,7 @@ public class AdmitCardPdfService {
                 + "<div class=\"ac-logo\">" + logoTag + "</div>"
                 + "<div class=\"ac-header-center\">"
                 + (heading != null && !heading.isBlank() ? "<div class=\"ac-arabic\">" + heading + "</div>" : "")
-                + "<div class=\"ac-school\">LUTFUR RAHMAN ALIM MADRASAH</div>"
-                + "<div class=\"ac-address\">LUTFUR RAHMAN ROAD, NATULLABAD, BARISHAL</div>"
+                + schoolNameAndAddress()
                 + "</div>"
                 + "<div class=\"ac-photo\">" + photoTag + "</div>"
                 + "</div>"

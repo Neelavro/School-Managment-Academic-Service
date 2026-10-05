@@ -3,6 +3,7 @@ package com.example.academic_service.service;
 import com.example.academic_service.dto.EnrollmentResponseDto;
 import com.example.academic_service.entity.Enrollment;
 import com.example.academic_service.entity.ExamClassRoomAssignment;
+import com.example.academic_service.entity.SystemSettings;
 import com.example.academic_service.repository.EnrollmentRepository;
 import com.example.academic_service.repository.EnrollmentSpecification;
 import com.example.academic_service.repository.ExamClassRoomAssignmentRepository;
@@ -43,18 +44,30 @@ public class SeatPlanPdfService {
 
     private final EnrollmentRepository enrollmentRepository;
     private final ExamClassRoomAssignmentRepository roomAssignmentRepository;
+    private final SystemSettingsService systemSettingsService;
 
-    private String logoBase64;
+    /** Bundled logo, used only when Institute Setup has no logo. */
+    private String bundledLogoBase64;
 
     @PostConstruct
     public void init() {
         try {
             InputStream is = getClass().getResourceAsStream("/static/logo.png");
-            logoBase64 = "data:image/png;base64,"
+            bundledLogoBase64 = "data:image/png;base64,"
                     + Base64.getEncoder().encodeToString(is.readAllBytes());
         } catch (Exception e) {
-            logoBase64 = "";
+            bundledLogoBase64 = "";
             System.err.println("Warning: Could not load logo image. " + e.getMessage());
+        }
+    }
+
+    private String settingsLogoBase64(String url) {
+        if (url == null || url.isBlank()) return "";
+        try {
+            return "data:image/png;base64," + Base64.getEncoder().encodeToString(readImageBytes(url));
+        } catch (Exception e) {
+            System.err.println("Warning: Could not load logo from " + url + ": " + e.getMessage());
+            return "";
         }
     }
 
@@ -233,6 +246,14 @@ public class SeatPlanPdfService {
         StringBuilder pages = new StringBuilder();
         StringBuilder currentPage = new StringBuilder();
 
+        // School header from Institute Setup (system_settings), not hardcoded.
+        SystemSettings settings = systemSettingsService.getSettings();
+        String schoolName    = settings.getInstitutionName() != null ? settings.getInstitutionName() : "";
+        String schoolAddress = settings.getAddress() != null ? settings.getAddress() : "";
+        String heading       = settings.getHeading();
+        String logoBase64    = settingsLogoBase64(settings.getLogoUrl());
+        if (logoBase64.isEmpty()) logoBase64 = bundledLogoBase64;
+
         for (int i = 0; i < enrollments.size(); i++) {
             EnrollmentResponseDto s = enrollments.get(i);
 
@@ -249,7 +270,7 @@ public class SeatPlanPdfService {
                     : "<img src=\"" + photoUrl + "\" style=\"width:100%;height:100%;object-fit:cover;\">";
 
             String logoTag = logoBase64.isEmpty()
-                    ? "<div style=\"font-size:11px;font-weight:bold;\">LRMA</div>"
+                    ? ""
                     : "<img src=\"" + logoBase64 + "\" style=\"width:70px;height:70px;object-fit:contain;\">";
 
             String sectionLabel;
@@ -285,9 +306,9 @@ public class SeatPlanPdfService {
 
             currentPage.append("<div class=\"card\">")
                     .append("<div class=\"card-header\">")
-                    .append("<div class=\"ac-arabic\">بسم الله الرحمن الرحيم</div>")
-                    .append("<div class=\"school-name\">LUTFUR RAHMAN ALIM MADRASAH</div>")
-                    .append("<div class=\"school-address\">LUTFUR RAHMAN ROAD, NATULLABAD, BARISHAL</div>")
+                    .append(heading != null && !heading.isBlank() ? "<div class=\"ac-arabic\">" + heading + "</div>" : "")
+                    .append("<div class=\"school-name\">").append(schoolName).append("</div>")
+                    .append("<div class=\"school-address\">").append(schoolAddress).append("</div>")
                     .append("</div>")
                     .append("<div class=\"top-row\">")
                     .append("<div class=\"photo-frame\">").append(photoTag).append("</div>")
