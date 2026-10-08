@@ -58,8 +58,15 @@ public class TeacherDutyController {
 
     @GetMapping("/class-routines")
     @RequirePermission(submodule = Submodule.HR_TEACHER_DUTY, action = "READ")
-    public ResponseEntity<ApiResponse<List<ClassRoutineResponseDto>>> getActiveClassRoutines() {
-        return ResponseEntity.ok(service.getActiveClassRoutines());
+    public ResponseEntity<ApiResponse<List<ClassRoutineResponseDto>>> getActiveClassRoutines(
+            @RequestParam(required = false) Long shiftId,
+            @RequestParam(required = false) Long classId,
+            @RequestParam(required = false) Long genderSectionId,
+            @RequestParam(required = false) Long sectionId,
+            @RequestParam(required = false) Long groupId,
+            @RequestParam(required = false) Long subjectId,
+            @RequestParam(required = false) String dayOfWeek) {
+        return ResponseEntity.ok(service.getActiveClassRoutines(shiftId, classId, genderSectionId, sectionId, groupId, subjectId, dayOfWeek));
     }
 
     @GetMapping("/exam-sessions")

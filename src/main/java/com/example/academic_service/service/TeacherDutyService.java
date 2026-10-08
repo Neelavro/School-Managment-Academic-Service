@@ -46,11 +46,28 @@ public class TeacherDutyService {
 
     // ─── Class routines (for duty assignment picker) ───────────────────────────
 
-    public ApiResponse<List<ClassRoutineResponseDto>> getActiveClassRoutines() {
+    /**
+     * Every filter is optional. A period for all sections (or all groups) also matches a chosen section (or group),
+     * as on the Class Routine page.
+     */
+    public ApiResponse<List<ClassRoutineResponseDto>> getActiveClassRoutines(
+            Long shiftId, Long classId, Long genderSectionId, Long sectionId, Long groupId, Long subjectId, String dayOfWeek) {
         List<ClassRoutineResponseDto> routines = classRoutineRepository
                 .findByRoutineTypeAndIsActiveTrueOrderByDayOfWeekAscStartTimeAsc(RoutineType.DEFAULT)
-                .stream().map(ClassRoutineResponseDto::from).collect(Collectors.toList());
+                .stream()
+                .filter(r -> shiftId == null || (r.getClassEntity().getShift() != null && idIs(r.getClassEntity().getShift().getId(), shiftId)))
+                .filter(r -> classId == null || idIs(r.getClassEntity().getId(), classId))
+                .filter(r -> genderSectionId == null || idIs(r.getGenderSection().getId(), genderSectionId))
+                .filter(r -> sectionId == null || r.getSection() == null || idIs(r.getSection().getId(), sectionId))
+                .filter(r -> groupId == null || r.getStudentGroup() == null || idIs(r.getStudentGroup().getId(), groupId))
+                .filter(r -> subjectId == null || (r.getSubject() != null && idIs(r.getSubject().getId(), subjectId)))
+                .filter(r -> dayOfWeek == null || dayOfWeek.isBlank() || r.getDayOfWeek().name().equalsIgnoreCase(dayOfWeek))
+                .map(ClassRoutineResponseDto::from).collect(Collectors.toList());
         return new ApiResponse<>("OK", routines);
+    }
+
+    private static boolean idIs(Number id, Long wanted) {
+        return id != null && id.longValue() == wanted;
     }
 
     // ─── Period duties ─────────────────────────────────────────────────────────
