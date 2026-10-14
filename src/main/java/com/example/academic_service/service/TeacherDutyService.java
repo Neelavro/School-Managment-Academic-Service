@@ -258,22 +258,6 @@ public class TeacherDutyService {
         return new ApiResponse<>("OK", dto);
     }
 
-    // ─── Teacher self-service: mark entry assignments ──────────────────────────
-
-    public ApiResponse<List<TeacherPeriodDutyResponseDto>> getMyMarkAssignments(Long staffId) {
-        List<TeacherPeriodDutyResponseDto> result = periodDutyRepository.findByStaff_Id(staffId)
-                .stream()
-                .filter(d -> d.getClassRoutine().getSubject() != null)
-                .map(TeacherPeriodDutyResponseDto::from)
-                .collect(Collectors.toList());
-        return new ApiResponse<>("OK", result);
-    }
-
-    public boolean hasMarkAccess(Long staffId, Integer classId, Integer subjectId) {
-        return periodDutyRepository
-                .existsByStaff_IdAndClassRoutine_ClassEntity_IdAndClassRoutine_Subject_Id(staffId, classId, subjectId);
-    }
-
     // ─── Teacher self-service: upcoming exam duties ────────────────────────────
 
     public ApiResponse<List<TeacherExamDutyResponseDto>> getMyUpcomingExamDuties(Long staffId) {

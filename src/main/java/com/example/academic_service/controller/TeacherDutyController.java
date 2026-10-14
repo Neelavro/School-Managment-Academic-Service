@@ -6,6 +6,7 @@ import com.example.academic_service.dto.duty_dtos.*;
 import com.example.academic_service.dto.schedule_dtos.ClassRoutineResponseDto;
 import com.example.academic_service.entity.Submodule;
 import com.example.academic_service.service.TeacherDutyService;
+import com.example.academic_service.service.TeacherSubjectService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -24,6 +25,7 @@ import java.util.Map;
 public class TeacherDutyController {
 
     private final TeacherDutyService service;
+    private final TeacherSubjectService teacherSubjectService;
 
     private Long resolveStaffId() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -40,9 +42,10 @@ public class TeacherDutyController {
         return ResponseEntity.ok(service.getMyWeeklySchedule(resolveStaffId()));
     }
 
+    /** Mark entry follows the teacher's subject assignments (active year), not routine periods (LRDM, 2026-10-14). */
     @GetMapping("/me/mark-assignments")
-    public ResponseEntity<ApiResponse<List<TeacherPeriodDutyResponseDto>>> getMyMarkAssignments() {
-        return ResponseEntity.ok(service.getMyMarkAssignments(resolveStaffId()));
+    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getMyMarkAssignments() {
+        return ResponseEntity.ok(new ApiResponse<>("OK", teacherSubjectService.getMine(resolveStaffId())));
     }
 
     @GetMapping("/me/upcoming-exam-duties")

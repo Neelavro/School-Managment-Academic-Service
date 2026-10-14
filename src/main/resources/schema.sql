@@ -7759,6 +7759,31 @@
        foreign key (class_routine_id)
        references class_routine (id);
 
+    -- Subject teachers: subject per class per year without a class routine (teacher portal mark entry)
+    create table if not exists teacher_subject (
+        id bigint not null auto_increment,
+        staff_id bigint not null,
+        academic_year_id integer not null,
+        class_id integer not null,
+        subject_id integer not null,
+        gender_section_id integer,
+        section_id bigint,
+        student_group_id integer,
+        created_at datetime(6),
+        primary key (id)
+    ) engine=InnoDB;
+
+    create index if not exists idx_ts_staff_year on teacher_subject (staff_id, academic_year_id);
+    create index if not exists idx_ts_class_subject on teacher_subject (class_id, subject_id, academic_year_id);
+
+    alter table teacher_subject add constraint if not exists FK_ts_staff foreign key (staff_id) references staff (id) on delete cascade;
+    alter table teacher_subject add constraint if not exists FK_ts_academic_year foreign key (academic_year_id) references academic_year (id) on delete cascade;
+    alter table teacher_subject add constraint if not exists FK_ts_class foreign key (class_id) references class (id) on delete cascade;
+    alter table teacher_subject add constraint if not exists FK_ts_subject foreign key (subject_id) references subject (id) on delete cascade;
+    alter table teacher_subject add constraint if not exists FK_ts_gender_section foreign key (gender_section_id) references gender_section (id) on delete cascade;
+    alter table teacher_subject add constraint if not exists FK_ts_section foreign key (section_id) references section (id) on delete cascade;
+    alter table teacher_subject add constraint if not exists FK_ts_student_group foreign key (student_group_id) references student_group (id) on delete cascade;
+
     create table if not exists teacher_exam_duty (
         id bigint not null auto_increment,
         staff_id bigint not null,

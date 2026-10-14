@@ -2,7 +2,7 @@ package com.example.academic_service.controller;
 
 import com.example.academic_service.dto.marking_dtos.SaveMarksRequest;
 import com.example.academic_service.service.StudentMarkService;
-import com.example.academic_service.service.TeacherDutyService;
+import com.example.academic_service.service.TeacherSubjectService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -19,7 +19,7 @@ import java.util.Map;
 public class TeacherMarkController {
 
     private final StudentMarkService studentMarkService;
-    private final TeacherDutyService teacherDutyService;
+    private final TeacherSubjectService teacherSubjectService;
 
     private Long resolveStaffId() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -29,8 +29,9 @@ public class TeacherMarkController {
         return ((Number) raw).longValue();
     }
 
-    private void validateAccess(Long staffId, Integer classId, Integer subjectId) {
-        if (!teacherDutyService.hasMarkAccess(staffId, classId, subjectId)) {
+    /** The teacher must be assigned the subject for the class in the exam routine's academic year. */
+    private void validateAccess(Long staffId, Integer routineId, Integer classId, Integer subjectId) {
+        if (!teacherSubjectService.hasMarkAccess(staffId, routineId, classId, subjectId)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN,
                     "You are not assigned to teach this subject for this class");
         }
@@ -45,14 +46,14 @@ public class TeacherMarkController {
             @RequestParam(required = false) Long sectionId,
             @RequestParam(required = false) Integer groupId) {
         Long staffId = resolveStaffId();
-        validateAccess(staffId, classId, subjectId);
+        validateAccess(staffId, routineId, classId, subjectId);
         return ResponseEntity.ok(studentMarkService.getMarkSheet(routineId, subjectId, classId, genderSectionId, sectionId, groupId));
     }
 
     @PostMapping("/save")
     public ResponseEntity<Map<String, Object>> saveMarks(@RequestBody SaveMarksRequest request) {
         Long staffId = resolveStaffId();
-        validateAccess(staffId, request.getClassId(), request.getSubjectId());
+        validateAccess(staffId, request.getRoutineId(), request.getClassId(), request.getSubjectId());
         return ResponseEntity.ok(studentMarkService.saveMarks(request));
     }
 }
