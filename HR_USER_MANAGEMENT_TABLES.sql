@@ -199,9 +199,7 @@ CREATE INDEX idx_leave_approval_request ON leave_approval_record (leave_request_
 CREATE TABLE fbac_permission (
     id           INT NOT NULL AUTO_INCREMENT,
     fbac_role_id INT NOT NULL,
-    submodule    ENUM('STUDENT_MANAGEMENT','ACADEMIC_STRUCTURE','EXAM_SETUP',
-                      'EXAM_OPERATIONS','RESULTS_REPORTS','HR_MANAGEMENT',
-                      'USER_MANAGEMENT','SYSTEM_SETTINGS') NOT NULL,
+    submodule    VARCHAR(50) NOT NULL,   -- see Submodule enum
     can_create   BIT DEFAULT 0,
     can_read     BIT DEFAULT 0,
     can_update   BIT DEFAULT 0,
@@ -251,9 +249,7 @@ CREATE TABLE audit_log (
     user_id     BIGINT,
     ip_address  VARCHAR(50),
     action_type ENUM('CREATE','UPDATE','DELETE') NOT NULL,
-    submodule   ENUM('STUDENT_MANAGEMENT','ACADEMIC_STRUCTURE','EXAM_SETUP',
-                     'EXAM_OPERATIONS','RESULTS_REPORTS','HR_MANAGEMENT',
-                     'USER_MANAGEMENT','SYSTEM_SETTINGS'),
+    submodule   VARCHAR(50),   -- see Submodule enum
     entity_type VARCHAR(100),
     entity_id   VARCHAR(100),
     description TEXT,
