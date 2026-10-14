@@ -615,9 +615,7 @@ CREATE TABLE IF NOT EXISTS teacher_profile (
 CREATE TABLE IF NOT EXISTS fbac_permission (
     id           INT        NOT NULL AUTO_INCREMENT,
     fbac_role_id INT        NOT NULL,
-    submodule    ENUM('STUDENT_MANAGEMENT','ACADEMIC_STRUCTURE','EXAM_SETUP',
-                      'EXAM_OPERATIONS','RESULTS_REPORTS','HR_MANAGEMENT',
-                      'USER_MANAGEMENT','SYSTEM_SETTINGS') NOT NULL,
+    submodule    VARCHAR(50) NOT NULL,   -- see Submodule enum
     can_create   TINYINT(1) NOT NULL DEFAULT 0,
     can_read     TINYINT(1) NOT NULL DEFAULT 0,
     can_update   TINYINT(1) NOT NULL DEFAULT 0,
@@ -712,9 +710,7 @@ CREATE TABLE IF NOT EXISTS audit_log (
     user_id     BIGINT,
     ip_address  VARCHAR(50),
     action_type ENUM('CREATE','UPDATE','DELETE') NOT NULL,
-    submodule   ENUM('STUDENT_MANAGEMENT','ACADEMIC_STRUCTURE','EXAM_SETUP',
-                     'EXAM_OPERATIONS','RESULTS_REPORTS','HR_MANAGEMENT',
-                     'USER_MANAGEMENT','SYSTEM_SETTINGS'),
+    submodule   VARCHAR(50),   -- see Submodule enum
     entity_type VARCHAR(255),
     entity_id   VARCHAR(255),
     description TEXT,
