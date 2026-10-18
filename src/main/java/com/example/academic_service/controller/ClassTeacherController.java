@@ -47,7 +47,15 @@ public class ClassTeacherController {
         return ResponseEntity.ok(new ApiResponse("Removed", null));
     }
 
-    // Teacher portal — returns own assignment (no FBAC, reads staffId from JWT)
+    // Teacher portal — every register this teacher keeps this year (no FBAC, reads staffId from JWT)
+    @GetMapping("/me/all")
+    public ResponseEntity<ApiResponse> getMyAssignments(@RequestParam Integer academicYearId) {
+        Long staffId = resolveStaffId();
+        return ResponseEntity.ok(new ApiResponse("OK",
+                classTeacherService.getMyAssignments(staffId, academicYearId)));
+    }
+
+    // Teacher portal — the first of the teacher's registers, for older clients (no FBAC, reads staffId from JWT)
     @GetMapping("/me")
     public ResponseEntity<ApiResponse> getMyAssignment(@RequestParam Integer academicYearId) {
         Long staffId = resolveStaffId();

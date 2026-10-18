@@ -88,14 +88,14 @@ public class AttendanceService {
 
     // ── Teacher portal ────────────────────────────────────────────────────────
 
-    public List<Map<String, Object>> getTeacherStudentsWithStatus(Long staffId, Integer academicYearId, LocalDate date) {
-        ClassTeacher ct = classTeacherService.getByStaffAndYear(staffId, academicYearId);
+    public List<Map<String, Object>> getTeacherStudentsWithStatus(Long staffId, Integer academicYearId, Long classTeacherId, LocalDate date) {
+        ClassTeacher ct = classTeacherService.getByStaffAndYear(staffId, academicYearId, classTeacherId);
         return getStudentsWithStatus(sectionIdOf(ct), classIdOf(ct), genderSectionIdOf(ct), academicYearId, date);
     }
 
     @Transactional
-    public void saveTeacherAttendance(Long staffId, Integer academicYearId, LocalDate date, List<Long> absentEnrollmentIds) {
-        ClassTeacher ct = classTeacherService.getByStaffAndYear(staffId, academicYearId);
+    public void saveTeacherAttendance(Long staffId, Integer academicYearId, Long classTeacherId, LocalDate date, List<Long> absentEnrollmentIds) {
+        ClassTeacher ct = classTeacherService.getByStaffAndYear(staffId, academicYearId, classTeacherId);
         saveAttendance(sectionIdOf(ct), classIdOf(ct), genderSectionIdOf(ct), academicYearId, date, absentEnrollmentIds);
     }
 

@@ -59,21 +59,23 @@ public class AttendanceController {
     @GetMapping("/me/students")
     public ResponseEntity<ApiResponse> getMyStudents(
             @RequestParam Integer academicYearId,
+            @RequestParam(required = false) Long classTeacherId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
         Long staffId = resolveStaffId();
         return ResponseEntity.ok(new ApiResponse("OK",
-                attendanceService.getTeacherStudentsWithStatus(staffId, academicYearId, date)));
+                attendanceService.getTeacherStudentsWithStatus(staffId, academicYearId, classTeacherId, date)));
     }
 
     @PostMapping("/me/save")
     public ResponseEntity<ApiResponse> saveMyAttendance(@RequestBody Map<String, Object> body) {
         Long staffId = resolveStaffId();
         Integer academicYearId = ((Number) body.get("academicYearId")).intValue();
+        Long classTeacherId = body.get("classTeacherId") instanceof Number n ? n.longValue() : null;
         LocalDate date = LocalDate.parse((String) body.get("date"));
         @SuppressWarnings("unchecked")
         List<Long> absentIds = ((List<Number>) body.get("absentEnrollmentIds"))
                 .stream().map(Number::longValue).toList();
-        attendanceService.saveTeacherAttendance(staffId, academicYearId, date, absentIds);
+        attendanceService.saveTeacherAttendance(staffId, academicYearId, classTeacherId, date, absentIds);
         return ResponseEntity.ok(new ApiResponse("Attendance saved", null));
     }
 

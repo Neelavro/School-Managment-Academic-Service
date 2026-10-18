@@ -12,8 +12,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Class teachers. Each keeps one register for a year: a section, or — when the class has no sections for that
- * gender section — the class + gender section (user decision 2026-09-30). Where sections exist, one must be picked.
+ * Class teachers. A register is a section, or — when the class has no sections for that gender section — the
+ * class + gender section (user decision 2026-09-30). Where sections exist, one must be picked. Each register has one
+ * class teacher per year; a teacher may keep several registers (user, 2026-10-18).
  */
 @Service
 @RequiredArgsConstructor
@@ -73,15 +74,33 @@ public class ClassTeacherService {
         classTeacherRepository.deleteById(id);
     }
 
-    // Used by teacher portal & attendance controller
-    public ClassTeacher getByStaffAndYear(Long staffId, Integer academicYearId) {
-        return classTeacherRepository.findByStaffIdAndAcademicYearId(staffId, academicYearId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
-                        "You are not assigned as a class teacher for this academic year"));
+    // Used by teacher portal & attendance controller. A teacher can keep several registers in a year.
+    public List<ClassTeacher> getAllByStaffAndYear(Long staffId, Integer academicYearId) {
+        return classTeacherRepository.findAllByStaffIdAndAcademicYearIdOrderByIdAsc(staffId, academicYearId);
     }
 
+    /**
+     * One of the teacher's registers: the given assignment (must be theirs), or the first one when none is given
+     * (older clients that only know one class).
+     */
+    public ClassTeacher getByStaffAndYear(Long staffId, Integer academicYearId, Long classTeacherId) {
+        List<ClassTeacher> mine = getAllByStaffAndYear(staffId, academicYearId);
+        if (mine.isEmpty())
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND,
+                    "You are not assigned as a class teacher for this academic year");
+        if (classTeacherId == null) return mine.get(0);
+        return mine.stream().filter(ct -> ct.getId().equals(classTeacherId)).findFirst()
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN,
+                        "You are not the class teacher of that class"));
+    }
+
+    /** The first register only — kept for older clients. */
     public Map<String, Object> getMyAssignment(Long staffId, Integer academicYearId) {
-        return toMap(getByStaffAndYear(staffId, academicYearId));
+        return toMap(getByStaffAndYear(staffId, academicYearId, null));
+    }
+
+    public List<Map<String, Object>> getMyAssignments(Long staffId, Integer academicYearId) {
+        return getAllByStaffAndYear(staffId, academicYearId).stream().map(this::toMap).toList();
     }
 
     /** sectionId / sectionName are null for a class + gender section register. */

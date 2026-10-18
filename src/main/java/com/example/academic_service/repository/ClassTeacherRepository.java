@@ -14,7 +14,8 @@ public interface ClassTeacherRepository extends JpaRepository<ClassTeacher, Long
 
     Optional<ClassTeacher> findBySectionIdAndAcademicYearId(Long sectionId, Integer academicYearId);
 
-    Optional<ClassTeacher> findByStaffIdAndAcademicYearId(Long staffId, Integer academicYearId);
+    /** A teacher can be class teacher of several registers in a year (user, 2026-10-18). */
+    List<ClassTeacher> findAllByStaffIdAndAcademicYearIdOrderByIdAsc(Long staffId, Integer academicYearId);
 
     boolean existsBySectionIdAndAcademicYearId(Long sectionId, Integer academicYearId);
 
