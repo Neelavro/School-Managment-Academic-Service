@@ -594,6 +594,7 @@ public class ResultService {
             BigDecimal fourthRaw = BigDecimal.ZERO;
             int fourthMax = 0;
             boolean overallPassed = true;
+            int failedCount = 0;
             Map<Integer, BigDecimal> mgObtained = new HashMap<>();
             Map<Integer, Integer> mgTotalMax = new HashMap<>();
             Map<Integer, Boolean> mgAnyAppeared = new HashMap<>();
@@ -642,7 +643,7 @@ public class ResultService {
                         grandTotalRaw = grandTotalRaw.add(asd.totalObtained);
                         grandMaxRaw += asd.totalMax;
                         if (asd.grade != null) mandatoryGpas.add(asd.grade.getGpaValue());
-                        if (!asd.passed) overallPassed = false;
+                        if (!asd.passed) { overallPassed = false; failedCount++; }
                     } else {
                         fourthRaw = fourthRaw.add(asd.totalObtained);
                         fourthMax += asd.totalMax;
@@ -655,6 +656,7 @@ public class ResultService {
                     mgAnyAppeared.merge(mergeGroupId, false, Boolean::logicalOr);
                 } else if (!isFourth) {
                     overallPassed = false;
+                    failedCount++;
                 }
                 subjectResults.add(sr);
             }
@@ -664,10 +666,15 @@ public class ResultService {
                 if (gid != null && mgObtained.containsKey(gid)) {
                     mgObtained.remove(gid); mgTotalMax.remove(gid); mgAnyAppeared.remove(gid);
                     overallPassed = false;
+                    failedCount++;
                 }
             }
-            if (applyMergeGroupGpas(mgObtained, mgTotalMax, Collections.emptyMap(), new HashMap<>(), new HashMap<>(), mgAnyAppeared, sortedGrades, mandatoryGpas) > 0)
-                overallPassed = false;
+            int mergedFailed = applyMergeGroupGpas(mgObtained, mgTotalMax, Collections.emptyMap(), new HashMap<>(), new HashMap<>(), mgAnyAppeared, sortedGrades, mandatoryGpas);
+            if (mergedFailed > 0) { overallPassed = false; failedCount += mergedFailed; }
+            row.setFailedSubjectCount(failedCount);
+            row.setGpaWithout4th(overallPassed && !mandatoryGpas.isEmpty()
+                    ? round2(Math.min(5.0, mandatoryGpas.stream().mapToDouble(Double::doubleValue).average().orElse(0)))
+                    : 0.0);
 
             Map<Integer, Boolean> mergePassMap = buildMergePassMap(mgObtained, mgTotalMax, Collections.emptyMap(), new HashMap<>(), new HashMap<>(), mgAnyAppeared, sortedGrades);
             for (AnnualResultResponse.SubjectResult sr : subjectResults) {
@@ -1704,6 +1711,143 @@ public class ResultService {
             } catch (RuntimeException ignored) {}
         }
         return partitions;
+    }
+
+    // ─── ANNUAL (GRAND FINAL) PROGRESS REPORT ────────────────────────────────────
+
+    /**
+     * Grand Final progress report data, split per group like the per-exam report
+     * (each group gets its own subject list). The marks, grades, GPA and
+     * positions are the annual result's own, so the card matches Annual Results.
+     */
+    @Transactional(readOnly = true)
+    public List<AnnualProgressReportData> getAnnualProgressReportDataPartitioned(
+            Integer academicYearId, Integer classId, Integer shiftId,
+            Integer genderSectionId, Long sectionId, Integer groupId,
+            Integer startRoll, Integer endRoll) {
+
+        if (groupId != null) {
+            return List.of(getAnnualProgressReportData(academicYearId, classId, shiftId,
+                    genderSectionId, sectionId, groupId, startRoll, endRoll, false));
+        }
+
+        List<Enrollment> classEnrollments = enrollmentRepository
+                .findAllByClassIdAndFilters(classId, academicYearId, shiftId, null, null, null, null, null);
+        LinkedHashSet<Integer> distinctGroups = new LinkedHashSet<>();
+        boolean hasNoGroupBucket = false;
+        for (Enrollment e : classEnrollments) {
+            if (e.getStudentGroup() != null) distinctGroups.add(e.getStudentGroup().getId());
+            else hasNoGroupBucket = true;
+        }
+
+        List<AnnualProgressReportData> partitions = new ArrayList<>();
+        for (Integer gId : distinctGroups) {
+            try {
+                partitions.add(getAnnualProgressReportData(academicYearId, classId, shiftId,
+                        genderSectionId, sectionId, gId, startRoll, endRoll, false));
+            } catch (RuntimeException ignored) {
+                // No exams for this group: skip it rather than fail the whole PDF.
+            }
+        }
+        if (hasNoGroupBucket) {
+            try {
+                partitions.add(getAnnualProgressReportData(academicYearId, classId, shiftId,
+                        genderSectionId, sectionId, null, startRoll, endRoll, true));
+            } catch (RuntimeException ignored) {}
+        }
+        return partitions;
+    }
+
+    private AnnualProgressReportData getAnnualProgressReportData(
+            Integer academicYearId, Integer classId, Integer shiftId,
+            Integer genderSectionId, Long sectionId, Integer groupId,
+            Integer startRoll, Integer endRoll, boolean onlyWithoutGroup) {
+
+        AnnualResultResponse annual = getAnnualResult(academicYearId, classId, shiftId,
+                genderSectionId, sectionId, groupId, startRoll, endRoll);
+        if (onlyWithoutGroup) {
+            annual.setStudents(annual.getStudents().stream()
+                    .filter(r -> r.getGroupId() == null)
+                    .collect(Collectors.toList()));
+        }
+
+        // Same sessions and marks the annual result was built from.
+        List<ExamSession> sessions = deduplicateByRoutineAndSubject(examSessionRepository
+                .findForAnnualByClassWithGroupFilter(academicYearId, classId, groupId));
+        List<Enrollment> allEnrollments = enrollmentRepository
+                .findAllByClassIdAndFilters(classId, academicYearId, null, null, null, groupId, null, null);
+        AnnualDataBundle bundle = loadAnnualData(sessions, classId, allEnrollments);
+
+        // Components per exam, in component order.
+        List<AnnualProgressReportData.RoutineColumn> routineColumns = new ArrayList<>();
+        for (AnnualResultResponse.RoutineInfo ri : annual.getRoutines()) {
+            Map<Integer, ProgressReportData.ComponentInfo> comps = new HashMap<>();
+            for (ExamSession s : sessions) {
+                if (!s.getExamRoutine().getId().equals(ri.getRoutineId())) continue;
+                for (MarkingStructureComponent msc : bundle.sessionComponentsMap.getOrDefault(s.getId(), Collections.emptyList())) {
+                    ExamComponent ec = msc.getExamComponent();
+                    comps.computeIfAbsent(ec.getId(), id -> {
+                        ProgressReportData.ComponentInfo ci = new ProgressReportData.ComponentInfo();
+                        ci.setComponentId(ec.getId());
+                        ci.setComponentName(ec.getName());
+                        ci.setOrderIndex(ec.getOrderIndex() != null ? ec.getOrderIndex() : 999);
+                        return ci;
+                    });
+                }
+            }
+            AnnualProgressReportData.RoutineColumn col = new AnnualProgressReportData.RoutineColumn();
+            col.setRoutineId(ri.getRoutineId());
+            col.setTitle(ri.getRoutineTitle());
+            col.setComponents(comps.values().stream()
+                    .sorted(Comparator.comparingInt(ProgressReportData.ComponentInfo::getOrderIndex))
+                    .collect(Collectors.toList()));
+            routineColumns.add(col);
+        }
+
+        // Highest annual total per subject (every exam added) among those who sat it.
+        Map<Integer, BigDecimal> highest = new HashMap<>();
+        for (Map.Entry<Integer, List<ExamSession>> entry : bundle.sessionsBySubject.entrySet()) {
+            BigDecimal best = BigDecimal.ZERO;
+            for (Enrollment e : allEnrollments) {
+                Map<String, Map<Integer, BigDecimal>> marks = bundle.markMap.getOrDefault(e.getId(), Collections.emptyMap());
+                BigDecimal total = BigDecimal.ZERO;
+                boolean any = false;
+                for (ExamSession s : entry.getValue()) {
+                    if (!bundle.sessionStructureMap.containsKey(s.getId())) continue;
+                    Map<Integer, BigDecimal> cm = marks.get(s.getExamRoutine().getId() + "_" + entry.getKey());
+                    if (cm == null || cm.isEmpty()) continue;
+                    any = true;
+                    total = total.add(sumComponentMarks(bundle.sessionComponentsMap.getOrDefault(s.getId(), Collections.emptyList()), cm));
+                }
+                if (any && total.compareTo(best) > 0) best = total;
+            }
+            highest.put(entry.getKey(), best);
+        }
+
+        // Student details and the (4th) badge: only the student's own 4th pick.
+        Set<Integer> defaultFourth = loadFourthSubjectIds(classId, groupId);
+        Map<Long, Integer> overrideMap = loadOverrideMap(allEnrollments);
+        Map<Long, AnnualProgressReportData.StudentDetails> details = new HashMap<>();
+        for (Enrollment e : allEnrollments) {
+            AnnualProgressReportData.StudentDetails d = new AnnualProgressReportData.StudentDetails();
+            if (e.getStudent() != null) {
+                d.setFatherPhone(e.getStudent().getFatherPhone());
+                d.setMotherPhone(e.getStudent().getMotherPhone());
+                if (e.getStudent().getImage() != null) d.setImageUrl(e.getStudent().getImage().getImageUrl());
+            }
+            Integer override = overrideMap.get(e.getId());
+            d.setFourthBadgeSubjectIds(override != null ? Set.of(override) : defaultFourth);
+            details.put(e.getId(), d);
+        }
+
+        AnnualProgressReportData data = new AnnualProgressReportData();
+        data.setAnnual(annual);
+        data.setRoutines(routineColumns);
+        data.setMergeGroups(loadMergeGroupMap(classId, groupId));
+        data.setHighestMarks(highest);
+        data.setComponentMarks(bundle.markMap);
+        data.setDetails(details);
+        return data;
     }
 
     // ─── STATS – ROUTINE ─────────────────────────────────────────────────────────

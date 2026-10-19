@@ -49,6 +49,8 @@ public class AnnualResultResponse {
         private BigDecimal totalMarksRaw;
         private BigDecimal totalMarksScaled;
         private Double overallGpa;
+        private Double gpaWithout4th;
+        private int failedSubjectCount;
         private boolean passed;
         private Merit merit;
     }

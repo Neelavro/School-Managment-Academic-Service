@@ -1,5 +1,7 @@
 package com.example.academic_service.service;
 
+import com.example.academic_service.dto.result_dtos.AnnualProgressReportData;
+import com.example.academic_service.dto.result_dtos.AnnualResultResponse;
 import com.example.academic_service.dto.result_dtos.ProgressReportData;
 import com.example.academic_service.entity.Grade;
 import com.example.academic_service.entity.GradingPolicy;
@@ -75,6 +77,317 @@ public class ProgressReportPdfService {
             browser.close();
             return pdf;
         }
+    }
+
+    // ─── GRAND FINAL (annual) — landscape, one column block per exam ─────────
+
+    private static final int LAND_W = 1123;
+    private static final int LAND_H = 794;
+
+    public byte[] generateAnnual(Integer academicYearId, Integer classId, Integer shiftId,
+                                 Integer genderSectionId, Long sectionId, Integer groupId,
+                                 Integer startRoll, Integer endRoll) throws Exception {
+        List<AnnualProgressReportData> partitions = resultService.getAnnualProgressReportDataPartitioned(
+                academicYearId, classId, shiftId, genderSectionId, sectionId, groupId, startRoll, endRoll);
+
+        SystemSettings settings = systemSettingsService.getSettings();
+        String html = buildAnnualHtml(partitions,
+                nvl(settings.getInstitutionName(), ""), nvl(settings.getAddress(), ""), settings.getHeading(),
+                resolveBase64(settings.getLogoUrl()), resolveBase64(settings.getSignatureUrl()),
+                loadGradingTable(classId));
+
+        try (Playwright playwright = Playwright.create()) {
+            Browser browser = playwright.chromium().launch(new BrowserType.LaunchOptions().setHeadless(true));
+            Page page = browser.newPage();
+            page.setContent(html, new Page.SetContentOptions().setWaitUntil(WaitUntilState.NETWORKIDLE));
+            byte[] pdf = page.pdf(new Page.PdfOptions()
+                    .setPrintBackground(true)
+                    .setMargin(new Margin().setTop("0").setBottom("0").setLeft("0").setRight("0"))
+                    .setWidth(LAND_W + "px")
+                    .setHeight(LAND_H + "px"));
+            browser.close();
+            return pdf;
+        }
+    }
+
+    String buildAnnualHtml(List<AnnualProgressReportData> partitions, String institutionName, String address,
+                           String heading, String logoBase64, String signatureBase64, List<Grade> gradingTable) {
+        StringBuilder pages = new StringBuilder();
+        for (AnnualProgressReportData part : partitions) {
+            for (AnnualResultResponse.StudentResultRow student : part.getAnnual().getStudents()) {
+                pages.append(buildAnnualPage(part, student, institutionName, address, heading,
+                        logoBase64, signatureBase64, gradingTable));
+            }
+        }
+        return "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><style>"
+                + getCss() + getLandscapeCss()
+                + "</style></head><body class=\"land\">"
+                + pages
+                + "</body></html>";
+    }
+
+    private String buildAnnualPage(AnnualProgressReportData data, AnnualResultResponse.StudentResultRow student,
+                                   String institutionName, String address, String heading,
+                                   String logoBase64, String signatureBase64, List<Grade> gradingTable) {
+        AnnualResultResponse annual = data.getAnnual();
+        AnnualProgressReportData.StudentDetails details = data.getDetails().get(student.getEnrollmentId());
+
+        String photoTag = buildPhotoTag(details != null ? details.getImageUrl() : null);
+        String logoTag  = logoBase64.isEmpty()
+                ? "<div class=\"logo\">LOGO</div>"
+                : "<img src=\"" + logoBase64 + "\" style=\"width:16mm;height:16mm;object-fit:contain;border-radius:50%;border:1.5px solid #0F6E56;\">";
+
+        String classLabel = annual.getClassName();
+        String sectionParts = joinNonBlank(" | ", student.getGenderSectionName(), student.getSectionName());
+        if (!sectionParts.isEmpty()) classLabel += " — " + sectionParts;
+
+        String motherPhone = details != null ? details.getMotherPhone() : null;
+        String fatherPhone = details != null ? details.getFatherPhone() : null;
+        String contactPhone = nvl(motherPhone, null) != null ? motherPhone : nvl(fatherPhone, "N/A");
+
+        String headerHtml = "<div class=\"header\">"
+                + (heading != null && !heading.isBlank() ? "<div class=\"bismillah\">" + heading + "</div>" : "")
+                + "<div class=\"madrasah-name\">" + institutionName + "</div>"
+                + "<div class=\"address\">" + address + "</div>"
+                + "</div>";
+
+        // Landscape has the width to keep the student's details beside the photo.
+        String infoHtml = "<div class=\"info-grid\"><table>"
+                + infoRow("Name of Student", nvl(student.getStudentName(), "N/A"), "lbl-d", "v-blue")
+                + infoRow("Phone No.",       contactPhone, "lbl-g", "v-blue")
+                + infoRow("Student ID",      nvl(student.getStudentSystemId(), "N/A"), "lbl-p", "v-blue")
+                + infoRow("Roll No.",        student.getClassRoll() != null ? String.valueOf(student.getClassRoll()) : "N/A", "lbl-p", "v-blue")
+                + infoRow("Class",           classLabel, "lbl-b", "v-blue")
+                + (student.getGroupName() != null ? infoRow("Group", student.getGroupName(), "lbl-r", "v-red") : "")
+                + "</table></div>";
+
+        String idRowHtml = "<div class=\"id-row\">"
+                + "<div class=\"photo\">" + photoTag + "</div>"
+                + infoHtml
+                + "<div class=\"logo-stack\">"
+                + "<div class=\"logo-wrap\">" + logoTag + "</div>"
+                + "<div class=\"stamp\">PROGRESS REPORT</div>"
+                + "<div class=\"stamp-sub\">" + joinNonBlank(" - ", "GRAND FINAL", nvl(annual.getAcademicYearName(), "")) + "</div>"
+                + "</div>"
+                + buildGradingTableHtml(gradingTable)
+                + "</div>";
+
+        String marksHtml = buildAnnualMarksTable(data, student, details, gradingTable);
+
+        ProgressReportData.StudentReport summary = new ProgressReportData.StudentReport();
+        summary.setPassed(student.isPassed());
+        summary.setGpaWithout4th(student.getGpaWithout4th());
+        summary.setFailedSubjectCount(student.getFailedSubjectCount());
+        if (student.getMerit() != null) {
+            summary.setClassRank(student.getMerit().getClassRank());
+            summary.setGenderSectionRank(student.getMerit().getGenderSectionRank());
+            summary.setSectionRank(student.getMerit().getSectionRank());
+        }
+        String resultHtml = buildResultSummary(summary);
+        String checksHtml = buildChecksHtml(student.getOverallGpa(), gradingTable);
+
+        String sigHtml = "<div class=\"signatures\">"
+                + "<div><div class=\"sig-line\">CLASS TEACHER</div></div>"
+                + "<div>"
+                + (signatureBase64.isEmpty() ? "" : "<img src=\"" + signatureBase64 + "\" style=\"height:24px;object-fit:contain;display:block;margin:0 auto;\">")
+                + "<div class=\"sig-line\">PRINCIPAL</div>"
+                + "</div>"
+                + "</div>";
+
+        String footerHtml = "<div class=\"footer\">"
+                + "<div>Powered by Technonix</div>"
+                + "<div>Date of Publication: " + LocalDate.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy")) + "</div>"
+                + "</div>";
+
+        return "<div class=\"page\"><div class=\"inner\">"
+                + "<div class=\"content-area\">" + headerHtml + idRowHtml + marksHtml + resultHtml + checksHtml + "</div>"
+                + "<div class=\"bottom-area\">" + sigHtml + footerHtml + "</div>"
+                + "</div></div>";
+    }
+
+    private String buildAnnualMarksTable(AnnualProgressReportData data, AnnualResultResponse.StudentResultRow student,
+                                         AnnualProgressReportData.StudentDetails details, List<Grade> gradingTable) {
+        List<AnnualProgressReportData.RoutineColumn> routines = data.getRoutines();
+        Map<Integer, Integer> mergeGroups = data.getMergeGroups() != null ? data.getMergeGroups() : Collections.emptyMap();
+        Map<String, Map<Integer, BigDecimal>> compMarks = data.getComponentMarks()
+                .getOrDefault(student.getEnrollmentId(), Collections.emptyMap());
+        Set<Integer> fourthBadge = details != null && details.getFourthBadgeSubjectIds() != null
+                ? details.getFourthBadgeSubjectIds() : Collections.emptySet();
+
+        Map<Integer, AnnualResultResponse.SubjectResult> resultMap = new HashMap<>();
+        for (AnnualResultResponse.SubjectResult sr : student.getSubjectResults()) resultMap.put(sr.getSubjectId(), sr);
+
+        // Rows on this card, in the annual result's subject order.
+        List<AnnualResultResponse.SubjectInfo> rows = data.getAnnual().getSubjects().stream()
+                .filter(si -> resultMap.containsKey(si.getSubjectId()))
+                .collect(Collectors.toList());
+        Map<Integer, List<AnnualResultResponse.SubjectInfo>> byMergeGroup = new LinkedHashMap<>();
+        for (AnnualResultResponse.SubjectInfo si : rows) {
+            AnnualResultResponse.SubjectResult sr = resultMap.get(si.getSubjectId());
+            Integer mg = sr.isFourthSubject() ? null : mergeGroups.get(si.getSubjectId());
+            if (mg != null) byMergeGroup.computeIfAbsent(mg, k -> new ArrayList<>()).add(si);
+        }
+
+        // Column widths: subject wider, everything else equal.
+        int examCols = routines.stream().mapToInt(r -> r.getComponents().size() + 1).sum();
+        int totalCols = 6 + examCols;
+        double subjectPct = 15;
+        double eachOther = (100 - subjectPct) / (totalCols - 1);
+        StringBuilder colgroup = new StringBuilder("<colgroup>");
+        colgroup.append("<col style=\"width:").append(String.format(Locale.ROOT, "%.2f", subjectPct)).append("%\">");
+        for (int i = 1; i < totalCols; i++)
+            colgroup.append("<col style=\"width:").append(String.format(Locale.ROOT, "%.2f", eachOther)).append("%\">");
+        colgroup.append("</colgroup>");
+
+        StringBuilder head1 = new StringBuilder("<tr class=\"th-tan\">"
+                + "<th rowspan=\"2\">Name of Subjects</th>"
+                + "<th rowspan=\"2\">Full<br>Marks</th>"
+                + "<th rowspan=\"2\">Highest<br>Marks</th>");
+        StringBuilder head2 = new StringBuilder("<tr class=\"th-tan\" style=\"font-weight:400;\">");
+        for (AnnualProgressReportData.RoutineColumn r : routines) {
+            head1.append("<th class=\"exam-head\" colspan=\"").append(r.getComponents().size() + 1).append("\">")
+                    .append(nvl(r.getTitle(), "")).append("</th>");
+            for (ProgressReportData.ComponentInfo c : r.getComponents())
+                head2.append("<th class=\"comp-head\">").append(c.getComponentName()).append("</th>");
+            head2.append("<th class=\"comp-head exam-total\">Total</th>");
+        }
+        head1.append("<th rowspan=\"2\">Total<br>Marks</th>"
+                + "<th rowspan=\"2\">Letter<br>Grade</th>"
+                + "<th rowspan=\"2\">Grade<br>Point</th></tr>");
+        head2.append("</tr>");
+        String thead = "<thead>" + head1 + head2 + "</thead>";
+
+        StringBuilder tbody = new StringBuilder("<tbody>");
+        BigDecimal totalFull = BigDecimal.ZERO;
+        BigDecimal totalObtained = BigDecimal.ZERO;
+        Set<Integer> doneGroups = new HashSet<>();
+
+        for (AnnualResultResponse.SubjectInfo si : rows) {
+            AnnualResultResponse.SubjectResult sr = resultMap.get(si.getSubjectId());
+            Integer mg = sr.isFourthSubject() ? null : mergeGroups.get(si.getSubjectId());
+            List<AnnualResultResponse.SubjectInfo> block = mg != null ? byMergeGroup.get(mg) : List.of(si);
+            if (mg != null) {
+                if (!doneGroups.add(mg)) continue;
+            }
+
+            // Merged pairs share one grade, worked out from their combined marks.
+            String blockGrade = null, blockGpa = null;
+            if (mg != null) {
+                BigDecimal obtained = BigDecimal.ZERO;
+                int full = 0;
+                boolean anyAppeared = false, anyExpelled = false;
+                for (AnnualResultResponse.SubjectInfo m : block) {
+                    AnnualResultResponse.SubjectResult msr = resultMap.get(m.getSubjectId());
+                    if (msr.isAppeared()) {
+                        anyAppeared = true;
+                        if (msr.getMarksRaw() != null) obtained = obtained.add(msr.getMarksRaw());
+                    }
+                    if ("EXPELLED".equals(msr.getStatus())) anyExpelled = true;
+                    if (msr.getMaxMarksRaw() != null) full += msr.getMaxMarksRaw();
+                }
+                blockGrade = !anyAppeared ? "—" : anyExpelled ? "F" : resolveMergedGrade(obtained, full, gradingTable);
+                blockGpa   = !anyAppeared ? "—" : anyExpelled ? "0.00" : resolveMergedGpa(obtained, full, gradingTable);
+            }
+
+            for (int i = 0; i < block.size(); i++) {
+                AnnualResultResponse.SubjectInfo row = block.get(i);
+                AnnualResultResponse.SubjectResult r = resultMap.get(row.getSubjectId());
+                boolean appeared = r.isAppeared() && r.getMarksRaw() != null;
+                String rowClass = mg == null ? "" : i == 0 ? " class=\"merged-first\"" : " class=\"merged-last\"";
+
+                tbody.append("<tr").append(rowClass).append(">");
+                tbody.append("<td class=\"subject\">").append(row.getSubjectName())
+                        .append(r.isFourthSubject() && fourthBadge.contains(row.getSubjectId()) ? " (4<sup>th</sup>)" : "")
+                        .append("</td>");
+                tbody.append("<td>").append(r.getMaxMarksRaw() != null ? r.getMaxMarksRaw() : "—").append("</td>");
+                tbody.append("<td>").append(fmtMark(data.getHighestMarks().get(row.getSubjectId()))).append("</td>");
+
+                for (AnnualProgressReportData.RoutineColumn rc : routines) {
+                    AnnualResultResponse.RoutineBreakdown rb = r.getRoutineBreakdowns() == null ? null
+                            : r.getRoutineBreakdowns().stream()
+                                .filter(b -> rc.getRoutineId().equals(b.getRoutineId())).findFirst().orElse(null);
+                    int span = rc.getComponents().size() + 1;
+                    if (rb != null && !rb.isAppeared() && rb.getStatus() != null) {
+                        tbody.append("<td colspan=\"").append(span).append("\" class=\"status-mark exam-end\">")
+                                .append("EXPELLED".equals(rb.getStatus()) ? "EXPELLED" : "ABSENT").append("</td>");
+                        continue;
+                    }
+                    Map<Integer, BigDecimal> cm = compMarks.getOrDefault(rc.getRoutineId() + "_" + row.getSubjectId(), Collections.emptyMap());
+                    boolean sat = rb != null && rb.isAppeared();
+                    for (ProgressReportData.ComponentInfo c : rc.getComponents()) {
+                        BigDecimal m = sat ? cm.get(c.getComponentId()) : null;
+                        tbody.append("<td>").append(m != null ? fmtMark(m) : "—").append("</td>");
+                    }
+                    tbody.append("<td class=\"exam-total exam-end\">")
+                            .append(sat ? fmtMark(rb.getMarksObtained()) : "—").append("</td>");
+                }
+
+                tbody.append("<td class=\"annual-total\">").append(appeared ? fmtMark(r.getMarksRaw()) : "—").append("</td>");
+                if (mg == null) {
+                    tbody.append("<td>").append(appeared && r.getGradeName() != null ? r.getGradeName() : "—").append("</td>");
+                    tbody.append("<td>").append(appeared && r.getGpaValue() != null ? fmtGpa(r.getGpaValue()) : "—").append("</td>");
+                } else if (i == 0) {
+                    tbody.append("<td rowspan=\"").append(block.size()).append("\" class=\"merged-grade\">").append(blockGrade).append("</td>");
+                    tbody.append("<td rowspan=\"").append(block.size()).append("\" class=\"merged-grade\">").append(blockGpa).append("</td>");
+                }
+                tbody.append("</tr>");
+
+                // Same as the per-exam card: every subject on the card counts, 4th included.
+                if (r.getMaxMarksRaw() != null) totalFull = totalFull.add(BigDecimal.valueOf(r.getMaxMarksRaw()));
+                if (appeared) totalObtained = totalObtained.add(r.getMarksRaw());
+            }
+        }
+        tbody.append("</tbody>");
+
+        String gpaStr = student.getOverallGpa() != null ? fmtGpa(student.getOverallGpa()) : "—";
+        String tfoot = "<tfoot><tr>"
+                + "<td style=\"color:#0F6E56;\">Total Exam Marks</td>"
+                + "<td style=\"color:#013E5B;text-align:center;\">" + fmtMark(totalFull) + "</td>"
+                + "<td colspan=\"" + (examCols + 1) + "\" style=\"color:#0F6E56;text-align:center;\">Obtained Marks &amp; GPA</td>"
+                + "<td style=\"color:#C2185B;text-align:center;\">" + fmtMark(totalObtained) + "</td>"
+                + "<td style=\"color:#C2185B;text-align:center;\">" + resolveGradeNameFromGpa(student.getOverallGpa(), null) + "</td>"
+                + "<td style=\"color:#C2185B;text-align:center;\">" + gpaStr + "</td>"
+                + "</tr></tfoot>";
+
+        String density = rows.size() > 16 ? " dense" : "";
+        return "<table class=\"marks" + density + "\">" + colgroup + thead + tbody + tfoot + "</table>";
+    }
+
+    /** Overrides on top of getCss() for the landscape Grand Final card. */
+    private String getLandscapeCss() {
+        return "@page { size: A4 landscape; margin: 0; }"
+                + "html { width: 297mm; }"
+                + "body.land { width: 297mm; }"
+                + ".land .page { width: 297mm; height: 210mm; padding: 3.5mm; }"
+                + ".land .inner { padding: 2.5mm 6mm; }"
+                + ".land .header { padding-bottom: 2mm; }"
+                + ".land .bismillah { font-size: 15pt; }"
+                + ".land .madrasah-name { font-size: 15pt; }"
+                + ".land .address { font-size: 9pt; margin-top: 0.5mm; }"
+                + ".land .id-row { grid-template-columns: 26mm 1fr 62mm auto; gap: 5mm; margin-bottom: 2mm; }"
+                + ".land .photo { width: 24mm; height: 29mm; }"
+                + ".land .info-grid { display: block; margin-top: 0; font-size: 9pt; align-self: center; }"
+                + ".land .info-grid td { padding: 0.5px 4px; }"
+                + ".land .logo-wrap { margin: 0 auto 1mm; }"
+                + ".land .stamp { margin-top: 1mm; }"
+                + ".land .grading { font-size: 6.5pt; }"
+                + ".land .grading th, .land .grading td { padding: 0 3px; }"
+                + ".land .marks { margin-top: 1.5mm; font-size: 8pt; }"
+                + ".land .marks thead th { padding: 2px 2px; line-height: 1.2; }"
+                + ".land .marks thead th.exam-head { color: #013E5B; font-size: 8.5pt; }"
+                + ".land .marks thead th.comp-head { font-size: 7pt; word-break: break-word; }"
+                + ".land .marks tbody td { padding: 1.5px 3px; }"
+                + ".land .marks td.exam-total { font-weight: 600; color: #013E5B; }"
+                + ".land .marks .exam-end { border-right: 1.6px solid #6B7280; }"
+                + ".land .marks td.annual-total { font-weight: 600; color: #C2185B; }"
+                + ".land .marks tfoot td { padding: 3px; }"
+                + ".land .marks.dense { font-size: 7.5pt; }"
+                + ".land .marks.dense tbody td { padding: 0.5px 3px; }"
+                + ".land .result-row { margin-top: 1.5mm; }"
+                + ".land .checks { margin-top: 1.5mm; font-size: 8.5pt; }"
+                + ".land .checks td, .land .checks th { padding: 2px 5px; }"
+                + ".land .signatures { padding-top: 5mm; }"
+                + ".land .footer { margin-top: 2mm; }";
     }
 
     private String buildHtml(ProgressReportData data, String institutionName, String address,

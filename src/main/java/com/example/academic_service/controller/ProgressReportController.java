@@ -43,4 +43,30 @@ public class ProgressReportController {
             return ResponseEntity.internalServerError().build();
         }
     }
+
+    /** Grand Final: the annual result with each exam's marks, one landscape page per student. */
+    @GetMapping("/annual/download")
+    public ResponseEntity<byte[]> downloadAnnual(
+            @RequestParam Integer academicYearId,
+            @RequestParam Integer classId,
+            @RequestParam(required = false) Integer shiftId,
+            @RequestParam(required = false) Integer genderSectionId,
+            @RequestParam(required = false) Long sectionId,
+            @RequestParam(required = false) Integer groupId,
+            @RequestParam(required = false) Integer startRoll,
+            @RequestParam(required = false) Integer endRoll
+    ) {
+        try {
+            byte[] pdf = pdfService.generateAnnual(
+                    academicYearId, classId, shiftId, genderSectionId,
+                    sectionId, groupId, startRoll, endRoll);
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"progress-report-grand-final.pdf\"")
+                    .contentType(MediaType.APPLICATION_PDF)
+                    .body(pdf);
+        } catch (Exception e) {
+            log.error("Failed to generate annual progress report", e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
 }
