@@ -24,7 +24,7 @@ class AnnualProgressReportHtmlTest {
         AnnualResultResponse annual = new AnnualResultResponse();
         annual.setAcademicYearName("2026");
         annual.setClassName("Class 8");
-        annual.setRoutines(List.of(routineInfo(1, "Half Yearly"), routineInfo(2, "Annual Exam")));
+        annual.setRoutines(List.of(routineInfo(1, "Half Yearly"), routineInfo(2, "Annual Exam"), routineInfo(3, "1st Model Test"), routineInfo(4, "2nd Model Test")));
 
         String[] names = {"Quran Majid", "Hadith Sharif", "Arabic 1st Paper", "Arabic 2nd Paper", "Bangla 1st Paper",
                 "Bangla 2nd Paper", "English 1st Paper", "English 2nd Paper", "Mathematics", "Science",
@@ -56,9 +56,13 @@ class AnnualProgressReportHtmlTest {
             sr.setGpaValue(4.0);
             sr.setRoutineBreakdowns(List.of(
                     breakdown(1, h1, !absentInFirst, absentInFirst ? "ABSENT" : null),
-                    breakdown(2, h2, true, null)));
+                    breakdown(2, h2, true, null),
+                    breakdown(3, h2, true, null),
+                    breakdown(4, h2, true, null)));
             if (!absentInFirst) marks.put("1_" + id, Map.of(11, h1.subtract(BigDecimal.valueOf(20)), 12, BigDecimal.valueOf(20)));
             marks.put("2_" + id, Map.of(11, h2.subtract(BigDecimal.valueOf(25)), 12, BigDecimal.valueOf(15), 13, BigDecimal.TEN));
+            marks.put("3_" + id, Map.of(11, h2.subtract(BigDecimal.valueOf(15)), 12, BigDecimal.valueOf(15)));
+            marks.put("4_" + id, Map.of(11, h2));
             results.add(sr);
         }
 
@@ -84,7 +88,23 @@ class AnnualProgressReportHtmlTest {
         data.setAnnual(annual);
         data.setRoutines(List.of(
                 column(1, "Half Yearly", component(11, "Written"), component(12, "MCQ")),
-                column(2, "Annual Exam", component(11, "Written"), component(12, "MCQ"), component(13, "Practical"))));
+                column(2, "Annual Exam", component(11, "Written"), component(12, "MCQ"), component(13, "Practical")),
+                column(3, "1st Model Test", component(11, "Written"), component(12, "MCQ")),
+                column(4, "2nd Model Test", component(11, "Written"))));
+        Map<Integer, Map<Long, ProgressReportData.StudentReport>> summaries = new LinkedHashMap<>();
+        for (int r = 1; r <= 3; r++) {
+            ProgressReportData.StudentReport sum = new ProgressReportData.StudentReport();
+            sum.setTotalMarks(BigDecimal.valueOf(1000 + r * 10));
+            sum.setOverallGpa(r == 1 ? 0.0 : 4.5);
+            sum.setGpaWithout4th(r == 1 ? 0.0 : 4.4);
+            sum.setPassed(r != 1);
+            sum.setFailedSubjectCount(r == 1 ? 1 : 0);
+            sum.setClassRank(r == 1 ? null : r);
+            sum.setGenderSectionRank(r == 1 ? null : 1);
+            sum.setSectionRank(r == 1 ? null : 1);
+            summaries.put(r, Map.of(7L, sum));
+        }
+        data.setExamSummaries(summaries);
         data.setMergeGroups(Map.of(3, 1, 4, 1, 5, 2, 6, 2, 7, 3, 8, 3));
         Map<Integer, BigDecimal> highest = new HashMap<>();
         subjects.forEach(s -> highest.put(s.getSubjectId(), BigDecimal.valueOf(190)));
@@ -104,9 +124,12 @@ class AnnualProgressReportHtmlTest {
 
         assertTrue(html.contains("GRAND FINAL - 2026"));
         assertTrue(html.contains(">Half Yearly</th>") && html.contains(">Annual Exam</th>"));
-        assertTrue(html.contains("colspan=\"3\">Half Yearly") && html.contains("colspan=\"4\">Annual Exam"));
+        assertTrue(html.contains("colspan=\"4\">Half Yearly") && html.contains("colspan=\"5\">Annual Exam"));
+        assertFalse(html.contains("Full<br>Marks") || html.contains("Highest"));
+        assertTrue(html.contains(">Grand Final</td>") && html.contains(">1st Model Test</td>"));
         assertTrue(html.contains(">Practical</th>"));
         assertTrue(html.contains(">ABSENT</td>"));
+        assertTrue(html.contains("colspan=\"4\" class=\"status-mark exam-end\">ABSENT"));
         assertTrue(html.contains("(4<sup>th</sup>)"));
         assertEquals(6, html.split("class=\"merged-grade\"").length - 1, "3 merged pairs, 2 grade cells each");
 
@@ -128,6 +151,7 @@ class AnnualProgressReportHtmlTest {
         rb.setMaxMarks(100);
         rb.setAppeared(appeared);
         rb.setStatus(status);
+        rb.setGradeName(appeared ? "A" : null);
         return rb;
     }
 

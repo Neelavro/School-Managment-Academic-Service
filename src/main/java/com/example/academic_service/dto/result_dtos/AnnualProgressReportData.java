@@ -35,6 +35,13 @@ public class AnnualProgressReportData {
     /** enrollmentId -> photo, phones and the subject that gets the (4th) badge. */
     private Map<Long, StudentDetails> details;
 
+    /**
+     * routineId -> enrollmentId -> that exam's result (total, GPA, GPA without 4th, failed subjects,
+     * pass/fail, positions) — the per-exam progress report's numbers, without the subject rows.
+     * An exam the group has no papers in is missing.
+     */
+    private Map<Integer, Map<Long, ProgressReportData.StudentReport>> examSummaries;
+
     @Getter
     @Setter
     public static class RoutineColumn {

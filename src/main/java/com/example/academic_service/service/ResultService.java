@@ -1858,9 +1858,27 @@ public class ResultService {
             details.put(e.getId(), d);
         }
 
+        // Each exam's own result for the summary table: the per-exam progress report's numbers.
+        Map<Integer, Map<Long, ProgressReportData.StudentReport>> examSummaries = new LinkedHashMap<>();
+        for (AnnualResultResponse.RoutineInfo ri : annual.getRoutines()) {
+            try {
+                ProgressReportData pr = getProgressReportData(ri.getRoutineId(), classId, shiftId,
+                        genderSectionId, sectionId, groupId, startRoll, endRoll);
+                Map<Long, ProgressReportData.StudentReport> byStudent = new HashMap<>();
+                for (ProgressReportData.StudentReport sr : pr.getStudents()) {
+                    sr.setSubjectResults(null);
+                    byStudent.put(sr.getEnrollmentId(), sr);
+                }
+                examSummaries.put(ri.getRoutineId(), byStudent);
+            } catch (RuntimeException ignored) {
+                // No papers for this group in that exam: its row prints dashes.
+            }
+        }
+
         AnnualProgressReportData data = new AnnualProgressReportData();
         data.setAnnual(annual);
         data.setRoutines(routineColumns);
+        data.setExamSummaries(examSummaries);
         data.setMergeGroups(loadMergeGroupMap(classId, groupId));
         data.setHighestMarks(highest);
         data.setComponentMarks(bundle.markMap);

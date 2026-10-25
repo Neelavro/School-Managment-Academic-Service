@@ -135,7 +135,7 @@ public class ProgressReportPdfService {
         String photoTag = buildPhotoTag(details != null ? details.getImageUrl() : null);
         String logoTag  = logoBase64.isEmpty()
                 ? "<div class=\"logo\">LOGO</div>"
-                : "<img src=\"" + logoBase64 + "\" style=\"width:16mm;height:16mm;object-fit:contain;border-radius:50%;border:1.5px solid #0F6E56;\">";
+                : "<img src=\"" + logoBase64 + "\" style=\"width:13mm;height:13mm;object-fit:contain;border-radius:50%;border:1.5px solid #0F6E56;\">";
 
         String classLabel = annual.getClassName();
         String sectionParts = joinNonBlank(" | ", student.getGenderSectionName(), student.getSectionName());
@@ -145,46 +145,36 @@ public class ProgressReportPdfService {
         String fatherPhone = details != null ? details.getFatherPhone() : null;
         String contactPhone = nvl(motherPhone, null) != null ? motherPhone : nvl(fatherPhone, "N/A");
 
-        String headerHtml = "<div class=\"header\">"
+        // Photo left, grading table right; school, logo and title in the middle of the page (user, 2026-10-25).
+        String headerHtml = "<div class=\"gf-top\">"
+                + "<div class=\"photo\">" + photoTag + "</div>"
+                + "<div class=\"gf-center\">"
                 + (heading != null && !heading.isBlank() ? "<div class=\"bismillah\">" + heading + "</div>" : "")
                 + "<div class=\"madrasah-name\">" + institutionName + "</div>"
                 + "<div class=\"address\">" + address + "</div>"
-                + "</div>";
-
-        // Landscape has the width to keep the student's details beside the photo.
-        String infoHtml = "<div class=\"info-grid\"><table>"
-                + infoRow("Name of Student", nvl(student.getStudentName(), "N/A"), "lbl-d", "v-blue")
-                + infoRow("Phone No.",       contactPhone, "lbl-g", "v-blue")
-                + infoRow("Student ID",      nvl(student.getStudentSystemId(), "N/A"), "lbl-p", "v-blue")
-                + infoRow("Roll No.",        student.getClassRoll() != null ? String.valueOf(student.getClassRoll()) : "N/A", "lbl-p", "v-blue")
-                + infoRow("Class",           classLabel, "lbl-b", "v-blue")
-                + (student.getGroupName() != null ? infoRow("Group", student.getGroupName(), "lbl-r", "v-red") : "")
-                + "</table></div>";
-
-        String idRowHtml = "<div class=\"id-row\">"
-                + "<div class=\"photo\">" + photoTag + "</div>"
-                + infoHtml
-                + "<div class=\"logo-stack\">"
                 + "<div class=\"logo-wrap\">" + logoTag + "</div>"
                 + "<div class=\"stamp\">PROGRESS REPORT</div>"
                 + "<div class=\"stamp-sub\">" + joinNonBlank(" - ", "GRAND FINAL", nvl(annual.getAcademicYearName(), "")) + "</div>"
                 + "</div>"
-                + buildGradingTableHtml(gradingTable)
+                + "<div class=\"gf-grading\">" + buildGradingTableHtml(gradingTable) + "</div>"
                 + "</div>";
 
-        String marksHtml = buildAnnualMarksTable(data, student, details, gradingTable);
+        String infoHtml = "<div class=\"gf-info\"><table>"
+                + infoRow("Name of Student", nvl(student.getStudentName(), "N/A"), "lbl-d", "v-blue")
+                + infoRow("Student ID",      nvl(student.getStudentSystemId(), "N/A"), "lbl-p", "v-blue")
+                + infoRow("Roll No.",        student.getClassRoll() != null ? String.valueOf(student.getClassRoll()) : "N/A", "lbl-p", "v-blue")
+                + infoRow("Phone No.",       contactPhone, "lbl-g", "v-blue")
+                + "</table><table>"
+                + infoRow("Class",           classLabel, "lbl-b", "v-blue")
+                + infoRow("Group",           nvl(student.getGroupName(), "N/A"), "lbl-r", "v-blue")
+                + infoRow("Year/Session",    nvl(annual.getAcademicYearName(), "N/A"), "lbl-g", "v-blue")
+                + "</table></div>";
 
-        ProgressReportData.StudentReport summary = new ProgressReportData.StudentReport();
-        summary.setPassed(student.isPassed());
-        summary.setGpaWithout4th(student.getGpaWithout4th());
-        summary.setFailedSubjectCount(student.getFailedSubjectCount());
-        if (student.getMerit() != null) {
-            summary.setClassRank(student.getMerit().getClassRank());
-            summary.setGenderSectionRank(student.getMerit().getGenderSectionRank());
-            summary.setSectionRank(student.getMerit().getSectionRank());
-        }
-        String resultHtml = buildResultSummary(summary);
-        String checksHtml = buildChecksHtml(student.getOverallGpa(), gradingTable);
+        String marksHtml = buildAnnualMarksTable(data, student, details, gradingTable);
+        String resultHtml = "<div class=\"gf-result\">" + buildAnnualSummaryTable(data, student)
+                + "<table class=\"gf-comments\"><tr class=\"th-tan\"><th>Comments</th></tr>"
+                + "<tr><td>" + gradeComment(student.getOverallGpa(), gradingTable) + "</td></tr></table></div>";
+        String checksHtml = buildChecksHtml(student.getOverallGpa(), gradingTable, false);
 
         String sigHtml = "<div class=\"signatures\">"
                 + "<div><div class=\"sig-line\">CLASS TEACHER</div></div>"
@@ -200,7 +190,7 @@ public class ProgressReportPdfService {
                 + "</div>";
 
         return "<div class=\"page\"><div class=\"inner\">"
-                + "<div class=\"content-area\">" + headerHtml + idRowHtml + marksHtml + resultHtml + checksHtml + "</div>"
+                + "<div class=\"content-area\">" + headerHtml + infoHtml + marksHtml + resultHtml + checksHtml + "</div>"
                 + "<div class=\"bottom-area\">" + sigHtml + footerHtml + "</div>"
                 + "</div></div>";
     }
@@ -229,8 +219,8 @@ public class ProgressReportPdfService {
         }
 
         // Column widths: subject wider, everything else equal.
-        int examCols = routines.stream().mapToInt(r -> r.getComponents().size() + 1).sum();
-        int totalCols = 6 + examCols;
+        int examCols = routines.stream().mapToInt(r -> r.getComponents().size() + 2).sum();
+        int totalCols = 4 + examCols;
         double subjectPct = 15;
         double eachOther = (100 - subjectPct) / (totalCols - 1);
         StringBuilder colgroup = new StringBuilder("<colgroup>");
@@ -240,16 +230,15 @@ public class ProgressReportPdfService {
         colgroup.append("</colgroup>");
 
         StringBuilder head1 = new StringBuilder("<tr class=\"th-tan\">"
-                + "<th rowspan=\"2\">Name of Subjects</th>"
-                + "<th rowspan=\"2\">Full<br>Marks</th>"
-                + "<th rowspan=\"2\">Highest<br>Marks</th>");
+                + "<th rowspan=\"2\">Name of Subjects</th>");
         StringBuilder head2 = new StringBuilder("<tr class=\"th-tan\" style=\"font-weight:400;\">");
         for (AnnualProgressReportData.RoutineColumn r : routines) {
-            head1.append("<th class=\"exam-head\" colspan=\"").append(r.getComponents().size() + 1).append("\">")
+            head1.append("<th class=\"exam-head\" colspan=\"").append(r.getComponents().size() + 2).append("\">")
                     .append(nvl(r.getTitle(), "")).append("</th>");
             for (ProgressReportData.ComponentInfo c : r.getComponents())
                 head2.append("<th class=\"comp-head\">").append(c.getComponentName()).append("</th>");
-            head2.append("<th class=\"comp-head exam-total\">Total</th>");
+            head2.append("<th class=\"comp-head exam-total\">Total<br>Marks</th>");
+            head2.append("<th class=\"comp-head exam-end\">Grade</th>");
         }
         head1.append("<th rowspan=\"2\">Total<br>Marks</th>"
                 + "<th rowspan=\"2\">Letter<br>Grade</th>"
@@ -299,14 +288,12 @@ public class ProgressReportPdfService {
                 tbody.append("<td class=\"subject\">").append(row.getSubjectName())
                         .append(r.isFourthSubject() && fourthBadge.contains(row.getSubjectId()) ? " (4<sup>th</sup>)" : "")
                         .append("</td>");
-                tbody.append("<td>").append(r.getMaxMarksRaw() != null ? r.getMaxMarksRaw() : "—").append("</td>");
-                tbody.append("<td>").append(fmtMark(data.getHighestMarks().get(row.getSubjectId()))).append("</td>");
 
                 for (AnnualProgressReportData.RoutineColumn rc : routines) {
                     AnnualResultResponse.RoutineBreakdown rb = r.getRoutineBreakdowns() == null ? null
                             : r.getRoutineBreakdowns().stream()
                                 .filter(b -> rc.getRoutineId().equals(b.getRoutineId())).findFirst().orElse(null);
-                    int span = rc.getComponents().size() + 1;
+                    int span = rc.getComponents().size() + 2;
                     if (rb != null && !rb.isAppeared() && rb.getStatus() != null) {
                         tbody.append("<td colspan=\"").append(span).append("\" class=\"status-mark exam-end\">")
                                 .append("EXPELLED".equals(rb.getStatus()) ? "EXPELLED" : "ABSENT").append("</td>");
@@ -318,8 +305,10 @@ public class ProgressReportPdfService {
                         BigDecimal m = sat ? cm.get(c.getComponentId()) : null;
                         tbody.append("<td>").append(m != null ? fmtMark(m) : "—").append("</td>");
                     }
-                    tbody.append("<td class=\"exam-total exam-end\">")
+                    tbody.append("<td class=\"exam-total\">")
                             .append(sat ? fmtMark(rb.getMarksObtained()) : "—").append("</td>");
+                    tbody.append("<td class=\"exam-end\">")
+                            .append(sat && rb.getGradeName() != null ? rb.getGradeName() : "—").append("</td>");
                 }
 
                 tbody.append("<td class=\"annual-total\">").append(appeared ? fmtMark(r.getMarksRaw()) : "—").append("</td>");
@@ -341,16 +330,72 @@ public class ProgressReportPdfService {
 
         String gpaStr = student.getOverallGpa() != null ? fmtGpa(student.getOverallGpa()) : "—";
         String tfoot = "<tfoot><tr>"
-                + "<td style=\"color:#0F6E56;\">Total Exam Marks</td>"
-                + "<td style=\"color:#013E5B;text-align:center;\">" + fmtMark(totalFull) + "</td>"
-                + "<td colspan=\"" + (examCols + 1) + "\" style=\"color:#0F6E56;text-align:center;\">Obtained Marks &amp; GPA</td>"
+                + "<td colspan=\"" + (examCols + 1) + "\" style=\"color:#0F6E56;text-align:right;padding-right:3mm;\">Obtained Marks &amp; GPA</td>"
                 + "<td style=\"color:#C2185B;text-align:center;\">" + fmtMark(totalObtained) + "</td>"
                 + "<td style=\"color:#C2185B;text-align:center;\">" + resolveGradeNameFromGpa(student.getOverallGpa(), null) + "</td>"
                 + "<td style=\"color:#C2185B;text-align:center;\">" + gpaStr + "</td>"
                 + "</tr></tfoot>";
 
-        String density = rows.size() > 16 ? " dense" : "";
+        String density = rows.size() > 12 ? " dense" : "";
         return "<table class=\"marks" + density + "\">" + colgroup + thead + tbody + tfoot + "</table>";
+    }
+
+    /** Obtained marks on the Grand Final card: every paper on it that was sat, 4th included (as the per-exam card). */
+    private BigDecimal annualCardTotal(AnnualProgressReportData data, AnnualResultResponse.StudentResultRow student) {
+        Set<Integer> onCard = data.getAnnual().getSubjects().stream()
+                .map(AnnualResultResponse.SubjectInfo::getSubjectId).collect(Collectors.toSet());
+        BigDecimal total = BigDecimal.ZERO;
+        for (AnnualResultResponse.SubjectResult r : student.getSubjectResults())
+            if (onCard.contains(r.getSubjectId()) && r.isAppeared() && r.getMarksRaw() != null) total = total.add(r.getMarksRaw());
+        return total;
+    }
+
+    /**
+     * Each exam's result and the Grand Final under the marks (like LRDM's printed transcript): total, letter grade,
+     * grade point, positions, result, GPA without 4th, failed subjects, and blank attendance cells.
+     */
+    private String buildAnnualSummaryTable(AnnualProgressReportData data, AnnualResultResponse.StudentResultRow student) {
+        StringBuilder rows = new StringBuilder();
+        Map<Integer, Map<Long, ProgressReportData.StudentReport>> summaries =
+                data.getExamSummaries() != null ? data.getExamSummaries() : Collections.emptyMap();
+        for (AnnualProgressReportData.RoutineColumn rc : data.getRoutines()) {
+            ProgressReportData.StudentReport s = summaries.getOrDefault(rc.getRoutineId(), Collections.emptyMap())
+                    .get(student.getEnrollmentId());
+            if (s == null) {
+                rows.append(summaryRow(nvl(rc.getTitle(), ""), "—", "—", "—", "—", "—", "—", "—", "—", "—", false));
+                continue;
+            }
+            rows.append(summaryRow(nvl(rc.getTitle(), ""), fmtMark(s.getTotalMarks()),
+                    resolveGradeNameFromGpa(s.getOverallGpa(), null), fmtGpa(s.getOverallGpa()),
+                    rank(s.getClassRank()), rank(s.getGenderSectionRank()), rank(s.getSectionRank()),
+                    s.isPassed() ? "Passed" : "Failed", fmtGpa(s.getGpaWithout4th()),
+                    String.valueOf(s.getFailedSubjectCount()), false));
+        }
+        AnnualResultResponse.Merit m = student.getMerit();
+        rows.append(summaryRow("Grand Final", fmtMark(annualCardTotal(data, student)),
+                resolveGradeNameFromGpa(student.getOverallGpa(), null), fmtGpa(student.getOverallGpa()),
+                rank(m != null ? m.getClassRank() : null), rank(m != null ? m.getGenderSectionRank() : null),
+                rank(m != null ? m.getSectionRank() : null),
+                student.isPassed() ? "Passed" : "Failed", fmtGpa(student.getGpaWithout4th()),
+                String.valueOf(student.getFailedSubjectCount()), true));
+        return "<table class=\"gf-summary\"><thead><tr class=\"th-tan\">"
+                + "<th class=\"exam\">Exam Name</th><th>Total Marks</th><th>Letter Grade</th><th>Grade Point</th>"
+                + "<th>Class Position</th><th>Shift Position</th><th>Section Position</th><th>Result Status</th>"
+                + "<th>Without 4th</th><th>Failed Subject(s)</th><th>Working Days</th><th>Total Present</th><th>Total Absent</th>"
+                + "</tr></thead><tbody>" + rows + "</tbody></table>";
+    }
+
+    private String summaryRow(String exam, String total, String letter, String gpa, String classPos, String shiftPos,
+                              String sectionPos, String status, String without4th, String failed, boolean grand) {
+        return "<tr" + (grand ? " class=\"grand\"" : "") + ">"
+                + "<td class=\"exam\">" + exam + "</td><td>" + total + "</td><td>" + letter + "</td><td>" + gpa + "</td>"
+                + "<td>" + classPos + "</td><td>" + shiftPos + "</td><td>" + sectionPos + "</td>"
+                + "<td class=\"" + ("Failed".equals(status) ? "failed" : "") + "\">" + status + "</td>"
+                + "<td>" + without4th + "</td><td>" + failed + "</td><td></td><td></td><td></td></tr>";
+    }
+
+    private static String rank(Integer r) {
+        return r != null ? String.valueOf(r) : "—";
     }
 
     /** Overrides on top of getCss() for the landscape Grand Final card. */
@@ -364,12 +409,27 @@ public class ProgressReportPdfService {
                 + ".land .bismillah { font-size: 15pt; }"
                 + ".land .madrasah-name { font-size: 15pt; }"
                 + ".land .address { font-size: 9pt; margin-top: 0.5mm; }"
-                + ".land .id-row { grid-template-columns: 26mm 1fr 62mm auto; gap: 5mm; margin-bottom: 2mm; }"
-                + ".land .photo { width: 24mm; height: 29mm; }"
-                + ".land .info-grid { display: block; margin-top: 0; font-size: 9pt; align-self: center; }"
-                + ".land .info-grid td { padding: 0.5px 4px; }"
-                + ".land .logo-wrap { margin: 0 auto 1mm; }"
-                + ".land .stamp { margin-top: 1mm; }"
+                + ".land .gf-top { display: grid; grid-template-columns: 1fr auto 1fr; align-items: start; gap: 4mm; }"
+                + ".land .gf-top .photo { justify-self: start; }"
+                + ".land .gf-center { text-align: center; }"
+                + ".land .gf-grading { justify-self: end; }"
+                + ".land .photo { width: 22mm; height: 26mm; }"
+                + ".land .gf-info { display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; align-items: start; margin-top: 1mm; font-size: 8.5pt; }"
+                + ".land .gf-info table { width: auto; }"
+                + ".land .gf-info td { border: 0; padding: 0 4px; }"
+                + ".land .logo-wrap { margin: 1mm auto 0; }"
+                + ".land .stamp { margin-top: 0.5mm; font-size: 10pt; }"
+                + ".land .stamp-sub { margin-top: 0.5mm; }"
+                + ".land .gf-center .logo { width: 13mm; height: 13mm; font-size: 9pt; }"
+                + ".land .gf-result { display: grid; grid-template-columns: 1fr 50mm; gap: 2mm; margin-top: 1.5mm; align-items: stretch; }"
+                + ".land .gf-comments { width: 100%; font-size: 7.5pt; }"
+                + ".land .gf-comments td { vertical-align: top; height: 100%; }"
+                + ".land .gf-summary { width: 100%; font-size: 7.5pt; table-layout: fixed; }"
+                + ".land .gf-summary th { padding: 2px 2px; line-height: 1.15; }"
+                + ".land .gf-summary td { padding: 1px 3px; text-align: center; }"
+                + ".land .gf-summary .exam { width: 15%; text-align: left; }"
+                + ".land .gf-summary tr.grand td { font-weight: 700; }"
+                + ".land .gf-summary td.failed { color: #C2185B; font-weight: 600; }"
                 + ".land .grading { font-size: 6.5pt; }"
                 + ".land .grading th, .land .grading td { padding: 0 3px; }"
                 + ".land .marks { margin-top: 1.5mm; font-size: 8pt; }"
@@ -753,15 +813,22 @@ public class ProgressReportPdfService {
     }
 
     private String buildChecksHtml(Double overallGpa, List<Grade> gradingTable) {
-        String comment = "";
-        if (overallGpa != null && !gradingTable.isEmpty()) {
-            // gradingTable is sorted by minMark desc (A+ first), gpaValue also descending
-            comment = gradingTable.stream()
-                    .filter(g -> g.getGpaValue() != null && overallGpa >= g.getGpaValue() - 0.001)
-                    .findFirst()
-                    .map(g -> g.getComment() != null ? g.getComment() : "")
-                    .orElse("");
-        }
+        return buildChecksHtml(overallGpa, gradingTable, true);
+    }
+
+    /** The grade's comment for a GPA ("" when none). */
+    private String gradeComment(Double overallGpa, List<Grade> gradingTable) {
+        if (overallGpa == null || gradingTable.isEmpty()) return "";
+        // gradingTable is sorted by minMark desc (A+ first), gpaValue also descending
+        return gradingTable.stream()
+                .filter(g -> g.getGpaValue() != null && overallGpa >= g.getGpaValue() - 0.001)
+                .findFirst()
+                .map(g -> g.getComment() != null ? g.getComment() : "")
+                .orElse("");
+    }
+
+    private String buildChecksHtml(Double overallGpa, List<Grade> gradingTable, boolean withComments) {
+        String comment = gradeComment(overallGpa, gradingTable);
         return "<table class=\"checks\">"
                 + "<tr class=\"th-tan\">"
                 + "<th colspan=\"4\" style=\"text-align:left;\">Moral &amp; Behavior Evaluation</th>"
@@ -777,10 +844,12 @@ public class ProgressReportPdfService {
                 + "<td><span class=\"chk\"></span>Amal Akhlak</td>"
                 + "<td><span class=\"chk\"></span>Competition</td>"
                 + "</tr>"
-                + "<tr>"
-                + "<td style=\"vertical-align:top;color:#6B7280;width:22mm;\">Comments:</td>"
-                + "<td colspan=\"7\">" + comment + "</td>"
-                + "</tr>"
+                + (withComments
+                    ? "<tr>"
+                      + "<td style=\"vertical-align:top;color:#6B7280;width:22mm;\">Comments:</td>"
+                      + "<td colspan=\"7\">" + comment + "</td>"
+                      + "</tr>"
+                    : "")
                 + "</table>";
     }
 
