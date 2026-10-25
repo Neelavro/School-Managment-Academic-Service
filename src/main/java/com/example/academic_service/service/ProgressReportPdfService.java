@@ -123,6 +123,10 @@ public class ProgressReportPdfService {
                 + getCss() + getLandscapeCss()
                 + "</style></head><body class=\"land\">"
                 + pages
+                // A card whose content is taller than the page (long names, many subjects, a wide server font)
+                // is scaled down to fit instead of being cut off at the bottom.
+                + "<script>document.querySelectorAll('.content-area').forEach(function(a){"
+                + "var h=a.clientHeight,s=a.scrollHeight;if(s>h+1){a.style.zoom=(h/s).toFixed(3);}});</script>"
                 + "</body></html>";
     }
 
@@ -163,11 +167,12 @@ public class ProgressReportPdfService {
                 + infoRow("Name of Student", nvl(student.getStudentName(), "N/A"), "lbl-d", "v-blue")
                 + infoRow("Student ID",      nvl(student.getStudentSystemId(), "N/A"), "lbl-p", "v-blue")
                 + infoRow("Roll No.",        student.getClassRoll() != null ? String.valueOf(student.getClassRoll()) : "N/A", "lbl-p", "v-blue")
-                + infoRow("Phone No.",       contactPhone, "lbl-g", "v-blue")
                 + "</table><table>"
                 + infoRow("Class",           classLabel, "lbl-b", "v-blue")
                 + infoRow("Group",           nvl(student.getGroupName(), "N/A"), "lbl-r", "v-blue")
                 + infoRow("Year/Session",    nvl(annual.getAcademicYearName(), "N/A"), "lbl-g", "v-blue")
+                + "</table><table>"
+                + infoRow("Phone No.",       contactPhone, "lbl-g", "v-blue")
                 + "</table></div>";
 
         String marksHtml = buildAnnualMarksTable(data, student, details, gradingTable);
@@ -221,7 +226,7 @@ public class ProgressReportPdfService {
         // Column widths: subject wider, everything else equal.
         int examCols = routines.stream().mapToInt(r -> r.getComponents().size() + 2).sum();
         int totalCols = 4 + examCols;
-        double subjectPct = 15;
+        double subjectPct = 19;
         double eachOther = (100 - subjectPct) / (totalCols - 1);
         StringBuilder colgroup = new StringBuilder("<colgroup>");
         colgroup.append("<col style=\"width:").append(String.format(Locale.ROOT, "%.2f", subjectPct)).append("%\">");
@@ -414,7 +419,7 @@ public class ProgressReportPdfService {
                 + ".land .gf-center { text-align: center; }"
                 + ".land .gf-grading { justify-self: end; }"
                 + ".land .photo { width: 22mm; height: 26mm; }"
-                + ".land .gf-info { display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; align-items: start; margin-top: 1mm; font-size: 8.5pt; }"
+                + ".land .gf-info { display: grid; grid-template-columns: 1fr 1fr auto; gap: 6mm; align-items: start; margin-top: 1mm; font-size: 8.5pt; }"
                 + ".land .gf-info table { width: auto; }"
                 + ".land .gf-info td { border: 0; padding: 0 4px; }"
                 + ".land .logo-wrap { margin: 1mm auto 0; }"
@@ -427,7 +432,9 @@ public class ProgressReportPdfService {
                 + ".land .gf-summary { width: 100%; font-size: 7.5pt; table-layout: fixed; }"
                 + ".land .gf-summary th { padding: 2px 2px; line-height: 1.15; }"
                 + ".land .gf-summary td { padding: 1px 3px; text-align: center; }"
-                + ".land .gf-summary .exam { width: 15%; text-align: left; }"
+                + ".land .gf-summary .exam { width: 19%; text-align: left; }"
+                + ".land .gf-info td { white-space: nowrap; }"
+                + ".land .bismillah { font-size: 12pt; }"
                 + ".land .gf-summary tr.grand td { font-weight: 700; }"
                 + ".land .gf-summary td.failed { color: #C2185B; font-weight: 600; }"
                 + ".land .grading { font-size: 6.5pt; }"
