@@ -316,6 +316,7 @@ public class ResultService {
             Map<Integer, Boolean> mgAnyAppeared = new HashMap<>();
             Map<Integer, Map<Integer, BigDecimal>> mgCompObtained = new HashMap<>();
             Map<Integer, Map<Integer, Integer>> mgCompPassMarks = new HashMap<>();
+            Map<Integer, Grade> mergedGrades = new HashMap<>();
 
             for (ExamSession s : sessions) {
                 if (!bundle.sessionStructureMap.containsKey(s.getId())) continue;
@@ -391,10 +392,18 @@ public class ResultService {
                     mgObtained.remove(gid); mgTotalMax.remove(gid); mgPassMarks.remove(gid);
                     mgAnyAppeared.remove(gid); mgCompObtained.remove(gid); mgCompPassMarks.remove(gid);
                     overallPassed = false;
+                    putIfNotNull(mergedGrades, gid, getFailGrade(sortedGrades));
                 }
             }
-            if (applyMergeGroupGpas(mgObtained, mgTotalMax, mgPassMarks, mgCompObtained, mgCompPassMarks, mgAnyAppeared, sortedGrades, mandatoryGpas) > 0)
+            if (applyMergeGroupGpas(mgObtained, mgTotalMax, mgPassMarks, mgCompObtained, mgCompPassMarks, mgAnyAppeared, sortedGrades, mandatoryGpas, mergedGrades) > 0)
                 overallPassed = false;
+            for (RoutineResultResponse.SubjectResult sr : subjectResults) {
+                Integer gid = sr.isFourthSubject() ? null : mergeGroupMap.get(sr.getSubjectId());
+                if (gid == null) continue;
+                sr.setMergeGroupId(gid);
+                Grade g = mergedGrades.get(gid);
+                if (g != null) { sr.setMergedGradeName(g.getName()); sr.setMergedGpaValue(g.getGpaValue()); }
+            }
 
             row.setSubjectResults(subjectResults);
             row.setTotalMarks(withFourth(grandTotal, fourthTotal, overallPassed));
@@ -598,6 +607,7 @@ public class ResultService {
             Map<Integer, BigDecimal> mgObtained = new HashMap<>();
             Map<Integer, Integer> mgTotalMax = new HashMap<>();
             Map<Integer, Boolean> mgAnyAppeared = new HashMap<>();
+            Map<Integer, Grade> mergedGrades = new HashMap<>();
 
             for (Integer subjectId : orderedSubjectIds) {
                 if (defaultFourthSubjectIds.contains(subjectId) && !fourthSubjectIds.contains(subjectId)) continue;
@@ -667,9 +677,17 @@ public class ResultService {
                     mgObtained.remove(gid); mgTotalMax.remove(gid); mgAnyAppeared.remove(gid);
                     overallPassed = false;
                     failedCount++;
+                    putIfNotNull(mergedGrades, gid, getFailGrade(sortedGrades));
                 }
             }
-            int mergedFailed = applyMergeGroupGpas(mgObtained, mgTotalMax, Collections.emptyMap(), new HashMap<>(), new HashMap<>(), mgAnyAppeared, sortedGrades, mandatoryGpas);
+            int mergedFailed = applyMergeGroupGpas(mgObtained, mgTotalMax, Collections.emptyMap(), new HashMap<>(), new HashMap<>(), mgAnyAppeared, sortedGrades, mandatoryGpas, mergedGrades);
+            for (AnnualResultResponse.SubjectResult sr : subjectResults) {
+                Integer gid = sr.isFourthSubject() ? null : mergeGroupMap.get(sr.getSubjectId());
+                if (gid == null) continue;
+                sr.setMergeGroupId(gid);
+                Grade g = mergedGrades.get(gid);
+                if (g != null) { sr.setMergedGradeName(g.getName()); sr.setMergedGpaValue(g.getGpaValue()); }
+            }
             if (mergedFailed > 0) { overallPassed = false; failedCount += mergedFailed; }
             row.setFailedSubjectCount(failedCount);
             row.setGpaWithout4th(overallPassed && !mandatoryGpas.isEmpty()
@@ -2239,6 +2257,20 @@ public class ResultService {
             Map<Integer, Boolean> mgAnyAppeared,
             List<Grade> sortedGrades,
             List<Double> mandatoryGpas) {
+        return applyMergeGroupGpas(mgObtained, mgTotalMax, mgPassMarks, mgCompObtained, mgCompPassMarks, mgAnyAppeared, sortedGrades, mandatoryGpas, null);
+    }
+
+    // Same, and also records each merge group's combined grade (the fail grade when the pair failed) in gradesOut.
+    private int applyMergeGroupGpas(
+            Map<Integer, BigDecimal> mgObtained,
+            Map<Integer, Integer> mgTotalMax,
+            Map<Integer, Integer> mgPassMarks,
+            Map<Integer, Map<Integer, BigDecimal>> mgCompObtained,
+            Map<Integer, Map<Integer, Integer>> mgCompPassMarks,
+            Map<Integer, Boolean> mgAnyAppeared,
+            List<Grade> sortedGrades,
+            List<Double> mandatoryGpas,
+            Map<Integer, Grade> gradesOut) {
         int failed = 0;
         for (Integer gid : mgObtained.keySet()) {
             if (!mgAnyAppeared.getOrDefault(gid, false)) { failed++; continue; }
@@ -2247,16 +2279,26 @@ public class ResultService {
             boolean anyCompFail = compPass.entrySet().stream()
                     .anyMatch(e -> compObt.getOrDefault(e.getKey(), BigDecimal.ZERO)
                             .compareTo(BigDecimal.valueOf(e.getValue())) < 0);
-            if (anyCompFail) { failed++; continue; }
+            if (anyCompFail) {
+                failed++;
+                if (gradesOut != null) putIfNotNull(gradesOut, gid, getFailGrade(sortedGrades));
+                continue;
+            }
             BigDecimal combined = mgObtained.get(gid);
             int combinedMax = mgTotalMax.getOrDefault(gid, 0);
             if (combinedMax == 0) continue;
             Integer combinedPass = mgPassMarks.isEmpty() ? null : mgPassMarks.get(gid);
             Grade grade = resolveGradeByPercentage(combined, combinedMax, sortedGrades);
             if (grade != null) mandatoryGpas.add(grade.getGpaValue());
-            if (!isSubjectPassed(combined, combinedPass, grade)) failed++;
+            boolean passed = isSubjectPassed(combined, combinedPass, grade);
+            if (!passed) failed++;
+            if (gradesOut != null) putIfNotNull(gradesOut, gid, passed ? grade : getFailGrade(sortedGrades));
         }
         return failed;
+    }
+
+    private static void putIfNotNull(Map<Integer, Grade> map, Integer key, Grade grade) {
+        if (grade != null) map.put(key, grade);
     }
 
     private MarkingStructure resolveMarkingStructure(Integer examTypeId, Integer classId, Integer subjectId, Integer groupId) {

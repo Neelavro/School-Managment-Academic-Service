@@ -77,6 +77,11 @@ public class AnnualResultResponse {
         private boolean appeared;
         private String status; // null = present, "ABSENT", "EXPELLED"
         private boolean fourthSubject;
+        /** Merge group of a paired subject (both papers share one grade); null otherwise. */
+        private Integer mergeGroupId;
+        /** The pair's combined grade, the same on both papers; null when the pair has none (not sat). */
+        private String mergedGradeName;
+        private Double mergedGpaValue;
         private List<RoutineBreakdown> routineBreakdowns;
     }
 
