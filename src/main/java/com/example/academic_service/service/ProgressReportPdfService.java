@@ -318,12 +318,12 @@ public class ProgressReportPdfService {
             ProgressReportData.StudentReport s = summaries.getOrDefault(rc.getRoutineId(), Collections.emptyMap())
                     .get(student.getEnrollmentId());
             if (s == null) {
-                rows.append(summaryRow(nvl(rc.getTitle(), ""), "—", "—", "—", "—", "—", "—", "—", "—", "—", false));
+                rows.append(summaryRow(nvl(rc.getTitle(), ""), "—", "—", "—", "—", "—", "—", "—", "—", false));
                 continue;
             }
             rows.append(summaryRow(nvl(rc.getTitle(), ""), fmtMark(s.getTotalMarks()),
                     resolveGradeNameFromGpa(s.getOverallGpa(), null), fmtGpa(s.getOverallGpa()),
-                    rank(s.getClassRank()), rank(s.getGenderSectionRank()), rank(s.getSectionRank()),
+                    rank(s.getClassRank()), rank(s.getSectionRank()),
                     s.isPassed() ? "Passed" : "Failed", fmtGpa(s.getGpaWithout4th()),
                     String.valueOf(s.getFailedSubjectCount()), false));
         }
@@ -331,26 +331,27 @@ public class ProgressReportPdfService {
         AnnualProgressReportData.GrandFinal g = data.getGrandFinals() != null
                 ? data.getGrandFinals().get(student.getEnrollmentId()) : null;
         if (g == null) {
-            rows.append(summaryRow("Grand Final", "—", "—", "—", "—", "—", "—", "—", "—", "—", true));
+            rows.append(summaryRow("Grand Final", "—", "—", "—", "—", "—", "—", "—", "—", true));
         } else {
             rows.append(summaryRow("Grand Final", fmtMark(g.getTotalMarks()),
                     resolveGradeNameFromGpa(g.getGpa(), null), fmtGpa(g.getGpa()),
-                    rank(g.getClassRank()), rank(g.getGenderSectionRank()), rank(g.getSectionRank()),
+                    rank(g.getClassRank()), rank(g.getSectionRank()),
                     g.isPassed() ? "Passed" : "Failed", fmtGpa(g.getGpaWithout4th()),
                     String.valueOf(g.getFailedSubjectCount()), true));
         }
         return "<table class=\"gf-summary\"><thead><tr class=\"th-tan\">"
                 + "<th class=\"exam\">Exam Name</th><th>Total Marks</th><th>Letter Grade</th><th>Grade Point</th>"
-                + "<th>Class Position</th><th>Shift Position</th><th>Section Position</th><th>Result Status</th>"
+                + "<th>Class Position</th><th>Section Position</th><th>Result Status</th>"
                 + "<th>Without 4th</th><th>Failed Subject(s)</th><th>Working Days</th><th>Total Present</th><th>Total Absent</th>"
                 + "</tr></thead><tbody>" + rows + "</tbody></table>";
     }
 
-    private String summaryRow(String exam, String total, String letter, String gpa, String classPos, String shiftPos,
+    // No Shift Position on the Grand Final card (user, 2026-10-26).
+    private String summaryRow(String exam, String total, String letter, String gpa, String classPos,
                               String sectionPos, String status, String without4th, String failed, boolean grand) {
         return "<tr" + (grand ? " class=\"grand\"" : "") + ">"
                 + "<td class=\"exam\">" + exam + "</td><td>" + total + "</td><td>" + letter + "</td><td>" + gpa + "</td>"
-                + "<td>" + classPos + "</td><td>" + shiftPos + "</td><td>" + sectionPos + "</td>"
+                + "<td>" + classPos + "</td><td>" + sectionPos + "</td>"
                 + "<td class=\"" + ("Failed".equals(status) ? "failed" : "") + "\">" + status + "</td>"
                 + "<td>" + without4th + "</td><td>" + failed + "</td><td></td><td></td><td></td></tr>";
     }

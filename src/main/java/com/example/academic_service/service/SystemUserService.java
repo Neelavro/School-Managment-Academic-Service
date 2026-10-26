@@ -85,10 +85,8 @@ public class SystemUserService {
         if (userRepository.existsByPhone(phone))
             throw new IllegalArgumentException("Phone already in use: " + phone);
 
-        // Teaching staff automatically get teacher portal access
-        if (EmployeeType.TEACHING == staff.getEmployeeType()) {
-            hasTeacherPortal = true;
-        }
+        // The portals are exactly what the admin chose: teaching staff no longer get the
+        // teacher portal switched on by themselves (user, 2026-10-26).
 
         SystemUser user = new SystemUser();
         user.setPhone(phone);

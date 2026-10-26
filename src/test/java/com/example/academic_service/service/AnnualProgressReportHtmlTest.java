@@ -142,6 +142,7 @@ class AnnualProgressReportHtmlTest {
         // No annual Total / Letter / GP columns and no "Obtained Marks & GPA" row (user, 2026-10-26).
         assertFalse(html.contains("Obtained Marks") || html.contains("class=\"merged-grade\"") || html.contains("annual-total\">"));
         assertTrue(html.contains("<tr class=\"grand\"><td class=\"exam\">Grand Final</td><td>1020</td><td>F</td><td>0.00</td>"));
+        assertFalse(html.contains("Shift Position"), "no shift position on the Grand Final card");
 
         String out = System.getProperty("annualHtmlOut");
         if (out != null) Files.writeString(Path.of(out), html);
