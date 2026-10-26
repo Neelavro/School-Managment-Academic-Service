@@ -68,7 +68,12 @@ public class FbacRoleService {
         permissionRepository.deleteByFbacRoleId(roleId);
         permissionRepository.flush();
         FbacRole role = roleRepository.getReferenceById(roleId);
-        permissions.forEach(p -> p.setFbacRole(role));
+        // The old rows were just deleted, so insert fresh ones. Keeping the ids the
+        // client sent makes Hibernate try to update deleted rows and fail.
+        permissions.forEach(p -> {
+            p.setId(null);
+            p.setFbacRole(role);
+        });
         return permissionRepository.saveAll(permissions);
     }
 
