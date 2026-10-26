@@ -176,10 +176,14 @@ public class ProgressReportPdfService {
                 + "</table></div>";
 
         String marksHtml = buildAnnualMarksTable(data, student, details, gradingTable);
+        // Comment and evaluation ticks follow the Grand Final (averaged) GPA.
+        AnnualProgressReportData.GrandFinal gf = data.getGrandFinals() != null
+                ? data.getGrandFinals().get(student.getEnrollmentId()) : null;
+        Double gfGpa = gf != null ? gf.getGpa() : null;
         String resultHtml = "<div class=\"gf-result\">" + buildAnnualSummaryTable(data, student)
                 + "<table class=\"gf-comments\"><tr class=\"th-tan\"><th>Comments</th></tr>"
-                + "<tr><td>" + gradeComment(student.getOverallGpa(), gradingTable) + "</td></tr></table></div>";
-        String checksHtml = buildChecksHtml(student.getOverallGpa(), gradingTable, false);
+                + "<tr><td>" + gradeComment(gfGpa, gradingTable) + "</td></tr></table></div>";
+        String checksHtml = buildChecksHtml(gfGpa, gradingTable, false);
 
         String sigHtml = "<div class=\"signatures\">"
                 + "<div><div class=\"sig-line\">CLASS TEACHER</div></div>"
@@ -225,7 +229,7 @@ public class ProgressReportPdfService {
 
         // Column widths: subject wider, everything else equal.
         int examCols = routines.stream().mapToInt(r -> r.getComponents().size() + 2).sum();
-        int totalCols = 4 + examCols;
+        int totalCols = 1 + examCols;
         double subjectPct = 19;
         double eachOther = (100 - subjectPct) / (totalCols - 1);
         StringBuilder colgroup = new StringBuilder("<colgroup>");
@@ -245,15 +249,12 @@ public class ProgressReportPdfService {
             head2.append("<th class=\"comp-head exam-total\">Total<br>Marks</th>");
             head2.append("<th class=\"comp-head exam-end\">Grade</th>");
         }
-        head1.append("<th rowspan=\"2\">Total<br>Marks</th>"
-                + "<th rowspan=\"2\">Letter<br>Grade</th>"
-                + "<th rowspan=\"2\">Grade<br>Point</th></tr>");
+        // No annual Total / Letter / GP columns: the Grand Final is the summary table's last row (user, 2026-10-26).
+        head1.append("</tr>");
         head2.append("</tr>");
         String thead = "<thead>" + head1 + head2 + "</thead>";
 
         StringBuilder tbody = new StringBuilder("<tbody>");
-        BigDecimal totalFull = BigDecimal.ZERO;
-        BigDecimal totalObtained = BigDecimal.ZERO;
         Set<Integer> doneGroups = new HashSet<>();
 
         for (AnnualResultResponse.SubjectInfo si : rows) {
@@ -264,29 +265,9 @@ public class ProgressReportPdfService {
                 if (!doneGroups.add(mg)) continue;
             }
 
-            // Merged pairs share one grade, worked out from their combined marks.
-            String blockGrade = null, blockGpa = null;
-            if (mg != null) {
-                BigDecimal obtained = BigDecimal.ZERO;
-                int full = 0;
-                boolean anyAppeared = false, anyExpelled = false;
-                for (AnnualResultResponse.SubjectInfo m : block) {
-                    AnnualResultResponse.SubjectResult msr = resultMap.get(m.getSubjectId());
-                    if (msr.isAppeared()) {
-                        anyAppeared = true;
-                        if (msr.getMarksRaw() != null) obtained = obtained.add(msr.getMarksRaw());
-                    }
-                    if ("EXPELLED".equals(msr.getStatus())) anyExpelled = true;
-                    if (msr.getMaxMarksRaw() != null) full += msr.getMaxMarksRaw();
-                }
-                blockGrade = !anyAppeared ? "—" : anyExpelled ? "F" : resolveMergedGrade(obtained, full, gradingTable);
-                blockGpa   = !anyAppeared ? "—" : anyExpelled ? "0.00" : resolveMergedGpa(obtained, full, gradingTable);
-            }
-
             for (int i = 0; i < block.size(); i++) {
                 AnnualResultResponse.SubjectInfo row = block.get(i);
                 AnnualResultResponse.SubjectResult r = resultMap.get(row.getSubjectId());
-                boolean appeared = r.isAppeared() && r.getMarksRaw() != null;
                 String rowClass = mg == null ? "" : i == 0 ? " class=\"merged-first\"" : " class=\"merged-last\"";
 
                 tbody.append("<tr").append(rowClass).append(">");
@@ -316,43 +297,13 @@ public class ProgressReportPdfService {
                             .append(sat && rb.getGradeName() != null ? rb.getGradeName() : "—").append("</td>");
                 }
 
-                tbody.append("<td class=\"annual-total\">").append(appeared ? fmtMark(r.getMarksRaw()) : "—").append("</td>");
-                if (mg == null) {
-                    tbody.append("<td>").append(appeared && r.getGradeName() != null ? r.getGradeName() : "—").append("</td>");
-                    tbody.append("<td>").append(appeared && r.getGpaValue() != null ? fmtGpa(r.getGpaValue()) : "—").append("</td>");
-                } else if (i == 0) {
-                    tbody.append("<td rowspan=\"").append(block.size()).append("\" class=\"merged-grade\">").append(blockGrade).append("</td>");
-                    tbody.append("<td rowspan=\"").append(block.size()).append("\" class=\"merged-grade\">").append(blockGpa).append("</td>");
-                }
                 tbody.append("</tr>");
-
-                // Same as the per-exam card: every subject on the card counts, 4th included.
-                if (r.getMaxMarksRaw() != null) totalFull = totalFull.add(BigDecimal.valueOf(r.getMaxMarksRaw()));
-                if (appeared) totalObtained = totalObtained.add(r.getMarksRaw());
             }
         }
         tbody.append("</tbody>");
 
-        String gpaStr = student.getOverallGpa() != null ? fmtGpa(student.getOverallGpa()) : "—";
-        String tfoot = "<tfoot><tr>"
-                + "<td colspan=\"" + (examCols + 1) + "\" style=\"color:#0F6E56;text-align:right;padding-right:3mm;\">Obtained Marks &amp; GPA</td>"
-                + "<td style=\"color:#C2185B;text-align:center;\">" + fmtMark(totalObtained) + "</td>"
-                + "<td style=\"color:#C2185B;text-align:center;\">" + resolveGradeNameFromGpa(student.getOverallGpa(), null) + "</td>"
-                + "<td style=\"color:#C2185B;text-align:center;\">" + gpaStr + "</td>"
-                + "</tr></tfoot>";
-
         String density = rows.size() > 12 ? " dense" : "";
-        return "<table class=\"marks" + density + "\">" + colgroup + thead + tbody + tfoot + "</table>";
-    }
-
-    /** Obtained marks on the Grand Final card: every paper on it that was sat, 4th included (as the per-exam card). */
-    private BigDecimal annualCardTotal(AnnualProgressReportData data, AnnualResultResponse.StudentResultRow student) {
-        Set<Integer> onCard = data.getAnnual().getSubjects().stream()
-                .map(AnnualResultResponse.SubjectInfo::getSubjectId).collect(Collectors.toSet());
-        BigDecimal total = BigDecimal.ZERO;
-        for (AnnualResultResponse.SubjectResult r : student.getSubjectResults())
-            if (onCard.contains(r.getSubjectId()) && r.isAppeared() && r.getMarksRaw() != null) total = total.add(r.getMarksRaw());
-        return total;
+        return "<table class=\"marks" + density + "\">" + colgroup + thead + tbody + "</table>";
     }
 
     /**
@@ -376,13 +327,18 @@ public class ProgressReportPdfService {
                     s.isPassed() ? "Passed" : "Failed", fmtGpa(s.getGpaWithout4th()),
                     String.valueOf(s.getFailedSubjectCount()), false));
         }
-        AnnualResultResponse.Merit m = student.getMerit();
-        rows.append(summaryRow("Grand Final", fmtMark(annualCardTotal(data, student)),
-                resolveGradeNameFromGpa(student.getOverallGpa(), null), fmtGpa(student.getOverallGpa()),
-                rank(m != null ? m.getClassRank() : null), rank(m != null ? m.getGenderSectionRank() : null),
-                rank(m != null ? m.getSectionRank() : null),
-                student.isPassed() ? "Passed" : "Failed", fmtGpa(student.getGpaWithout4th()),
-                String.valueOf(student.getFailedSubjectCount()), true));
+        // Grand Final: the average of the counted exams the student sat, positions ranked on those averages.
+        AnnualProgressReportData.GrandFinal g = data.getGrandFinals() != null
+                ? data.getGrandFinals().get(student.getEnrollmentId()) : null;
+        if (g == null) {
+            rows.append(summaryRow("Grand Final", "—", "—", "—", "—", "—", "—", "—", "—", "—", true));
+        } else {
+            rows.append(summaryRow("Grand Final", fmtMark(g.getTotalMarks()),
+                    resolveGradeNameFromGpa(g.getGpa(), null), fmtGpa(g.getGpa()),
+                    rank(g.getClassRank()), rank(g.getGenderSectionRank()), rank(g.getSectionRank()),
+                    g.isPassed() ? "Passed" : "Failed", fmtGpa(g.getGpaWithout4th()),
+                    String.valueOf(g.getFailedSubjectCount()), true));
+        }
         return "<table class=\"gf-summary\"><thead><tr class=\"th-tan\">"
                 + "<th class=\"exam\">Exam Name</th><th>Total Marks</th><th>Letter Grade</th><th>Grade Point</th>"
                 + "<th>Class Position</th><th>Shift Position</th><th>Section Position</th><th>Result Status</th>"

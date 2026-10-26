@@ -105,6 +105,14 @@ class AnnualProgressReportHtmlTest {
             summaries.put(r, Map.of(7L, sum));
         }
         data.setExamSummaries(summaries);
+        AnnualProgressReportData.GrandFinal gf = new AnnualProgressReportData.GrandFinal();
+        gf.setExamsCounted(3);
+        gf.setTotalMarks(new BigDecimal("1020.00"));
+        gf.setGpa(0.0);
+        gf.setGpaWithout4th(0.0);
+        gf.setPassed(false);
+        gf.setFailedSubjectCount(1);
+        data.setGrandFinals(Map.of(7L, gf));
         data.setMergeGroups(Map.of(3, 1, 4, 1, 5, 2, 6, 2, 7, 3, 8, 3));
         Map<Integer, BigDecimal> highest = new HashMap<>();
         subjects.forEach(s -> highest.put(s.getSubjectId(), BigDecimal.valueOf(190)));
@@ -131,7 +139,9 @@ class AnnualProgressReportHtmlTest {
         assertTrue(html.contains(">ABSENT</td>"));
         assertTrue(html.contains("colspan=\"4\" class=\"status-mark exam-end\">ABSENT"));
         assertTrue(html.contains("(4<sup>th</sup>)"));
-        assertEquals(6, html.split("class=\"merged-grade\"").length - 1, "3 merged pairs, 2 grade cells each");
+        // No annual Total / Letter / GP columns and no "Obtained Marks & GPA" row (user, 2026-10-26).
+        assertFalse(html.contains("Obtained Marks") || html.contains("class=\"merged-grade\"") || html.contains("annual-total\">"));
+        assertTrue(html.contains("<tr class=\"grand\"><td class=\"exam\">Grand Final</td><td>1020</td><td>F</td><td>0.00</td>"));
 
         String out = System.getProperty("annualHtmlOut");
         if (out != null) Files.writeString(Path.of(out), html);

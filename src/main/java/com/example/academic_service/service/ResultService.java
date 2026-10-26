@@ -1859,13 +1859,19 @@ public class ResultService {
         }
 
         // Each exam's own result for the summary table: the per-exam progress report's numbers.
+        // Loaded for the whole group (not the filtered students) because the Grand Final positions
+        // rank everyone. An exam counts for a student only if they sat at least one paper in it.
         Map<Integer, Map<Long, ProgressReportData.StudentReport>> examSummaries = new LinkedHashMap<>();
+        Map<Long, List<ProgressReportData.StudentReport>> satExams = new HashMap<>();
         for (AnnualResultResponse.RoutineInfo ri : annual.getRoutines()) {
             try {
-                ProgressReportData pr = getProgressReportData(ri.getRoutineId(), classId, shiftId,
-                        genderSectionId, sectionId, groupId, startRoll, endRoll);
+                ProgressReportData pr = getProgressReportData(ri.getRoutineId(), classId, null,
+                        null, null, groupId, null, null);
                 Map<Long, ProgressReportData.StudentReport> byStudent = new HashMap<>();
                 for (ProgressReportData.StudentReport sr : pr.getStudents()) {
+                    boolean sat = sr.getSubjectResults() != null
+                            && sr.getSubjectResults().stream().anyMatch(ProgressReportData.SubjectResult::isAppeared);
+                    if (sat) satExams.computeIfAbsent(sr.getEnrollmentId(), k -> new ArrayList<>()).add(sr);
                     sr.setSubjectResults(null);
                     byStudent.put(sr.getEnrollmentId(), sr);
                 }
@@ -1879,11 +1885,58 @@ public class ResultService {
         data.setAnnual(annual);
         data.setRoutines(routineColumns);
         data.setExamSummaries(examSummaries);
+        data.setGrandFinals(buildGrandFinals(allEnrollments, satExams, annual.isUseGpaForResult(),
+                enrollmentRepository.countGenderSectionsInClass(classId, academicYearId) > 1));
         data.setMergeGroups(loadMergeGroupMap(classId, groupId));
         data.setHighestMarks(highest);
         data.setComponentMarks(bundle.markMap);
         data.setDetails(details);
         return data;
+    }
+
+    /**
+     * Grand Final rows (see {@link AnnualProgressReportData.GrandFinal}): each student's counted exams averaged,
+     * then ranked on those averages with the usual MeritRanking.
+     */
+    static Map<Long, AnnualProgressReportData.GrandFinal> buildGrandFinals(
+            List<Enrollment> enrollments, Map<Long, List<ProgressReportData.StudentReport>> satExams,
+            boolean gpaFirst, boolean severalShifts) {
+        Map<Long, AnnualProgressReportData.GrandFinal> out = new HashMap<>();
+        List<MeritRanking.Candidate> candidates = new ArrayList<>();
+        for (Enrollment e : enrollments) {
+            List<ProgressReportData.StudentReport> exams = satExams.getOrDefault(e.getId(), Collections.emptyList());
+            if (exams.isEmpty()) continue;
+            int n = exams.size();
+            boolean passed = exams.stream().allMatch(ProgressReportData.StudentReport::isPassed);
+            BigDecimal total = exams.stream()
+                    .map(r -> r.getTotalMarks() != null ? r.getTotalMarks() : BigDecimal.ZERO)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add)
+                    .divide(BigDecimal.valueOf(n), 2, RoundingMode.HALF_UP);
+
+            AnnualProgressReportData.GrandFinal gf = new AnnualProgressReportData.GrandFinal();
+            gf.setExamsCounted(n);
+            gf.setTotalMarks(total);
+            gf.setPassed(passed);
+            gf.setGpa(passed ? Math.round(exams.stream()
+                    .mapToDouble(r -> r.getOverallGpa() != null ? r.getOverallGpa() : 0.0).average().orElse(0) * 100.0) / 100.0 : 0.0);
+            gf.setGpaWithout4th(passed ? Math.round(exams.stream()
+                    .mapToDouble(r -> r.getGpaWithout4th() != null ? r.getGpaWithout4th() : 0.0).average().orElse(0) * 100.0) / 100.0 : 0.0);
+            gf.setFailedSubjectCount(exams.stream().mapToInt(ProgressReportData.StudentReport::getFailedSubjectCount).sum());
+            out.put(e.getId(), gf);
+
+            candidates.add(new MeritRanking.Candidate(e.getId(),
+                    e.getStudentGroup() != null ? e.getStudentGroup().getId() : null,
+                    e.getGenderSection() != null ? e.getGenderSection().getId() : null,
+                    e.getSection() != null ? e.getSection().getId() : null,
+                    e.getClassRoll(), gf.getGpa(), total, passed));
+        }
+        MeritRanking.rank(candidates, gpaFirst, severalShifts).forEach((id, p) -> {
+            AnnualProgressReportData.GrandFinal gf = out.get(id);
+            gf.setClassRank(p.classPosition());
+            gf.setGenderSectionRank(p.shiftPosition());
+            gf.setSectionRank(p.sectionPosition());
+        });
+        return out;
     }
 
     // ─── STATS – ROUTINE ─────────────────────────────────────────────────────────
