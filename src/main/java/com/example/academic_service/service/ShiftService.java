@@ -15,5 +15,8 @@ public interface ShiftService {
 
     List<Shift> getAllActiveShifts();
 
+    /** Active and inactive. */
+    List<Shift> getAll();
+
     void deleteShift(Long id); // soft delete
 }

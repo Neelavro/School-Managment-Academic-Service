@@ -57,6 +57,11 @@ public class ShiftServiceImpl implements ShiftService {
     }
 
     @Override
+    public List<Shift> getAll() {
+        return shiftRepository.findAll();
+    }
+
+    @Override
     public void deleteShift(Long id) {
         Shift shift = shiftRepository.findById(Math.toIntExact(id))
                 .orElseThrow(() -> new RuntimeException("Shift not found"));

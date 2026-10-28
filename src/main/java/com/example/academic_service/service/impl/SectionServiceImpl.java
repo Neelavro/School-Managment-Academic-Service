@@ -48,6 +48,11 @@ public class SectionServiceImpl implements SectionService {
         return sectionRepository.findAllByClassEntityIdAndGenderSectionIdAndIsActiveTrue(classId, genderSectionId);
     }
 
+    @Override
+    public List<Section> getAllSectionsByClassIdAndGenderSectionId(Integer classId, Integer genderSectionId) {
+        return sectionRepository.findAllByClassEntityIdAndGenderSectionIdOrderById(classId, genderSectionId);
+    }
+
 
     @Override
     public Section updateSection(Long id, Section section) {

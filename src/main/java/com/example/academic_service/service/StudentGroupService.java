@@ -16,5 +16,8 @@ public interface StudentGroupService {
 
     List<StudentGroup> getAllActiveGroups();
 
+    /** Active and inactive. */
+    List<StudentGroup> getAll();
+
     void deleteGroup(Integer id); // soft delete
 }

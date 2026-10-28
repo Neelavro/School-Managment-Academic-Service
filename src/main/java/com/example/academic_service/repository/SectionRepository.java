@@ -9,4 +9,7 @@ public interface SectionRepository extends JpaRepository<Section, Long> {
     List<Section> findAllByClassEntityIdAndGenderSectionIdAndIsActiveTrue(
             Integer classId,
             Integer genderSectionId
-    );}
+    );
+
+    List<Section> findAllByClassEntityIdAndGenderSectionIdOrderById(Integer classId, Integer genderSectionId);
+}

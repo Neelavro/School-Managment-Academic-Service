@@ -39,4 +39,12 @@ public class LeaveTypeController {
         leaveTypeService.deactivate(id);
         return ResponseEntity.ok(new ApiResponse("Deactivated", null));
     }
+
+    /** Turns a deactivated record back on. */
+    @PatchMapping("/{id}/reactivate")
+    @RequirePermission(submodule = Submodule.HR_LEAVE_TYPES, action = "UPDATE")
+    public ResponseEntity<ApiResponse> reactivate(@PathVariable Integer id) {
+        leaveTypeService.reactivate(id);
+        return ResponseEntity.ok(new ApiResponse("Reactivated", null));
+    }
 }

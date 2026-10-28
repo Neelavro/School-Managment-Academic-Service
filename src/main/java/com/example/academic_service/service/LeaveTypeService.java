@@ -35,4 +35,11 @@ public class LeaveTypeService {
         lt.setIsActive(false);
         leaveTypeRepository.save(lt);
     }
+
+    public void reactivate(Integer id) {
+        LeaveType lt = leaveTypeRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("LeaveType not found: " + id));
+        lt.setIsActive(true);
+        leaveTypeRepository.save(lt);
+    }
 }

@@ -47,8 +47,11 @@ public class SectionController {
     @GetMapping("/class/{classId}/gender/{genderSectionId}")
     public ResponseEntity<List<Section>> getAllByClass(
             @PathVariable Integer classId,
-            @PathVariable Integer genderSectionId) {
-        List<Section> sections = sectionService.getSectionsByClassIdAndGenderSectionId(classId, genderSectionId);
+            @PathVariable Integer genderSectionId,
+            @RequestParam(defaultValue = "false") boolean includeInactive) {
+        List<Section> sections = includeInactive
+                ? sectionService.getAllSectionsByClassIdAndGenderSectionId(classId, genderSectionId)
+                : sectionService.getSectionsByClassIdAndGenderSectionId(classId, genderSectionId);
         return ResponseEntity.ok(sections);
     }
 

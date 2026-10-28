@@ -59,6 +59,12 @@ public class FbacRoleService {
         roleRepository.save(r);
     }
 
+    public void reactivate(Integer id) {
+        FbacRole r = getById(id);
+        r.setIsActive(true);
+        roleRepository.save(r);
+    }
+
     public List<FbacPermission> getPermissions(Integer roleId) {
         return permissionRepository.findByFbacRoleId(roleId);
     }
@@ -81,7 +87,11 @@ public class FbacRoleService {
     public Map<Submodule, FbacPermission> getPermissionMap(List<Integer> roleIds) {
         if (roleIds == null || roleIds.isEmpty()) return new EnumMap<>(Submodule.class);
 
-        List<FbacPermission> all = permissionRepository.findByFbacRoleIdIn(roleIds);
+        // A deactivated role grants nothing.
+        List<Integer> activeIds = roleRepository.findAllById(roleIds).stream()
+                .filter(r -> !Boolean.FALSE.equals(r.getIsActive()))
+                .map(FbacRole::getId).toList();
+        List<FbacPermission> all = activeIds.isEmpty() ? List.of() : permissionRepository.findByFbacRoleIdIn(activeIds);
         Map<Submodule, List<FbacPermission>> bySubmodule = all.stream()
                 .collect(Collectors.groupingBy(FbacPermission::getSubmodule));
 

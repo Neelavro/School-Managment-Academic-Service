@@ -40,6 +40,17 @@ public class ClassTeacherController {
                 .body(new ApiResponse("Assigned", classTeacherService.assign(staffId, sectionId, classId, genderSectionId, academicYearId)));
     }
 
+    @PutMapping("/{id}")
+    @RequirePermission(submodule = Submodule.CLASS_TEACHER, action = "UPDATE")
+    /** {staffId, sectionId} — or {staffId, classId, genderSectionId}. The academic year can't change. */
+    public ResponseEntity<ApiResponse> update(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+        Long staffId = ((Number) body.get("staffId")).longValue();
+        Long sectionId = body.get("sectionId") instanceof Number n ? n.longValue() : null;
+        Integer classId = body.get("classId") instanceof Number n ? n.intValue() : null;
+        Integer genderSectionId = body.get("genderSectionId") instanceof Number n ? n.intValue() : null;
+        return ResponseEntity.ok(new ApiResponse("Updated", classTeacherService.update(id, staffId, sectionId, classId, genderSectionId)));
+    }
+
     @DeleteMapping("/{id}")
     @RequirePermission(submodule = Submodule.CLASS_TEACHER, action = "DELETE")
     public ResponseEntity<ApiResponse> remove(@PathVariable Long id) {

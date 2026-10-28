@@ -58,6 +58,11 @@ public class StudentGroupServiceImpl implements StudentGroupService {
     }
 
     @Override
+    public List<StudentGroup> getAll() {
+        return groupRepository.findAll();
+    }
+
+    @Override
     public void deleteGroup(Integer id) {
         StudentGroup group = getGroupById(id);
         group.setIsActive(false); // soft delete

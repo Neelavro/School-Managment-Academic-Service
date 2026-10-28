@@ -42,8 +42,9 @@ public class ShiftController {
     }
 
     @GetMapping
-    public ResponseEntity<List<Shift>> getAll() {
-        return ResponseEntity.ok(shiftService.getAllActiveShifts());
+    /** Active only, unless includeInactive=true (the Shifts / Groups pages, so an inactive one can be switched back on). */
+    public ResponseEntity<List<Shift>> getAll(@RequestParam(defaultValue = "false") boolean includeInactive) {
+        return ResponseEntity.ok(includeInactive ? shiftService.getAll() : shiftService.getAllActiveShifts());
     }
 
     @DeleteMapping("/{id}")

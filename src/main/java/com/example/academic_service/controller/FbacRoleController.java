@@ -50,6 +50,14 @@ public class FbacRoleController {
         return ResponseEntity.ok(new ApiResponse("Deactivated", null));
     }
 
+    /** Turns a deactivated record back on. */
+    @PatchMapping("/{id}/reactivate")
+    @RequirePermission(submodule = Submodule.ACCESS_ROLES, action = "UPDATE")
+    public ResponseEntity<ApiResponse> reactivate(@PathVariable Integer id) {
+        fbacRoleService.reactivate(id);
+        return ResponseEntity.ok(new ApiResponse("Reactivated", null));
+    }
+
     @GetMapping("/{id}/permissions")
     @RequirePermission(submodule = Submodule.ACCESS_ROLES, action = "READ")
     public ResponseEntity<ApiResponse> getPermissions(@PathVariable Integer id) {

@@ -115,6 +115,17 @@ public class StaffService {
             before, null);
     }
 
+    public void reactivate(Long id) {
+        Staff s = getById(id);
+        String before = AuditHelper.toJson(staffSnapshot(s));
+        s.setIsActive(true);
+        staffRepository.save(s);
+        auditLogService.log(AuditHelper.getUserId(), AuditHelper.getIp(),
+            AuditActionType.UPDATE, Submodule.HR_STAFF, "Staff", id.toString(),
+            "Reactivated staff: " + s.getNameEnglish() + " (" + s.getStaffSystemId() + ")",
+            before, AuditHelper.toJson(staffSnapshot(s)));
+    }
+
     public List<StaffEmergencyContact> getEmergencyContacts(Long staffId) {
         return emergencyContactRepository.findByStaffId(staffId);
     }

@@ -44,6 +44,14 @@ public class DesignationController {
         return ResponseEntity.ok(new ApiResponse("Deactivated", null));
     }
 
+    /** Turns a deactivated record back on. */
+    @PatchMapping("/{id}/reactivate")
+    @RequirePermission(submodule = Submodule.HR_DESIGNATIONS, action = "UPDATE")
+    public ResponseEntity<ApiResponse> reactivate(@PathVariable Integer id) {
+        designationService.reactivate(id);
+        return ResponseEntity.ok(new ApiResponse("Reactivated", null));
+    }
+
     // Promotion matrix
     @GetMapping("/promotion-matrix")
     @RequirePermission(submodule = Submodule.HR_DESIGNATIONS, action = "READ")

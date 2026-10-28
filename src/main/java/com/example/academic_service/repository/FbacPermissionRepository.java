@@ -13,7 +13,8 @@ public interface FbacPermissionRepository extends JpaRepository<FbacPermission, 
     Optional<FbacPermission> findByFbacRoleIdAndSubmodule(Integer fbacRoleId, Submodule submodule);
     void deleteByFbacRoleId(Integer fbacRoleId);
 
-    @Query("SELECT p FROM FbacPermission p WHERE p.fbacRole.id IN :roleIds AND p.submodule = :submodule")
+    /** Deactivated roles grant nothing. */
+    @Query("SELECT p FROM FbacPermission p WHERE p.fbacRole.id IN :roleIds AND p.submodule = :submodule AND (p.fbacRole.isActive IS NULL OR p.fbacRole.isActive = true)")
     List<FbacPermission> findByRoleIdsAndSubmodule(List<Integer> roleIds, Submodule submodule);
 
     // Fetch all permissions for a set of roles in one query

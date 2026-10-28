@@ -21,4 +21,6 @@ public interface ClassTeacherRepository extends JpaRepository<ClassTeacher, Long
 
     /** A class-teacher for a class + gender section without sections (section null). */
     boolean existsByStudentClassIdAndGenderSectionIdAndSectionIsNullAndAcademicYearId(Integer classId, Integer genderSectionId, Integer academicYearId);
+
+    List<ClassTeacher> findAllByStudentClassIdAndGenderSectionIdAndSectionIsNullAndAcademicYearId(Integer classId, Integer genderSectionId, Integer academicYearId);
 }

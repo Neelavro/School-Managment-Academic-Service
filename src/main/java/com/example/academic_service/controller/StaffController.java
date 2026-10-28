@@ -65,6 +65,14 @@ public class StaffController {
         return ResponseEntity.ok(new ApiResponse("Deactivated", null));
     }
 
+    /** Turns a deactivated record back on. */
+    @PatchMapping("/{id}/reactivate")
+    @RequirePermission(submodule = Submodule.HR_STAFF, action = "UPDATE")
+    public ResponseEntity<ApiResponse> reactivate(@PathVariable Long id) {
+        staffService.reactivate(id);
+        return ResponseEntity.ok(new ApiResponse("Reactivated", null));
+    }
+
     @GetMapping("/{id}/emergency-contacts")
     @RequirePermission(submodule = Submodule.HR_STAFF, action = "READ")
     public ResponseEntity<ApiResponse> getEmergencyContacts(@PathVariable Long id) {

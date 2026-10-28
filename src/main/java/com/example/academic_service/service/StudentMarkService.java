@@ -296,6 +296,49 @@ public class StudentMarkService {
                 "data", toSave.stream().map(this::toResponse).collect(Collectors.toList()));
     }
 
+    /** A saved mark counts as entered when it has marks or is marked absent / expelled. */
+    private static boolean isEntered(StudentMark m) {
+        return m.getMarksObtained() != null || "ABSENT".equals(m.getStatus()) || "EXPELLED".equals(m.getStatus());
+    }
+
+    /**
+     * Teacher saves (user rule 2026-10-28): a teacher can only fill marks that are still empty. A mark already
+     * entered — by anyone — can't be changed by a teacher, only by the office. Entries that repeat an entered
+     * mark unchanged are dropped; an entry that would change one is refused.
+     */
+    public SaveMarksRequest onlyNewMarks(SaveMarksRequest request) {
+        if (request.getMarks() == null || request.getMarks().isEmpty()) return request;
+        List<Long> enrollmentIds = request.getMarks().stream()
+                .map(SaveMarksRequest.StudentMarkEntry::getEnrollmentId).filter(Objects::nonNull).distinct().toList();
+        Map<String, StudentMark> entered = studentMarkRepository
+                .findAllByEnrollmentIdInAndRoutineIdAndSubjectId(enrollmentIds, request.getRoutineId(), request.getSubjectId())
+                .stream().filter(StudentMarkService::isEntered)
+                .collect(Collectors.toMap(m -> m.getEnrollmentId() + "_" + m.getExamComponent().getId(), m -> m, (a, b) -> a));
+
+        List<SaveMarksRequest.StudentMarkEntry> fresh = new ArrayList<>();
+        int changed = 0;
+        for (SaveMarksRequest.StudentMarkEntry e : request.getMarks()) {
+            StudentMark saved = entered.get(e.getEnrollmentId() + "_" + e.getExamComponentId());
+            if (saved == null) { fresh.add(e); continue; }
+            boolean absentOrExpelled = "ABSENT".equals(e.getStatus()) || "EXPELLED".equals(e.getStatus());
+            boolean same = absentOrExpelled
+                    ? e.getStatus().equals(saved.getStatus())
+                    : e.getMarksObtained() == null
+                      || (saved.getMarksObtained() != null && !("ABSENT".equals(saved.getStatus()) || "EXPELLED".equals(saved.getStatus()))
+                          && saved.getMarksObtained().compareTo(e.getMarksObtained()) == 0);
+            if (!same) changed++;
+        }
+        if (changed > 0)
+            throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.FORBIDDEN,
+                    changed + " mark(s) were already entered and can't be changed here. Ask the office to change them.");
+        SaveMarksRequest out = new SaveMarksRequest();
+        out.setRoutineId(request.getRoutineId());
+        out.setSubjectId(request.getSubjectId());
+        out.setClassId(request.getClassId());
+        out.setMarks(fresh);
+        return out;
+    }
+
     private StudentMarkResponse toResponse(StudentMark m) {
         StudentMarkResponse res = new StudentMarkResponse();
         res.setId(m.getId());

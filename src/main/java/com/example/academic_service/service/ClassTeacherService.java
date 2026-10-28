@@ -40,8 +40,36 @@ public class ClassTeacherService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Academic year not found"));
 
         ClassTeacher ct = new ClassTeacher();
+        setRegister(ct, sectionId, classId, genderSectionId, academicYearId, null);
+        ct.setStaff(staff);
+        ct.setAcademicYear(year);
+        return toMap(classTeacherRepository.save(ct));
+    }
+
+    /**
+     * Edit an assignment: change the teacher and/or the register (section, or class + gender section).
+     * The academic year stays the same.
+     */
+    public Map<String, Object> update(Long id, Long staffId, Long sectionId, Integer classId, Integer genderSectionId) {
+        ClassTeacher ct = classTeacherRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Assignment not found"));
+        Staff staff = staffRepository.findById(staffId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Staff not found"));
+        Integer academicYearId = ct.getAcademicYear().getId();
+        ct.setSection(null);
+        ct.setStudentClass(null);
+        ct.setGenderSection(null);
+        setRegister(ct, sectionId, classId, genderSectionId, academicYearId, id);
+        ct.setStaff(staff);
+        return toMap(classTeacherRepository.save(ct));
+    }
+
+    /** Points ct at a register after checking it exists and has no other class teacher (excludeId = the row being edited). */
+    private void setRegister(ClassTeacher ct, Long sectionId, Integer classId, Integer genderSectionId,
+                             Integer academicYearId, Long excludeId) {
         if (sectionId != null) {
-            if (classTeacherRepository.existsBySectionIdAndAcademicYearId(sectionId, academicYearId))
+            if (classTeacherRepository.findBySectionIdAndAcademicYearId(sectionId, academicYearId)
+                    .filter(other -> !other.getId().equals(excludeId)).isPresent())
                 throw new ResponseStatusException(HttpStatus.CONFLICT,
                         "This section already has a class teacher for this academic year");
             Section section = sectionRepository.findById(sectionId)
@@ -55,7 +83,8 @@ public class ClassTeacherService {
             if (!sectionRepository.findAllByClassEntityIdAndGenderSectionIdAndIsActiveTrue(classId, genderSectionId).isEmpty())
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                         "This class has sections for this gender section, so choose a section");
-            if (classTeacherRepository.existsByStudentClassIdAndGenderSectionIdAndSectionIsNullAndAcademicYearId(classId, genderSectionId, academicYearId))
+            if (classTeacherRepository.findAllByStudentClassIdAndGenderSectionIdAndSectionIsNullAndAcademicYearId(classId, genderSectionId, academicYearId)
+                    .stream().anyMatch(other -> !other.getId().equals(excludeId)))
                 throw new ResponseStatusException(HttpStatus.CONFLICT,
                         "This class and gender section already have a class teacher for this academic year");
             ct.setStudentClass(classRepository.findById(classId)
@@ -63,9 +92,6 @@ public class ClassTeacherService {
             ct.setGenderSection(genderSectionRepository.findById(genderSectionId)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Gender section not found")));
         }
-        ct.setStaff(staff);
-        ct.setAcademicYear(year);
-        return toMap(classTeacherRepository.save(ct));
     }
 
     public void remove(Long id) {

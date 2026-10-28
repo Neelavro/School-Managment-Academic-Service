@@ -46,6 +46,13 @@ public class DesignationService {
         designationRepository.save(d);
     }
 
+    public void reactivate(Integer id) {
+        Designation d = designationRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Designation not found: " + id));
+        d.setIsActive(true);
+        designationRepository.save(d);
+    }
+
     public List<DesignationPromotion> getPromotionMatrix() {
         return promotionRepository.findAll();
     }

@@ -42,8 +42,9 @@ public class StudentGroupController {
     }
 
     @GetMapping
-    public ResponseEntity<List<StudentGroup>> getAll() {
-        return ResponseEntity.ok(studentGroupService.getAllActiveGroups());
+    /** Active only, unless includeInactive=true (the Shifts / Groups pages, so an inactive one can be switched back on). */
+    public ResponseEntity<List<StudentGroup>> getAll(@RequestParam(defaultValue = "false") boolean includeInactive) {
+        return ResponseEntity.ok(includeInactive ? studentGroupService.getAll() : studentGroupService.getAllActiveGroups());
     }
 
     @DeleteMapping("/{id}")
