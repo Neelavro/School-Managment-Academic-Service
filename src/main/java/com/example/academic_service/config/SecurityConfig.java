@@ -44,6 +44,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/public/admission/**").permitAll()
                         // Public website notice board (published notices only)
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/public/notices", "/api/public/notices/**").permitAll()
+                        // Public website teacher list (active teaching staff, public fields only)
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/public/teachers").permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
