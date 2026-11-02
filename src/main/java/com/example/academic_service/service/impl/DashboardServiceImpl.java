@@ -4,6 +4,7 @@ import com.example.academic_service.dto.ApiResponse;
 import com.example.academic_service.dto.DashboardSummaryResponseDto;
 import com.example.academic_service.dto.DashboardSummaryResponseDto.ClassBreakdown;
 import com.example.academic_service.dto.DashboardSummaryResponseDto.GenderBucket;
+import com.example.academic_service.dto.DashboardSummaryResponseDto.StudentGenderCount;
 import com.example.academic_service.entity.AcademicYear;
 import com.example.academic_service.repository.AcademicYearRepository;
 import com.example.academic_service.repository.EnrollmentRepository;
@@ -18,6 +19,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -67,6 +69,25 @@ public class DashboardServiceImpl implements DashboardService {
                     });
         }
 
+        // Split every class + gender section bucket, and the overall buckets, by the student's own gender.
+        for (Object[] row : enrollmentRepository.countByClassGenderSectionAndStudentGender(year.getId())) {
+            Integer classId  = toInt(row[0]);
+            Integer genderSectionId = toInt(row[1]);
+            Integer genderId = toInt(row[2]);
+            String  gender   = row[3] != null ? row[3].toString() : null;
+            long    count    = row[4] instanceof Number cn ? cn.longValue() : 0L;
+
+            ClassAgg agg = classAggById.get(classId);
+            if (agg != null) {
+                agg.buckets.stream()
+                        .filter(b -> Objects.equals(b.getGenderSectionId(), genderSectionId))
+                        .findFirst()
+                        .ifPresent(b -> addStudentGender(b, genderId, gender, count));
+            }
+            GenderBucket overall = overallByGenderId.get(genderSectionId);
+            if (overall != null) addStudentGender(overall, genderId, gender, count);
+        }
+
         List<ClassBreakdown> byClass = new ArrayList<>();
         for (ClassAgg agg : classAggById.values()) {
             byClass.add(new ClassBreakdown(agg.classId, agg.className, agg.total, agg.buckets));
@@ -81,7 +102,17 @@ public class DashboardServiceImpl implements DashboardService {
         return ApiResponse.success("Dashboard summary fetched", dto);
     }
 
-    private static Integer toInt(Object v) {
+    private static void addStudentGender(GenderBucket bucket, Integer genderId, String gender, long count) {
+        for (StudentGenderCount c : bucket.getStudentGenders()) {
+            if (Objects.equals(c.getGenderId(), genderId)) {
+                c.setCount(c.getCount() + count);
+                return;
+            }
+        }
+        bucket.getStudentGenders().add(new StudentGenderCount(genderId, gender, count));
+    }
+
+        private static Integer toInt(Object v) {
         return v instanceof Number n ? n.intValue() : null;
     }
 

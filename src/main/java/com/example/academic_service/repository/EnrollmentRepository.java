@@ -128,4 +128,19 @@ GROUP BY e.studentClass.id, e.studentClass.name, e.studentClass.orderIndex,
 ORDER BY e.studentClass.orderIndex NULLS LAST, e.studentClass.name
 """)
     List<Object[]> countByClassAndGenderSection(@Param("academicYearId") Integer academicYearId);
+
+    // Same counts split by the student's own gender (student.gender), so a COMBINED gender
+    // section can show how many boys and girls it has. Students without a gender come back with null.
+    @Query("""
+SELECT e.studentClass.id, e.genderSection.id, g.id, g.gender, COUNT(e)
+FROM Enrollment e
+JOIN e.student s
+LEFT JOIN s.gender g
+WHERE e.academicYear.id = :academicYearId
+AND e.isActive = true
+AND e.studentClass IS NOT NULL
+AND e.genderSection IS NOT NULL
+GROUP BY e.studentClass.id, e.genderSection.id, g.id, g.gender
+""")
+    List<Object[]> countByClassGenderSectionAndStudentGender(@Param("academicYearId") Integer academicYearId);
 }
