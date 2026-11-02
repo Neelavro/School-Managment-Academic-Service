@@ -53,6 +53,10 @@ public class ExamRoutine {
     @Column(name = "consider_for_annual_result", nullable = false)
     private Boolean considerForAnnualResult = true;
 
+    /** Class days held in this exam's term (user, 2026-11-02); printed on the progress report. Null = not set. */
+    @Column(name = "working_days")
+    private Integer workingDays;
+
     @Transient
     private Boolean resultPublished = false;
 }

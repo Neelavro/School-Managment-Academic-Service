@@ -122,12 +122,17 @@ class AnnualProgressReportHtmlTest {
         d.setMotherPhone("01700000000");
         d.setFourthBadgeSubjectIds(Set.of(15));
         data.setDetails(Map.of(7L, d));
+        // Attendance: Half Yearly and Annual entered, 1st Model Test has no working days set (not added up).
+        data.setAttendance(Map.of(
+                1, Map.of(7L, new ExamAttendanceService.Days(120, 110)),
+                2, Map.of(7L, new ExamAttendanceService.Days(100, 95)),
+                3, Map.of(7L, new ExamAttendanceService.Days(null, 20))));
 
         List<Grade> grades = List.of(
                 grade("A+", 5.0, 80, 100), grade("A", 4.0, 70, 79), grade("A-", 3.5, 60, 69),
                 grade("B", 3.0, 50, 59), grade("C", 2.0, 40, 49), grade("D", 1.0, 33, 39), grade("F", 0.0, 0, 32));
 
-        String html = new ProgressReportPdfService(null, null, null, null)
+        String html = new ProgressReportPdfService(null, null, null, null, null)
                 .buildAnnualHtml(List.of(data), "Demo Madrasa", "Dhaka", null, "", "", grades);
 
         assertTrue(html.contains("GRAND FINAL - 2026"));
@@ -143,6 +148,9 @@ class AnnualProgressReportHtmlTest {
         assertFalse(html.contains("Obtained Marks") || html.contains("class=\"merged-grade\"") || html.contains("annual-total\">"));
         assertTrue(html.contains("<tr class=\"grand\"><td class=\"exam\">Grand Final</td><td>1020</td><td>F</td><td>0.00</td>"));
         assertFalse(html.contains("Shift Position"), "no shift position on the Grand Final card");
+        assertTrue(html.contains("<td>120</td><td>110</td><td>10</td></tr>"), "Half Yearly attendance");
+        assertTrue(html.contains("<td></td><td>20</td><td></td></tr>"), "present without working days: no absent");
+        assertTrue(html.contains("<td>220</td><td>205</td><td>15</td></tr>"), "Grand Final adds up the exams with both numbers");
 
         String out = System.getProperty("annualHtmlOut");
         if (out != null) Files.writeString(Path.of(out), html);

@@ -23,6 +23,9 @@ public class AnnualProgressReportData {
     /** The exams counted for the annual result, in routine order, each with the components its papers use. */
     private List<RoutineColumn> routines;
 
+    /** routineId -> enrollmentId -> working / present days, for the summary table (user, 2026-11-02). */
+    private Map<Integer, Map<Long, com.example.academic_service.service.ExamAttendanceService.Days>> attendance;
+
     /** subjectId -> merge group id (subjects printed as one combined grade). */
     private Map<Integer, Integer> mergeGroups;
 

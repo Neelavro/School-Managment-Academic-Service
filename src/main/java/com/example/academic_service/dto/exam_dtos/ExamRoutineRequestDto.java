@@ -18,4 +18,9 @@ public class ExamRoutineRequestDto {
     private LocalDate routineStartDate;
     private LocalDate routineEndDate;
     private Boolean considerForAnnualResult = true;
+
+    /** Class days in this exam's term; null clears it. */
+    @jakarta.validation.constraints.Min(value = 0, message = "Working days can't be negative")
+    @jakarta.validation.constraints.Max(value = 366, message = "Working days can't be more than 366")
+    private Integer workingDays;
 }

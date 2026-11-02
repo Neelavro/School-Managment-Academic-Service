@@ -27,6 +27,7 @@ public class ProgressReportPdfService {
     private final SystemSettingsService systemSettingsService;
     private final GradingPolicyRepository gradingPolicyRepository;
     private final IdCardPdfService idCardPdfService;
+    private final ExamAttendanceService examAttendanceService;
 
     private static final int PAGE_W = 794;
     private static final int PAGE_H = 1123;
@@ -40,6 +41,16 @@ public class ProgressReportPdfService {
         // Humanities students with Humanities columns).
         List<ProgressReportData> partitions = resultService.getProgressReportDataPartitioned(
                 examRoutineId, classId, shiftId, genderSectionId, sectionId, groupId, startRoll, endRoll);
+
+        // Working days (set on the exam routine) and each student's present days (typed in on Progress Report).
+        Integer workingDays = examAttendanceService.workingDays(examRoutineId);
+        Map<Long, Integer> presentDays = examAttendanceService.presentDays(examRoutineId, partitions.stream()
+                .flatMap(p -> p.getStudents().stream()).map(ProgressReportData.StudentReport::getEnrollmentId)
+                .filter(Objects::nonNull).toList());
+        for (ProgressReportData part : partitions) {
+            part.setWorkingDays(workingDays);
+            part.setPresentDays(presentDays);
+        }
 
         SystemSettings settings = systemSettingsService.getSettings();
         String institutionName = nvl(settings.getInstitutionName(), "");
@@ -89,6 +100,13 @@ public class ProgressReportPdfService {
                                  Integer startRoll, Integer endRoll) throws Exception {
         List<AnnualProgressReportData> partitions = resultService.getAnnualProgressReportDataPartitioned(
                 academicYearId, classId, shiftId, genderSectionId, sectionId, groupId, startRoll, endRoll);
+
+        for (AnnualProgressReportData part : partitions) {
+            List<Integer> routineIds = part.getRoutines().stream().map(AnnualProgressReportData.RoutineColumn::getRoutineId).toList();
+            List<Long> enrollmentIds = part.getAnnual().getStudents().stream()
+                    .map(AnnualResultResponse.StudentResultRow::getEnrollmentId).filter(Objects::nonNull).toList();
+            part.setAttendance(examAttendanceService.daysFor(routineIds, enrollmentIds));
+        }
 
         SystemSettings settings = systemSettingsService.getSettings();
         String html = buildAnnualHtml(partitions,
@@ -312,32 +330,42 @@ public class ProgressReportPdfService {
      */
     private String buildAnnualSummaryTable(AnnualProgressReportData data, AnnualResultResponse.StudentResultRow student) {
         StringBuilder rows = new StringBuilder();
+        int workingSum = 0, presentSum = 0, counted = 0;
         Map<Integer, Map<Long, ProgressReportData.StudentReport>> summaries =
                 data.getExamSummaries() != null ? data.getExamSummaries() : Collections.emptyMap();
         for (AnnualProgressReportData.RoutineColumn rc : data.getRoutines()) {
             ProgressReportData.StudentReport s = summaries.getOrDefault(rc.getRoutineId(), Collections.emptyMap())
                     .get(student.getEnrollmentId());
+            ExamAttendanceService.Days d = attendance(data, rc.getRoutineId(), student.getEnrollmentId());
+            if (d.working() != null && d.present() != null) {
+                workingSum += d.working();
+                presentSum += d.present();
+                counted++;
+            }
             if (s == null) {
-                rows.append(summaryRow(nvl(rc.getTitle(), ""), "—", "—", "—", "—", "—", "—", "—", "—", false));
+                rows.append(summaryRow(nvl(rc.getTitle(), ""), "—", "—", "—", "—", "—", "—", "—", "—", d, false));
                 continue;
             }
             rows.append(summaryRow(nvl(rc.getTitle(), ""), fmtMark(s.getTotalMarks()),
                     resolveGradeNameFromGpa(s.getOverallGpa(), null), fmtGpa(s.getOverallGpa()),
                     rank(s.getClassRank()), rank(s.getSectionRank()),
                     s.isPassed() ? "Passed" : "Failed", fmtGpa(s.getGpaWithout4th()),
-                    String.valueOf(s.getFailedSubjectCount()), false));
+                    String.valueOf(s.getFailedSubjectCount()), d, false));
         }
+        // Grand Final attendance = the exams' days added up (only exams with both numbers entered).
+        ExamAttendanceService.Days total = counted > 0
+                ? new ExamAttendanceService.Days(workingSum, presentSum) : new ExamAttendanceService.Days(null, null);
         // Grand Final: the average of the counted exams the student sat, positions ranked on those averages.
         AnnualProgressReportData.GrandFinal g = data.getGrandFinals() != null
                 ? data.getGrandFinals().get(student.getEnrollmentId()) : null;
         if (g == null) {
-            rows.append(summaryRow("Grand Final", "—", "—", "—", "—", "—", "—", "—", "—", true));
+            rows.append(summaryRow("Grand Final", "—", "—", "—", "—", "—", "—", "—", "—", total, true));
         } else {
             rows.append(summaryRow("Grand Final", fmtMark(g.getTotalMarks()),
                     resolveGradeNameFromGpa(g.getGpa(), null), fmtGpa(g.getGpa()),
                     rank(g.getClassRank()), rank(g.getSectionRank()),
                     g.isPassed() ? "Passed" : "Failed", fmtGpa(g.getGpaWithout4th()),
-                    String.valueOf(g.getFailedSubjectCount()), true));
+                    String.valueOf(g.getFailedSubjectCount()), total, true));
         }
         return "<table class=\"gf-summary\"><thead><tr class=\"th-tan\">"
                 + "<th class=\"exam\">Exam Name</th><th>Total Marks</th><th>Letter Grade</th><th>Grade Point</th>"
@@ -348,12 +376,25 @@ public class ProgressReportPdfService {
 
     // No Shift Position on the Grand Final card (user, 2026-10-26).
     private String summaryRow(String exam, String total, String letter, String gpa, String classPos,
-                              String sectionPos, String status, String without4th, String failed, boolean grand) {
+                              String sectionPos, String status, String without4th, String failed,
+                              ExamAttendanceService.Days days, boolean grand) {
         return "<tr" + (grand ? " class=\"grand\"" : "") + ">"
                 + "<td class=\"exam\">" + exam + "</td><td>" + total + "</td><td>" + letter + "</td><td>" + gpa + "</td>"
                 + "<td>" + classPos + "</td><td>" + sectionPos + "</td>"
                 + "<td class=\"" + ("Failed".equals(status) ? "failed" : "") + "\">" + status + "</td>"
-                + "<td>" + without4th + "</td><td>" + failed + "</td><td></td><td></td><td></td></tr>";
+                + "<td>" + without4th + "</td><td>" + failed + "</td>"
+                + "<td>" + days(days.working()) + "</td><td>" + days(days.present()) + "</td><td>" + days(days.absent()) + "</td></tr>";
+    }
+
+    /** A day count, or blank (to fill in by hand) when it was not entered. */
+    private static String days(Integer n) {
+        return n != null ? String.valueOf(n) : "";
+    }
+
+    private static ExamAttendanceService.Days attendance(AnnualProgressReportData data, Integer routineId, Long enrollmentId) {
+        if (data.getAttendance() == null) return new ExamAttendanceService.Days(null, null);
+        ExamAttendanceService.Days d = data.getAttendance().getOrDefault(routineId, Map.of()).get(enrollmentId);
+        return d != null ? d : new ExamAttendanceService.Days(null, null);
     }
 
     private static String rank(Integer r) {
@@ -489,7 +530,7 @@ public class ProgressReportPdfService {
         String marksHtml = buildMarksTable(data, student, gradingTable);
 
         // Result summary
-        String resultHtml = buildResultSummary(student);
+        String resultHtml = buildResultSummary(data, student);
 
         // Behavior/co-curricular
         String checksHtml = buildChecksHtml(student.getOverallGpa(), gradingTable);
@@ -750,12 +791,14 @@ public class ProgressReportPdfService {
         return "F";
     }
 
-    private String buildResultSummary(ProgressReportData.StudentReport student) {
+    private String buildResultSummary(ProgressReportData data, ProgressReportData.StudentReport student) {
         String resultStatus = student.isPassed() ? "Passed" : "Failed";
         String gpaNo4th = student.getGpaWithout4th() != null ? fmtGpa(student.getGpaWithout4th()) : "—";
         String classPos  = student.getClassRank()         != null ? String.valueOf(student.getClassRank())         : "—";
         String shiftPos  = student.getGenderSectionRank() != null ? String.valueOf(student.getGenderSectionRank()) : "—";
         String secPos    = student.getSectionRank()       != null ? String.valueOf(student.getSectionRank())       : "—";
+        ExamAttendanceService.Days days = new ExamAttendanceService.Days(data.getWorkingDays(),
+                data.getPresentDays() != null ? data.getPresentDays().get(student.getEnrollmentId()) : null);
 
         return "<div class=\"result-row\">"
                 + "<table>"
@@ -769,9 +812,9 @@ public class ProgressReportPdfService {
                 + resultSummaryRow("Section Position", secPos,   "lbl-p", "v-blue")
                 + "</table>"
                 + "<table>"
-                + resultSummaryRow("Total Working Days", "", "lbl-g", "v-blue")
-                + resultSummaryRow("Total Present",      "", "lbl-g", "v-blue")
-                + resultSummaryRow("Total Absent",       "", "lbl-g", "v-blue")
+                + resultSummaryRow("Total Working Days", days(days.working()), "lbl-g", "v-blue")
+                + resultSummaryRow("Total Present",      days(days.present()), "lbl-g", "v-blue")
+                + resultSummaryRow("Total Absent",       days(days.absent()), "lbl-g", "v-blue")
                 + "</table>"
                 + "</div>";
     }

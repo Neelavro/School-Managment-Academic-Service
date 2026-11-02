@@ -1,5 +1,6 @@
 package com.example.academic_service.dto.result_dtos;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -21,6 +22,12 @@ public class ProgressReportData {
     private List<ComponentInfo> components;
     private List<SubjectInfo> subjects;
     private List<StudentReport> students;
+
+    /** The routine's working days and each student's present days, for the PDF only (user, 2026-11-02). */
+    @JsonIgnore
+    private Integer workingDays;
+    @JsonIgnore
+    private Map<Long, Integer> presentDays;
 
     @Getter
     @Setter
