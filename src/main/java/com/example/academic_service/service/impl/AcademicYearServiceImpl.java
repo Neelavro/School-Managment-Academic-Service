@@ -76,6 +76,14 @@ public class AcademicYearServiceImpl implements AcademicYearService {
     }
 
     @Override
+    public AcademicYear setStartDate(Integer id, java.time.LocalDate startDate) {
+        AcademicYear existing = getAcademicYearById(id);
+        if (existing == null) return null;
+        existing.setStartDate(startDate);
+        return academicYearRepository.save(existing);
+    }
+
+    @Override
     public void deleteAcademicYear(Integer id) {
         academicYearRepository.deleteById(id);
     }

@@ -65,9 +65,4 @@ public interface ExamSessionRepository extends JpaRepository<ExamSession, Intege
     @Query("SELECT DISTINCT es.examClass FROM ExamSession es WHERE es.examRoutine.id = :routineId AND es.isActive = true ORDER BY es.examClass.name")
     List<com.example.academic_service.entity.Class> findDistinctClassesByRoutineId(@Param("routineId") Integer routineId);
 
-    /** Each active routine's earliest active session date for one class in a year: rows of [routineId, date]. */
-    @Query(value = "SELECT es.exam_routine_id, MIN(es.date) FROM exam_session es JOIN exam_routine er ON er.id = es.exam_routine_id WHERE er.academic_year_id = :academicYearId AND er.is_active = true AND es.class_id = :classId AND es.is_active = true AND es.date IS NOT NULL GROUP BY es.exam_routine_id", nativeQuery = true)
-    List<Object[]> findFirstSessionDatesByYearAndClass(
-            @Param("academicYearId") Integer academicYearId,
-            @Param("classId") Integer classId);
 }

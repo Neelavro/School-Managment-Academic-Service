@@ -1,13 +1,15 @@
 package com.example.academic_service.service;
 
+import com.example.academic_service.entity.AcademicCalendarEntry;
+import com.example.academic_service.entity.CalendarEntryType;
 import com.example.academic_service.entity.Enrollment;
 import com.example.academic_service.entity.ExamAttendance;
 import com.example.academic_service.entity.ExamRoutine;
+import com.example.academic_service.repository.AcademicCalendarEntryRepository;
 import com.example.academic_service.repository.AttendanceRepository;
 import com.example.academic_service.repository.EnrollmentRepository;
 import com.example.academic_service.repository.ExamAttendanceRepository;
 import com.example.academic_service.repository.ExamRoutineRepository;
-import com.example.academic_service.repository.ExamSessionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -21,13 +23,17 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * Working days per exam routine and each student's present days, for the progress report (user, 2026-11-02).
+ * Working days per exam routine and each student's present days, for the progress report (user, 2026-11-02/03).
  * <p>
- * Present days = working days − the student's absences in the exam's period (the attendance table stores absences
- * only). The period runs from the previous routine's first session up to the day before this routine's first
- * session (the first routine of the year counts every absence before it), per class. A number typed on Progress
- * Report is saved in {@code exam_attendance} and wins over the count; clearing it goes back to the count.
- * The student list uses the same filters as the progress report download.
+ * The exam's period comes from Academic Calendar → Exam Days: from the start of the previous exam's Exam Days (or the
+ * academic year's start for the first exam) up to the day before this exam's Exam Days begin.
+ * <ul>
+ *   <li>Working days = the class days in that period (not a weekend, not a Holiday). A number typed for the routine
+ *       ({@code exam_routine.working_days}) wins; one equal to the count is not stored.</li>
+ *   <li>Present days = working days − the student's absences in the period (the attendance table stores absences
+ *       only). A number typed for the student ({@code exam_attendance}) wins; clearing it goes back to the count.</li>
+ * </ul>
+ * An exam without Exam Days has no period: nothing is counted, typed numbers still print.
  */
 @Service
 @RequiredArgsConstructor
@@ -36,20 +42,26 @@ public class ExamAttendanceService {
     private final ExamRoutineRepository examRoutineRepository;
     private final EnrollmentRepository enrollmentRepository;
     private final ExamAttendanceRepository examAttendanceRepository;
-    private final ExamSessionRepository examSessionRepository;
     private final AttendanceRepository attendanceRepository;
+    private final AcademicCalendarEntryRepository calendarRepository;
+    private final SchoolCalendarService schoolCalendarService;
 
     /**
-     * {@code absences}: counted from attendance (null when the exam has no session dates for the class);
-     * {@code savedPresentDays}: the typed number, null when none; {@code presentDays}: what the PDF prints.
+     * {@code absences}: counted from attendance (null without a period); {@code savedPresentDays}: the typed number,
+     * null when none; {@code presentDays}: what the PDF prints.
      */
     public record StudentRow(Long enrollmentId, String studentSystemId, String studentName, Integer classRoll,
                              String genderSectionName, String sectionName, String groupName,
                              Integer absences, Integer savedPresentDays, Integer presentDays) {}
 
-    /** {@code countedFrom}/{@code countedTo}: the attendance period, both inclusive (from is null = start of the year). */
-    public record Sheet(Integer routineId, String routineTitle, Integer workingDays,
-                        LocalDate countedFrom, LocalDate countedTo, List<StudentRow> students) {}
+    /**
+     * {@code workingDays}: what the PDF prints (typed, else counted); {@code savedWorkingDays}: the typed number or
+     * null; {@code countedWorkingDays}: from the calendar. {@code countedFrom}/{@code countedTo}: the period, both
+     * inclusive (from null = no academic year start). {@code examDaysMissing}: the exam has no Exam Days.
+     */
+    public record Sheet(Integer routineId, String routineTitle, Integer workingDays, Integer savedWorkingDays,
+                        Integer countedWorkingDays, LocalDate countedFrom, LocalDate countedTo, boolean examDaysMissing,
+                        List<StudentRow> students) {}
 
     public record Entry(Long enrollmentId, Integer presentDays) {}
 
@@ -60,8 +72,8 @@ public class ExamAttendanceService {
         }
     }
 
-    /** The attendance period: {@code from} inclusive (null = no lower bound), {@code to} exclusive. */
-    private record Period(LocalDate from, LocalDate to) {}
+    /** The exam's period: {@code from} inclusive (null = unknown year start), {@code to} exclusive. */
+    record Period(LocalDate from, LocalDate to) {}
 
     /** One student's numbers for one routine. */
     private record Calc(Integer absences, Integer saved, Integer counted) {
@@ -74,11 +86,11 @@ public class ExamAttendanceService {
     public Sheet sheet(Integer routineId, Integer classId, Integer shiftId, Integer genderSectionId, Long sectionId,
                        Integer groupId, Integer startRoll, Integer endRoll) {
         ExamRoutine routine = routine(routineId);
-        Integer yearId = yearId(routine);
         List<Enrollment> enrollments = enrollmentRepository.findAllByClassIdAndFilters(
-                classId, yearId, shiftId, genderSectionId, sectionId, groupId, startRoll, endRoll);
-        Map<Long, Calc> calc = calc(routine, enrollments);
-        Period period = period(routine, classId, new HashMap<>());
+                classId, yearId(routine), shiftId, genderSectionId, sectionId, groupId, startRoll, endRoll);
+        Period period = period(routine);
+        Integer counted = countedWorkingDays(routine, period);
+        Map<Long, Calc> calc = calc(routine, period, effectiveWorking(routine, counted), enrollments);
         List<StudentRow> rows = enrollments.stream()
                 .sorted(Comparator.comparing(Enrollment::getClassRoll, Comparator.nullsLast(Comparator.naturalOrder()))
                         .thenComparing(e -> nvl(e.getStudentSystemId())))
@@ -95,27 +107,29 @@ public class ExamAttendanceService {
                             c.absences(), c.saved(), c.effective());
                 })
                 .toList();
-        return new Sheet(routine.getId(), routine.getTitle(), routine.getWorkingDays(),
-                period != null ? period.from() : null, period != null ? period.to().minusDays(1) : null, rows);
+        return new Sheet(routine.getId(), routine.getTitle(), effectiveWorking(routine, counted), routine.getWorkingDays(), counted,
+                period != null ? period.from() : null, period != null ? period.to().minusDays(1) : null, period == null, rows);
     }
 
     /**
-     * Saves the routine's working days (when {@code setWorkingDays}) and the present days typed for the listed students.
-     * A null presentDays, or one equal to the counted value, removes the typed number (the count is used).
-     * Present days can't exceed the working days.
+     * Saves the routine's working days (when {@code setWorkingDays}; null or the counted number = use the count) and
+     * the present days typed for the listed students (null or the counted number = use the count). Present days
+     * can't exceed the working days.
      */
     @Transactional
     public int save(Integer routineId, boolean setWorkingDays, Integer workingDays, List<Entry> entries) {
         ExamRoutine routine = routine(routineId);
+        Period period = period(routine);
+        Integer counted = countedWorkingDays(routine, period);
         if (setWorkingDays) {
             if (workingDays != null && (workingDays < 0 || workingDays > 366)) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Working days must be between 0 and 366");
             }
-            routine.setWorkingDays(workingDays);
+            routine.setWorkingDays(Objects.equals(workingDays, counted) ? null : workingDays);
             routine.setLastModifiedAt(LocalDateTime.now());
             examRoutineRepository.save(routine);
         }
-        Integer limit = routine.getWorkingDays();
+        Integer limit = effectiveWorking(routine, counted);
         List<Entry> list = entries != null ? entries.stream().filter(e -> e != null && e.enrollmentId() != null).toList() : List.of();
         for (Entry e : list) {
             Integer p = e.presentDays();
@@ -138,7 +152,7 @@ public class ExamAttendanceService {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A student in the list is not in this exam's academic year");
             }
         }
-        Map<Long, Calc> calc = calc(routine, found);
+        Map<Long, Calc> calc = calc(routine, period, limit, found);
 
         Map<Long, ExamAttendance> existing = examAttendanceRepository.findByExamRoutineIdAndEnrollmentIdIn(routineId, ids).stream()
                 .collect(Collectors.toMap(ExamAttendance::getEnrollmentId, Function.identity()));
@@ -147,9 +161,9 @@ public class ExamAttendanceService {
         int changed = 0;
         for (Entry e : list) {
             ExamAttendance row = existing.get(e.enrollmentId());
-            Integer counted = calc.get(e.enrollmentId()).counted();
+            Integer countedPresent = calc.get(e.enrollmentId()).counted();
             // Only numbers that differ from the count are stored, so later absences still update the rest.
-            if (e.presentDays() == null || Objects.equals(e.presentDays(), counted)) {
+            if (e.presentDays() == null || Objects.equals(e.presentDays(), countedPresent)) {
                 if (row != null) {
                     toDelete.add(row);
                     changed++;
@@ -177,8 +191,10 @@ public class ExamAttendanceService {
     public Map<Long, Integer> presentDays(Integer routineId, Collection<Long> enrollmentIds) {
         if (enrollmentIds.isEmpty()) return Map.of();
         ExamRoutine routine = routine(routineId);
+        Period period = period(routine);
+        Integer working = effectiveWorking(routine, countedWorkingDays(routine, period));
         Map<Long, Integer> out = new HashMap<>();
-        calc(routine, enrollmentRepository.findAllById(new HashSet<>(enrollmentIds)))
+        calc(routine, period, working, enrollmentRepository.findAllById(new HashSet<>(enrollmentIds)))
                 .forEach((id, c) -> { if (c.effective() != null) out.put(id, c.effective()); });
         return out;
     }
@@ -189,85 +205,75 @@ public class ExamAttendanceService {
         Map<Integer, Map<Long, Days>> out = new HashMap<>();
         if (routineIds.isEmpty()) return out;
         List<Enrollment> enrollments = enrollmentIds.isEmpty() ? List.of() : enrollmentRepository.findAllById(new HashSet<>(enrollmentIds));
-        Map<String, Map<Integer, LocalDate>> firstDates = new HashMap<>();
         for (ExamRoutine r : examRoutineRepository.findAllById(routineIds)) {
+            Period period = period(r);
+            Integer working = effectiveWorking(r, countedWorkingDays(r, period));
             Map<Long, Days> m = new HashMap<>();
-            calc(r, enrollments, firstDates).forEach((id, c) -> m.put(id, new Days(r.getWorkingDays(), c.effective())));
+            calc(r, period, working, enrollments).forEach((id, c) -> m.put(id, new Days(working, c.effective())));
             out.put(r.getId(), m);
         }
         return out;
     }
 
-    /** The routine's working days (null when not set). */
+    /** The working days the PDF prints for a routine (typed, else counted; null when neither). */
     @Transactional(readOnly = true)
     public Integer workingDays(Integer routineId) {
-        return examRoutineRepository.findById(routineId).map(ExamRoutine::getWorkingDays).orElse(null);
+        ExamRoutine routine = routine(routineId);
+        return effectiveWorking(routine, countedWorkingDays(routine, period(routine)));
     }
 
     // ── Counting ─────────────────────────────────────────────────────────────
 
-    private Map<Long, Calc> calc(ExamRoutine routine, Collection<Enrollment> enrollments) {
-        return calc(routine, enrollments, new HashMap<>());
-    }
-
-    /** Absences, typed and counted present days for each enrollment; {@code firstDates} caches per year + class. */
-    private Map<Long, Calc> calc(ExamRoutine routine, Collection<Enrollment> enrollments,
-                                 Map<String, Map<Integer, LocalDate>> firstDates) {
-        Map<Long, Calc> out = new HashMap<>();
-        if (enrollments.isEmpty()) return out;
-        Map<Long, Integer> saved = examAttendanceRepository.findByExamRoutineIdAndEnrollmentIdIn(routine.getId(),
-                        enrollments.stream().map(Enrollment::getId).toList()).stream()
-                .collect(Collectors.toMap(ExamAttendance::getEnrollmentId, ExamAttendance::getPresentDays, (a, b) -> a));
-        Integer working = routine.getWorkingDays();
-
-        // The period depends on the class's exam dates.
-        Map<Integer, List<Enrollment>> byClass = enrollments.stream()
-                .filter(e -> e.getStudentClass() != null)
-                .collect(Collectors.groupingBy(e -> e.getStudentClass().getId()));
-        Map<Long, Integer> absences = new HashMap<>();
-        for (Map.Entry<Integer, List<Enrollment>> g : byClass.entrySet()) {
-            Period p = period(routine, g.getKey(), firstDates);
-            if (p == null) continue;
-            List<Long> ids = g.getValue().stream().map(Enrollment::getId).toList();
-            for (Long id : ids) absences.put(id, 0);
-            List<Object[]> rows = p.from() == null
-                    ? attendanceRepository.countAbsencesBefore(ids, p.to())
-                    : attendanceRepository.countAbsencesBetween(ids, p.from(), p.to());
-            for (Object[] r : rows) absences.put(((Number) r[0]).longValue(), ((Number) r[1]).intValue());
-        }
-
-        for (Enrollment e : enrollments) {
-            Integer a = absences.get(e.getId());
-            Integer counted = working != null && a != null ? Math.max(0, working - a) : null;
-            out.put(e.getId(), new Calc(a, saved.get(e.getId()), counted));
-        }
-        return out;
-    }
-
     /**
-     * From the previous routine's first session (same year and class) up to this routine's first session (exclusive).
-     * Falls back to the routine's start date when the class has no dated session; null when neither exists.
+     * From the start of the previous exam's Exam Days (or the academic year's start) up to this exam's Exam Days
+     * start (exclusive). Null when this exam has no Exam Days.
      */
-    private Period period(ExamRoutine routine, Integer classId, Map<String, Map<Integer, LocalDate>> cache) {
+    Period period(ExamRoutine routine) {
         Integer yearId = yearId(routine);
-        Map<Integer, LocalDate> dates = yearId == null || classId == null ? Map.of()
-                : cache.computeIfAbsent(yearId + ":" + classId, k -> firstSessionDates(yearId, classId));
-        LocalDate to = dates.getOrDefault(routine.getId(), routine.getRoutineStartDate());
-        if (to == null) return null;
-        LocalDate from = dates.entrySet().stream()
-                .filter(en -> !en.getKey().equals(routine.getId()) && en.getValue().isBefore(to))
-                .map(Map.Entry::getValue)
-                .max(Comparator.naturalOrder())
+        if (yearId == null) return null;
+        List<AcademicCalendarEntry> examDays = calendarRepository
+                .findByAcademicYear_IdAndTypeAndIsActiveTrueOrderByStartDateAsc(yearId, CalendarEntryType.EXAM_DAY);
+        LocalDate to = examDays.stream()
+                .filter(e -> Objects.equals(e.getExamRoutineId(), routine.getId()))
+                .map(AcademicCalendarEntry::getStartDate)
+                .min(Comparator.naturalOrder())
                 .orElse(null);
+        if (to == null) return null;
+        LocalDate from = examDays.stream()
+                .filter(e -> e.getExamRoutineId() != null && !e.getExamRoutineId().equals(routine.getId()) && e.getStartDate().isBefore(to))
+                .map(AcademicCalendarEntry::getStartDate)
+                .max(Comparator.naturalOrder())
+                .orElse(SchoolCalendarService.yearStart(routine.getAcademicYear()));
         return new Period(from, to);
     }
 
-    private Map<Integer, LocalDate> firstSessionDates(Integer yearId, Integer classId) {
-        Map<Integer, LocalDate> out = new HashMap<>();
-        for (Object[] r : examSessionRepository.findFirstSessionDatesByYearAndClass(yearId, classId)) {
-            LocalDate d = r[1] instanceof java.sql.Date sd ? sd.toLocalDate()
-                    : r[1] instanceof LocalDate ld ? ld : null;
-            if (d != null) out.put(((Number) r[0]).intValue(), d);
+    private Integer countedWorkingDays(ExamRoutine routine, Period period) {
+        return period == null ? null : schoolCalendarService.classDays(yearId(routine), period.from(), period.to());
+    }
+
+    private static Integer effectiveWorking(ExamRoutine routine, Integer counted) {
+        return routine.getWorkingDays() != null ? routine.getWorkingDays() : counted;
+    }
+
+    /** Absences, typed and counted present days for each enrollment. */
+    private Map<Long, Calc> calc(ExamRoutine routine, Period period, Integer working, Collection<Enrollment> enrollments) {
+        Map<Long, Calc> out = new HashMap<>();
+        if (enrollments.isEmpty()) return out;
+        List<Long> ids = enrollments.stream().map(Enrollment::getId).toList();
+        Map<Long, Integer> saved = examAttendanceRepository.findByExamRoutineIdAndEnrollmentIdIn(routine.getId(), ids).stream()
+                .collect(Collectors.toMap(ExamAttendance::getEnrollmentId, ExamAttendance::getPresentDays, (a, b) -> a));
+        Map<Long, Integer> absences = new HashMap<>();
+        if (period != null) {
+            for (Long id : ids) absences.put(id, 0);
+            List<Object[]> rows = period.from() == null
+                    ? attendanceRepository.countAbsencesBefore(ids, period.to())
+                    : attendanceRepository.countAbsencesBetween(ids, period.from(), period.to());
+            for (Object[] r : rows) absences.put(((Number) r[0]).longValue(), ((Number) r[1]).intValue());
+        }
+        for (Long id : ids) {
+            Integer a = absences.get(id);
+            Integer counted = working != null && a != null ? Math.max(0, working - a) : null;
+            out.put(id, new Calc(a, saved.get(id), counted));
         }
         return out;
     }

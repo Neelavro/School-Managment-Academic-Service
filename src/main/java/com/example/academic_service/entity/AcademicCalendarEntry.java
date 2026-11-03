@@ -28,6 +28,10 @@ public class AcademicCalendarEntry {
     @Column(nullable = false)
     private String name;
 
+    /** Exam Days only: the exam routine this entry is for (its name comes from the routine's title). */
+    @Column(name = "exam_routine_id")
+    private Integer examRoutineId;
+
     @Column(name = "start_date", nullable = false)
     private LocalDate startDate;
 

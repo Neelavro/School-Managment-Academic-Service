@@ -24,7 +24,7 @@ public class ClassRoutineRequestDto {
 
     private Integer subjectId;
 
-    @NotNull(message = "Room is required")
+    /** Optional (user, 2026-11-03). */
     private Integer roomId;
 
     @NotNull(message = "Day of week is required")

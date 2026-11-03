@@ -38,7 +38,7 @@ public class ClassRoutine {
     private Subject subject;
 
     @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "room_id", nullable = false)
+    @JoinColumn(name = "room_id", nullable = true)
     private Room room;
 
     @Enumerated(EnumType.STRING)

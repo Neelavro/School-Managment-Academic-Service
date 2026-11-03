@@ -84,8 +84,8 @@ public class ClassRoutineServiceImpl implements ClassRoutineService {
         LocalTime start = dto.getStartTime();
         LocalTime end = dto.getEndTime();
 
-        // Room clash: same room, same day, overlapping time, same routine type
-        boolean roomClash = classRoutineRepository
+        // Room clash: same room, same day, overlapping time, same routine type (no room = no clash)
+        boolean roomClash = dto.getRoomId() != null && classRoutineRepository
                 .findByRoom_IdAndDayOfWeekAndRoutineTypeAndIsActiveTrue(dto.getRoomId(), dto.getDayOfWeek(), dto.getRoutineType())
                 .stream()
                 .filter(r -> excludeId == null || !r.getId().equals(excludeId))
@@ -115,9 +115,9 @@ public class ClassRoutineServiceImpl implements ClassRoutineService {
     private ClassRoutine buildRoutine(ClassRoutine routine, ClassRoutineRequestDto dto) {
         com.example.academic_service.entity.Class cls = classRepository.findById(dto.getClassId()).orElse(null);
         GenderSection genderSection = genderSectionRepository.findById(dto.getGenderSectionId()).orElse(null);
-        Room room = roomRepository.findById(dto.getRoomId()).orElse(null);
+        Room room = dto.getRoomId() != null ? roomRepository.findById(dto.getRoomId()).orElse(null) : null;
 
-        if (cls == null || genderSection == null || room == null) return null;
+        if (cls == null || genderSection == null || (dto.getRoomId() != null && room == null)) return null;
 
         routine.setClassEntity(cls);
         routine.setGenderSection(genderSection);

@@ -36,7 +36,7 @@ public class ClassRoutineResponseDto {
         if (r.getSubject() != null) {
             dto.setSubject(new SubjectInfo(r.getSubject().getId(), r.getSubject().getName(), r.getSubject().getCode()));
         }
-        dto.setRoom(new RoomInfo(r.getRoom().getId(), r.getRoom().getName()));
+        if (r.getRoom() != null) dto.setRoom(new RoomInfo(r.getRoom().getId(), r.getRoom().getName()));
         dto.setDayOfWeek(r.getDayOfWeek().name());
         dto.setStartTime(r.getStartTime().toString());
         dto.setEndTime(r.getEndTime().toString());

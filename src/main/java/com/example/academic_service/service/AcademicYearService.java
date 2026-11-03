@@ -21,4 +21,5 @@ public interface AcademicYearService {
     AcademicYear updateAcademicYear(Integer id, AcademicYear academicYear);
 
     void deleteAcademicYear(Integer id);
+    AcademicYear setStartDate(Integer id, java.time.LocalDate startDate);
 }

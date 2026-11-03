@@ -58,6 +58,16 @@ public class AcademicYearController {
         return ResponseEntity.ok(updated);
     }
 
+    public record StartDateRequest(java.time.LocalDate startDate) {}
+
+    /** Sets the year's first day (user, 2026-11-03); null clears it (then 1 January of the year in its name). */
+    @PutMapping("/{id}/start-date")
+    public ResponseEntity<AcademicYear> setStartDate(@PathVariable Integer id, @RequestBody StartDateRequest body) {
+        AcademicYear updated = academicYearService.setStartDate(id, body.startDate());
+        if (updated == null) return ResponseEntity.notFound().build();
+        return ResponseEntity.ok(updated);
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteAcademicYear(@PathVariable Integer id) {
         academicYearService.deleteAcademicYear(id);

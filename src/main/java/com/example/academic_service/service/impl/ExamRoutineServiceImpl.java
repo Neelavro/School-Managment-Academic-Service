@@ -99,7 +99,7 @@ public class ExamRoutineServiceImpl implements ExamRoutineService {
         routine.setRoutineStartDate(dto.getRoutineStartDate());
         routine.setRoutineEndDate(dto.getRoutineEndDate());
         routine.setConsiderForAnnualResult(dto.getConsiderForAnnualResult() != null ? dto.getConsiderForAnnualResult() : true);
-        routine.setWorkingDays(dto.getWorkingDays());
+        // Working days are set on Progress Report (exam attendance) only; editing the routine keeps them (user, 2026-11-03).
         routine.setLastModifiedAt(LocalDateTime.now());
         return ApiResponse.success("Exam routine updated successfully", examRoutineRepository.save(routine));
     }

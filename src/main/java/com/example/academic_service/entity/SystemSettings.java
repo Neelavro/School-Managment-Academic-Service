@@ -28,4 +28,8 @@ public class SystemSettings {
 
     @Column(name = "signature_url")
     private String signatureUrl;
+
+    /** The school's weekly off days, comma-separated java.time.DayOfWeek names ("FRIDAY,SATURDAY"); null = Friday. */
+    @Column(name = "weekend_days", length = 64)
+    private String weekendDays;
 }

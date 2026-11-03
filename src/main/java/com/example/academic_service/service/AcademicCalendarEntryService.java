@@ -6,10 +6,12 @@ import com.example.academic_service.entity.AcademicCalendarEntry;
 import com.example.academic_service.entity.CalendarEntryType;
 
 import java.util.List;
+import java.util.Map;
 
 public interface AcademicCalendarEntryService {
     ApiResponse<AcademicCalendarEntry> create(AcademicCalendarEntryRequestDto dto);
     ApiResponse<AcademicCalendarEntry> update(Integer id, AcademicCalendarEntryRequestDto dto);
     ApiResponse<List<AcademicCalendarEntry>> getByAcademicYear(Integer academicYearId, CalendarEntryType type);
     ApiResponse<Void> delete(Integer id);
+    Map<String, Object> copyExamDays(Integer fromYearId, Integer toYearId);
 }
