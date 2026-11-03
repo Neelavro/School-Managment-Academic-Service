@@ -139,7 +139,7 @@ public class ChartOfAccountService {
      * Validation:
      *  - account_code: required, unique vs DB AND within the file
      *  - account_name: required
-     *  - account_type: required, one of ASSET, LIABILITY, INCOME, EXPENSE
+     *  - account_type: required, one of ASSET, LIABILITY, INCOME, EXPENSE, EQUITY
      *  - parent_code (optional): must exist in DB OR earlier in the file
      *  - parent's account_type must match this row's account_type
      *  - parent must be is_group = true
@@ -232,7 +232,7 @@ public class ChartOfAccountService {
                 accountType = AccountType.valueOf(accountTypeStr.trim().toUpperCase(Locale.ROOT));
             } catch (IllegalArgumentException ex) {
                 addErr(response, rowNumber,
-                        "account_type must be one of ASSET, LIABILITY, INCOME, EXPENSE (got '" + accountTypeStr + "')");
+                        "account_type must be one of ASSET, LIABILITY, INCOME, EXPENSE, EQUITY (got '" + accountTypeStr + "')");
                 hasErrors = true; continue;
             }
 

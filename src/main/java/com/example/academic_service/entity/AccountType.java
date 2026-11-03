@@ -9,18 +9,21 @@ package com.example.academic_service.entity;
  *   - INCOME    : CREDIT  (e.g. Tuition Fee)
  *   - EXPENSE   : DEBIT   (e.g. Salaries, Platform Fee)
  *
- * Equity is intentionally omitted; net income flows through Income - Expense.
+ *   - EQUITY    : CREDIT  (funds and reserves, e.g. General Fund, Building Fund; user, 2026-11-03)
+ *
+ * The year's net income (Income - Expense) is not an account: the balance sheet shows it as retained earnings.
  */
 public enum AccountType {
     ASSET,
     LIABILITY,
     INCOME,
-    EXPENSE;
+    EXPENSE,
+    EQUITY;
 
     public NormalBalance getNormalBalance() {
         return switch (this) {
             case ASSET, EXPENSE -> NormalBalance.DEBIT;
-            case LIABILITY, INCOME -> NormalBalance.CREDIT;
+            case LIABILITY, INCOME, EQUITY -> NormalBalance.CREDIT;
         };
     }
 

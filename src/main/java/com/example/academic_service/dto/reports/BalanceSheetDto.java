@@ -19,12 +19,12 @@ public class BalanceSheetDto {
     private List<AccountTotalsDto> liabilityRows;
     private BigDecimal totalAssets;
     private BigDecimal totalLiabilities;
-    /**
-     * Cumulative Income − Expense up to {@code asOf}. Acts as the "Equity"
-     * substitute since we don't track explicit equity accounts.
-     */
+    /** Cumulative Income − Expense up to {@code asOf} (shown under equity). */
     private BigDecimal retainedEarnings;
-    /** totalLiabilities + retainedEarnings — should equal totalAssets. */
+    /** totalLiabilities + totalEquity + retainedEarnings — should equal totalAssets. */
     private BigDecimal totalEquityAndLiabilities;
     private boolean balanced;
+    /** Equity accounts (funds and reserves), credit-normal. */
+    private List<AccountTotalsDto> equityRows;
+    private BigDecimal totalEquity;
 }

@@ -183,8 +183,10 @@ public class ReportingService {
 
         List<AccountTotalsDto> assetRows = new ArrayList<>();
         List<AccountTotalsDto> liabilityRows = new ArrayList<>();
+        List<AccountTotalsDto> equityRows = new ArrayList<>();
         BigDecimal totalAssets = BigDecimal.ZERO;
         BigDecimal totalLiabilities = BigDecimal.ZERO;
+        BigDecimal totalEquity = BigDecimal.ZERO;
         BigDecimal totalIncome = BigDecimal.ZERO;
         BigDecimal totalExpense = BigDecimal.ZERO;
 
@@ -208,20 +210,29 @@ public class ReportingService {
                             a.getAccountName(), a.getAccountType(), d, c, net));
                     totalLiabilities = totalLiabilities.add(net);
                 }
+                case EQUITY -> {
+                    BigDecimal net = c.subtract(d);
+                    if (net.compareTo(BigDecimal.ZERO) == 0) break;
+                    equityRows.add(new AccountTotalsDto(a.getId(), a.getAccountCode(),
+                            a.getAccountName(), a.getAccountType(), d, c, net));
+                    totalEquity = totalEquity.add(net);
+                }
                 case INCOME -> totalIncome = totalIncome.add(c.subtract(d));
                 case EXPENSE -> totalExpense = totalExpense.add(d.subtract(c));
             }
         }
         assetRows.sort(Comparator.comparing(AccountTotalsDto::getAccountCode));
         liabilityRows.sort(Comparator.comparing(AccountTotalsDto::getAccountCode));
+        equityRows.sort(Comparator.comparing(AccountTotalsDto::getAccountCode));
 
         BigDecimal retainedEarnings = totalIncome.subtract(totalExpense);
-        BigDecimal rhs = totalLiabilities.add(retainedEarnings);
+        BigDecimal rhs = totalLiabilities.add(totalEquity).add(retainedEarnings);
 
         return new BalanceSheetDto(cutoff, assetRows, liabilityRows,
                 totalAssets, totalLiabilities, retainedEarnings, rhs,
                 totalAssets.setScale(2, RoundingMode.HALF_UP)
-                        .compareTo(rhs.setScale(2, RoundingMode.HALF_UP)) == 0);
+                        .compareTo(rhs.setScale(2, RoundingMode.HALF_UP)) == 0,
+                equityRows, totalEquity);
     }
 
     // ── Internals ─────────────────────────────────────────────────────────
