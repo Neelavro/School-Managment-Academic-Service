@@ -20,4 +20,9 @@ public interface SubjectRepository extends JpaRepository<Subject, Integer> {
     boolean existsByNameIgnoreCaseAndIsActiveTrueAndIdNot(String name, Integer id);
     boolean existsByCodeIgnoreCaseAndIsActiveTrueAndIdNot(String code, Integer id);
     Optional<Subject> findByIdAndIsActiveTrue(Integer id);
+
+    // Sub-subjects
+    List<Subject> findByParentSubjectIdAndIsActiveTrue(Integer parentSubjectId);
+    List<Subject> findByParentSubjectIdIsNotNullAndIsActiveTrue();
+    boolean existsByParentSubjectIdAndIsActiveTrue(Integer parentSubjectId);
 }

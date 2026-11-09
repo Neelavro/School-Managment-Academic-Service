@@ -13,4 +13,6 @@ public class SubjectRequestDto {
     private String code; // optional
 
     private Integer orderIndex; // optional; global display order across all classes
+
+    private Integer parentSubjectId; // optional; makes this a sub-subject of that subject
 }

@@ -4,9 +4,6 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.util.HashSet;
-import java.util.Set;
-
 @Entity
 @Table(name = "subject")
 @Getter
@@ -28,4 +25,8 @@ public class Subject {
 
     @Column(name = "is_active")
     private Boolean isActive = true;
+
+    /** The subject this one is part of (e.g. Drawing → Co-curricular); null for an ordinary subject. One level only. */
+    @Column(name = "parent_subject_id")
+    private Integer parentSubjectId;
 }

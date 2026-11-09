@@ -112,9 +112,12 @@ public class TeacherSubjectService {
     /** May this teacher enter marks for the class + subject in this exam routine's academic year? */
     public boolean hasMarkAccess(Long staffId, Integer routineId, Integer classId, Integer subjectId) {
         if (routineId == null || classId == null || subjectId == null) return false;
+        // A teacher of a subject also enters its sub-subjects' marks.
+        Integer parentId = subjectRepository.findById(subjectId).map(Subject::getParentSubjectId).orElse(null);
         return examRoutineRepository.findById(routineId)
                 .filter(r -> r.getAcademicYear() != null)
-                .map(r -> repository.existsByStaff_IdAndAcademicYear_IdAndClassEntity_IdAndSubject_Id(staffId, r.getAcademicYear().getId(), classId, subjectId))
+                .map(r -> repository.existsByStaff_IdAndAcademicYear_IdAndClassEntity_IdAndSubject_Id(staffId, r.getAcademicYear().getId(), classId, subjectId)
+                        || (parentId != null && repository.existsByStaff_IdAndAcademicYear_IdAndClassEntity_IdAndSubject_Id(staffId, r.getAcademicYear().getId(), classId, parentId)))
                 .orElse(false);
     }
 

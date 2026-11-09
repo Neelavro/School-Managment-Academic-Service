@@ -30,6 +30,7 @@ public class ResultService {
     private final AcademicYearRepository academicYearRepository;
     private final StudentFourthSubjectOverrideRepository studentFourthSubjectOverrideRepository;
     private final SubjectRepository subjectRepository;
+    private final SubSubjects subSubjects;
 
     // ─── SESSION RESULT ──────────────────────────────────────────────────────────
 
@@ -39,8 +40,11 @@ public class ResultService {
         Integer examTypeId = routine.getExamType().getId();
 
         MarkingStructure structure = resolveMarkingStructure(examTypeId, classId, subjectId, groupId);
-        List<MarkingStructureComponent> components =
-                markingStructureComponentRepository.findAllByMarkingStructureAndDeletedAtIsNull(structure);
+        Map<Integer, Integer> parentOf = subSubjects.parentOf();
+        List<Integer> childIds = SubSubjects.childrenOf(parentOf).getOrDefault(subjectId, Collections.emptyList());
+        List<MarkingStructureComponent> components = childIds.isEmpty()
+                ? markingStructureComponentRepository.findAllByMarkingStructureAndDeletedAtIsNull(structure)
+                : subSubjects.mergedComponents(structure, childIds, groupId);
 
         Class examClass = structure.getExamClass();
         List<Grade> sortedGrades = loadSortedGrades(examClass);
@@ -50,8 +54,7 @@ public class ResultService {
                 .findAllByClassIdAndFilters(classId, routineAcademicYearId, null, genderSectionId, sectionId, groupId, null, null);
         List<Long> enrollmentIds = enrollments.stream().map(Enrollment::getId).collect(Collectors.toList());
 
-        List<StudentMark> marks = studentMarkRepository
-                .findAllByEnrollmentIdInAndRoutineIdAndSubjectId(enrollmentIds, routineId, subjectId);
+        List<StudentMark> marks = loadSubjectMarks(enrollmentIds, routineId, subjectId, childIds, parentOf);
 
         Map<Long, Map<Integer, StudentMark>> markMap = new HashMap<>();
         Map<Long, String> enrollmentStatuses = new HashMap<>();
@@ -1314,8 +1317,9 @@ public class ResultService {
                 .findAllByClassIdAndFilters(classId, routineAcademicYearId, null, genderSectionId, sectionId, groupId, null, null);
         List<Long> enrollmentIds = enrollments.stream().map(Enrollment::getId).collect(Collectors.toList());
 
-        List<StudentMark> marks = studentMarkRepository
-                .findAllByEnrollmentIdInAndRoutineIdAndSubjectId(enrollmentIds, routineId, subjectId);
+        Map<Integer, Integer> parentOf = subSubjects.parentOf();
+        List<Integer> childIds = SubSubjects.childrenOf(parentOf).getOrDefault(subjectId, Collections.emptyList());
+        List<StudentMark> marks = loadSubjectMarks(enrollmentIds, routineId, subjectId, childIds, parentOf);
 
         Map<Long, BigDecimal> totalByEnrollment = new HashMap<>();
         Set<Long> appearedSet = new HashSet<>();
@@ -2372,6 +2376,31 @@ public class ResultService {
         if (grade != null) map.put(key, grade);
     }
 
+    /** A parent subject's papers take their components from its sub-subjects (see {@link SubSubjects}). */
+    private void useSubSubjectComponents(List<ExamSession> sessions, Map<Integer, MarkingStructure> structures,
+                                         Map<Integer, List<MarkingStructureComponent>> components, Map<Integer, Integer> parentOf) {
+        if (parentOf.isEmpty()) return;
+        Map<Integer, List<Integer>> childrenOf = SubSubjects.childrenOf(parentOf);
+        for (ExamSession s : sessions) {
+            List<Integer> childIds = childrenOf.get(s.getSubject().getId());
+            MarkingStructure structure = structures.get(s.getId());
+            if (childIds == null || structure == null) continue;
+            Integer groupId = s.getGroup() != null ? s.getGroup().getId() : null;
+            components.put(s.getId(), subSubjects.mergedComponents(structure, childIds, groupId));
+        }
+    }
+
+    /** One subject's marks in a routine; a parent's are its sub-subjects' marks added up. */
+    private List<StudentMark> loadSubjectMarks(List<Long> enrollmentIds, Integer routineId, Integer subjectId,
+                                               List<Integer> childIds, Map<Integer, Integer> parentOf) {
+        if (childIds.isEmpty())
+            return studentMarkRepository.findAllByEnrollmentIdInAndRoutineIdAndSubjectId(enrollmentIds, routineId, subjectId);
+        List<StudentMark> raw = new ArrayList<>();
+        for (Integer childId : childIds)
+            raw.addAll(studentMarkRepository.findAllByEnrollmentIdInAndRoutineIdAndSubjectId(enrollmentIds, routineId, childId));
+        return SubSubjects.rollUp(raw, parentOf);
+    }
+
     private MarkingStructure resolveMarkingStructure(Integer examTypeId, Integer classId, Integer subjectId, Integer groupId) {
         List<MarkingStructure> structures = groupId != null
                 ? markingStructureRepository.findAllByGroupIdAndFilters(examTypeId, classId, subjectId, groupId)
@@ -2526,12 +2555,14 @@ public class ResultService {
             bundle.sessionStructureMap.forEach((sessionId, structure) ->
                     bundle.sessionComponentsMap.put(sessionId, byStructureId.getOrDefault(structure.getId(), Collections.emptyList())));
         }
+        Map<Integer, Integer> parentOf = subSubjects.parentOf();
+        useSubSubjectComponents(sessions, bundle.sessionStructureMap, bundle.sessionComponentsMap, parentOf);
 
         if (!enrollments.isEmpty() && !sessions.isEmpty()) {
             List<Long> enrollmentIds = enrollments.stream().map(Enrollment::getId).collect(Collectors.toList());
             Integer routineId = sessions.get(0).getExamRoutine().getId();
-            List<StudentMark> allMarks = studentMarkRepository
-                    .findAllByEnrollmentIdsAndRoutineId(enrollmentIds, routineId);
+            List<StudentMark> allMarks = SubSubjects.rollUp(studentMarkRepository
+                    .findAllByEnrollmentIdsAndRoutineId(enrollmentIds, routineId), parentOf);
             for (StudentMark m : allMarks) {
                 if ("EXPELLED".equals(m.getStatus()))
                     bundle.expelledSubjects.computeIfAbsent(m.getEnrollmentId(), k -> new HashSet<>()).add(m.getSubjectId());
@@ -2581,6 +2612,8 @@ public class ResultService {
             bundle.sessionStructureMap.forEach((sessionId, structure) ->
                     bundle.sessionComponentsMap.put(sessionId, byStructureId.getOrDefault(structure.getId(), Collections.emptyList())));
         }
+        Map<Integer, Integer> parentOf = subSubjects.parentOf();
+        useSubSubjectComponents(sessions, bundle.sessionStructureMap, bundle.sessionComponentsMap, parentOf);
 
         if (!enrollments.isEmpty() && !sessions.isEmpty()) {
             List<Long> enrollmentIds = enrollments.stream().map(Enrollment::getId).collect(Collectors.toList());
@@ -2588,8 +2621,8 @@ public class ResultService {
                     .map(s -> s.getExamRoutine().getId())
                     .distinct()
                     .collect(Collectors.toList());
-            List<StudentMark> allMarks = studentMarkRepository
-                    .findAllByEnrollmentIdsAndRoutineIds(enrollmentIds, routineIds);
+            List<StudentMark> allMarks = SubSubjects.rollUp(studentMarkRepository
+                    .findAllByEnrollmentIdsAndRoutineIds(enrollmentIds, routineIds), parentOf);
             for (StudentMark m : allMarks) {
                 if ("EXPELLED".equals(m.getStatus()))
                     bundle.expelledSubjects.computeIfAbsent(m.getEnrollmentId(), k -> new HashSet<>()).add(m.getSubjectId());

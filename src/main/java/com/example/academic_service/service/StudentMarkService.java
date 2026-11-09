@@ -29,6 +29,15 @@ public class StudentMarkService {
     private final StudentFourthSubjectOverrideRepository studentFourthSubjectOverrideRepository;
     private final ClassSubjectGroupRepository classSubjectGroupRepository;
     private final AuditLogService auditLogService;
+    private final SubjectRepository subjectRepository;
+
+    /** A parent subject's marks are its sub-subjects' marks added up, so they're entered per sub-subject. */
+    private void refuseParentWithSubSubjects(Integer subjectId) {
+        List<Subject> children = subjectRepository.findByParentSubjectIdAndIsActiveTrue(subjectId);
+        if (children.isEmpty()) return;
+        throw new RuntimeException("Marks for this subject are entered per sub-subject ("
+                + children.stream().map(Subject::getName).collect(Collectors.joining(", ")) + "). Choose a sub-subject.");
+    }
 
     public Map<String, Object> getMarkSheet(
             Integer routineId,
@@ -38,6 +47,7 @@ public class StudentMarkService {
             Long sectionId,
             Integer groupId) {
 
+        refuseParentWithSubSubjects(subjectId);
         ExamRoutine routine = examRoutineRepository.findById(routineId)
                 .orElseThrow(() -> new RuntimeException("Exam routine not found: " + routineId));
         Integer examTypeId = routine.getExamType().getId();
@@ -204,6 +214,7 @@ public class StudentMarkService {
         if (request.getSubjectId() == null) throw new RuntimeException("Subject id is required");
         if (request.getClassId() == null) throw new RuntimeException("Class id is required");
         if (request.getMarks() == null || request.getMarks().isEmpty()) throw new RuntimeException("No marks provided");
+        refuseParentWithSubSubjects(request.getSubjectId());
 
         ExamRoutine routine = examRoutineRepository.findById(request.getRoutineId())
                 .orElseThrow(() -> new RuntimeException("Exam routine not found: " + request.getRoutineId()));

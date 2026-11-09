@@ -13,7 +13,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.HashSet;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -28,6 +30,7 @@ public class MarkingStructureService {
     private final StudentGroupRepository studentGroupRepository;
     private final ExamComponentRepository examComponentRepository;
     private final StudentMarkRepository studentMarkRepository;
+    private final SubSubjects subSubjects;
 
     @Transactional
     public Map<String, Object> create(MarkingStructureRequest request) {
@@ -64,7 +67,9 @@ public class MarkingStructureService {
                     markingStructureRepository.flush();
                 });
 
-        validateComponents(request.getComponents(), request.getTotalMarks());
+        validateComponents(request.getComponents(), request.getTotalMarks(), hasSubSubjects(subject));
+        String subError = subSubjectTotalsError(null, examType, examClass, subject, group, request.getTotalMarks());
+        if (subError != null) throw new RuntimeException(subError);
 
         MarkingStructure structure = new MarkingStructure();
         structure.setExamType(examType);
@@ -137,7 +142,10 @@ public class MarkingStructureService {
             structure.setGroup(newGroup);
         }
 
-        validateComponents(request.getComponents(), request.getTotalMarks());
+        validateComponents(request.getComponents(), request.getTotalMarks(), hasSubSubjects(structure.getSubject()));
+        String subError = subSubjectTotalsError(structure.getId(), structure.getExamType(), structure.getExamClass(),
+                structure.getSubject(), structure.getGroup(), request.getTotalMarks());
+        if (subError != null) throw new RuntimeException(subError);
 
         structure.setTotalMarks(request.getTotalMarks());
         structure.setPassMarks(request.getPassMarks());
@@ -190,6 +198,15 @@ public class MarkingStructureService {
         MarkingStructure structure = markingStructureRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new RuntimeException("Marking structure not found with id: " + id));
 
+        List<String> childNames = subjectRepository.findByParentSubjectIdAndIsActiveTrue(structure.getSubject().getId()).stream()
+                .filter(c -> !markingStructureRepository.findAllByFiltersAndDeletedAtIsNull(
+                        structure.getExamType().getId(), structure.getExamClass().getId(), c.getId()).isEmpty())
+                .map(Subject::getName).toList();
+        if (!childNames.isEmpty()) {
+            throw new RuntimeException("Delete the sub-subject structures first (" + String.join(", ", childNames)
+                    + ") - their marks add up to " + structure.getSubject().getName() + ".");
+        }
+
         List<MarkingStructureComponent> components =
                 markingStructureComponentRepository.findAllByMarkingStructureAndDeletedAtIsNull(structure);
         components.forEach(c -> {
@@ -209,8 +226,10 @@ public class MarkingStructureService {
 
     // ─── helpers ────────────────────────────────────────────────────────────────
 
-    private void validateComponents(List<MarkingStructureComponentRequest> components, int totalMarks) {
+    /** A parent subject's components come from its sub-subjects, so its own structure may have none. */
+    private void validateComponents(List<MarkingStructureComponentRequest> components, int totalMarks, boolean componentsOptional) {
         if (components == null || components.isEmpty()) {
+            if (componentsOptional) return;
             throw new RuntimeException("At least one exam component is required");
         }
         int sum = components.stream().mapToInt(MarkingStructureComponentRequest::getMaxMarks).sum();
@@ -218,6 +237,73 @@ public class MarkingStructureService {
             throw new RuntimeException(
                     "Sum of component marks (" + sum + ") exceeds total marks (" + totalMarks + ")");
         }
+    }
+
+    private boolean hasSubSubjects(Subject subject) {
+        return subjectRepository.existsByParentSubjectIdAndIsActiveTrue(subject.getId());
+    }
+
+    /**
+     * Sub-subject rule (user, 2026-11-10): the sub-subjects' total marks together may not exceed the parent's total,
+     * per exam type, class and group. Checked from both sides: saving a sub-subject's structure, and lowering a
+     * parent's total. A sub-subject needs its parent's structure first. {@code selfId} is the structure being
+     * edited (null when new). Returns the error, or null when fine.
+     */
+    private String subSubjectTotalsError(Integer selfId, ExamType examType, Class examClass, Subject subject, StudentGroup group, int total) {
+        Integer examTypeId = examType.getId();
+        Integer classId = examClass.getId();
+        Integer groupId = group != null ? group.getId() : null;
+        String where = examType.getName() + " / " + examClass.getName() + (group != null ? " / " + group.getGroupName() : "");
+
+        if (subject.getParentSubjectId() != null) {
+            Subject parent = subjectRepository.findById(subject.getParentSubjectId()).orElse(null);
+            if (parent == null || !Boolean.TRUE.equals(parent.getIsActive())) return null;
+            MarkingStructure parentStructure = subSubjects.structureFor(examTypeId, classId, parent.getId(), groupId).orElse(null);
+            if (parentStructure == null)
+                return "Set up the marking structure for " + parent.getName() + " (" + where + ") first. "
+                        + subject.getName() + " is one of its sub-subjects.";
+            int sum = total;
+            List<String> parts = new ArrayList<>(List.of(subject.getName() + " " + total));
+            for (Subject sibling : subjectRepository.findByParentSubjectIdAndIsActiveTrue(parent.getId())) {
+                if (sibling.getId().equals(subject.getId())) continue;
+                MarkingStructure ss = subSubjects.structureFor(examTypeId, classId, sibling.getId(), groupId).orElse(null);
+                if (ss == null || ss.getId().equals(selfId)) continue;
+                sum += ss.getTotalMarks();
+                parts.add(sibling.getName() + " " + ss.getTotalMarks());
+            }
+            if (sum > parentStructure.getTotalMarks())
+                return "Sub-subject marks add up to " + sum + " (" + String.join(" + ", parts) + "), more than "
+                        + parent.getName() + "'s total of " + parentStructure.getTotalMarks() + " (" + where + ").";
+            return null;
+        }
+
+        List<Subject> children = subjectRepository.findByParentSubjectIdAndIsActiveTrue(subject.getId());
+        if (children.isEmpty()) return null;
+        // Every group the sub-subjects have a structure for, plus this structure's own group.
+        Set<Integer> contexts = new HashSet<>();
+        contexts.add(groupId);
+        for (Subject c : children)
+            for (MarkingStructure cs : markingStructureRepository.findAllByFiltersAndDeletedAtIsNull(examTypeId, classId, c.getId()))
+                contexts.add(cs.getGroup() != null ? cs.getGroup().getId() : null);
+        for (Integer ctx : contexts) {
+            // This structure applies to its own group, and (when class-wide) to any group without a structure of its own.
+            boolean applies = Objects.equals(ctx, groupId) || (groupId == null
+                    && markingStructureRepository.findAllByGroupIdAndFilters(examTypeId, classId, subject.getId(), ctx).stream()
+                            .allMatch(p -> p.getId().equals(selfId)));
+            if (!applies) continue;
+            int sum = 0;
+            List<String> parts = new ArrayList<>();
+            for (Subject c : children) {
+                MarkingStructure cs = subSubjects.structureFor(examTypeId, classId, c.getId(), ctx).orElse(null);
+                if (cs == null) continue;
+                sum += cs.getTotalMarks();
+                parts.add(c.getName() + " " + cs.getTotalMarks());
+            }
+            if (sum > total)
+                return subject.getName() + "'s sub-subjects already add up to " + sum + " (" + String.join(" + ", parts)
+                        + "), so its total can't be less than " + sum + ".";
+        }
+        return null;
     }
 
     private void saveComponents(MarkingStructure structure, List<MarkingStructureComponentRequest> components) {
@@ -365,7 +451,7 @@ public class MarkingStructureService {
                     .orElseThrow(() -> new RuntimeException("Group not found with id: " + request.getGroupId()));
         }
 
-        validateComponents(request.getComponents(), request.getTotalMarks());
+        validateComponents(request.getComponents(), request.getTotalMarks(), true);
 
         List<MarkingStructureResponse> created = new ArrayList<>();
         List<String> skipped = new ArrayList<>();
@@ -383,6 +469,15 @@ public class MarkingStructureService {
                             examType, examClass, subject, group);
             if (exists) {
                 skipped.add(subject.getName() + " already has a structure for this combination");
+                continue;
+            }
+            if ((request.getComponents() == null || request.getComponents().isEmpty()) && !hasSubSubjects(subject)) {
+                skipped.add(subject.getName() + ": at least one exam component is required");
+                continue;
+            }
+            String subError = subSubjectTotalsError(null, examType, examClass, subject, group, request.getTotalMarks());
+            if (subError != null) {
+                skipped.add(subError);
                 continue;
             }
 

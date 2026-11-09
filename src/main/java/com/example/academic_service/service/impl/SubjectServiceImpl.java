@@ -26,11 +26,15 @@ public class SubjectServiceImpl implements SubjectService {
         if (dto.getCode() != null && subjectRepository.existsByCodeIgnoreCase(dto.getCode())) {
             return ApiResponse.error("Subject with this code already exists");
         }
+        String parentError = parentError(null, dto.getParentSubjectId());
+        if (parentError != null) return ApiResponse.error(parentError);
         Subject subject = new Subject();
         subject.setName(dto.getName());
         subject.setCode(dto.getCode());
+        subject.setParentSubjectId(dto.getParentSubjectId());
         if (dto.getOrderIndex() != null) subject.setOrderIndex(dto.getOrderIndex());
-        return ApiResponse.success("Subject created successfully", subjectRepository.save(subject));
+        return ApiResponse.success(dto.getParentSubjectId() != null ? "Sub-subject created successfully" : "Subject created successfully",
+                subjectRepository.save(subject));
     }
 
     @Override
@@ -44,6 +48,12 @@ public class SubjectServiceImpl implements SubjectService {
         if (dto.getCode() != null &&
                 subjectRepository.existsByCodeIgnoreCaseAndIdNot(dto.getCode(), id)) {
             return ApiResponse.error("Another subject with this code already exists");
+        }
+        // No parent in the request keeps the current one (reorder and older clients don't send it).
+        if (dto.getParentSubjectId() != null && !dto.getParentSubjectId().equals(subject.getParentSubjectId())) {
+            String parentError = parentError(id, dto.getParentSubjectId());
+            if (parentError != null) return ApiResponse.error(parentError);
+            subject.setParentSubjectId(dto.getParentSubjectId());
         }
         subject.setName(dto.getName());
         subject.setCode(dto.getCode());
@@ -88,6 +98,10 @@ public class SubjectServiceImpl implements SubjectService {
             return ApiResponse.error("An active subject with the code '" +
                     subject.getCode() + "' already exists. Rename before reactivating");
         }
+        if (subject.getParentSubjectId() != null
+                && subjectRepository.findByIdAndIsActiveTrue(subject.getParentSubjectId()).isEmpty()) {
+            return ApiResponse.error("Reactivate the parent subject first");
+        }
         subject.setIsActive(true);
         return ApiResponse.success("Subject reactivated successfully",
                 subjectRepository.save(subject));
@@ -100,6 +114,26 @@ public class SubjectServiceImpl implements SubjectService {
         if (!subject.getIsActive()) return ApiResponse.error("Subject is already inactive");
         subject.setIsActive(false);
         subjectRepository.save(subject);
-        return ApiResponse.success("Subject deleted successfully", null);
+        // A parent's sub-subjects go with it (they mean nothing on their own).
+        List<Subject> children = subjectRepository.findByParentSubjectIdAndIsActiveTrue(id);
+        children.forEach(c -> c.setIsActive(false));
+        subjectRepository.saveAll(children);
+        return ApiResponse.success(children.isEmpty() ? "Subject deleted successfully"
+                : "Subject and its " + children.size() + " sub-subject(s) deleted successfully", null);
+    }
+
+    /**
+     * Sub-subject rules: the parent must be an active, ordinary subject (one level only), not the subject itself,
+     * and a subject that already has sub-subjects can't become one.
+     */
+    private String parentError(Integer subjectId, Integer parentId) {
+        if (parentId == null) return null;
+        if (parentId.equals(subjectId)) return "A subject can't be its own parent";
+        Subject parent = subjectRepository.findByIdAndIsActiveTrue(parentId).orElse(null);
+        if (parent == null) return "Parent subject not found";
+        if (parent.getParentSubjectId() != null) return "'" + parent.getName() + "' is itself a sub-subject; sub-subjects can't have their own";
+        if (subjectId != null && subjectRepository.existsByParentSubjectIdAndIsActiveTrue(subjectId))
+            return "This subject has sub-subjects, so it can't become a sub-subject";
+        return null;
     }
 }
