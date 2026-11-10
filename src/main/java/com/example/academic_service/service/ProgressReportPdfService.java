@@ -795,7 +795,6 @@ public class ProgressReportPdfService {
         String resultStatus = student.isPassed() ? "Passed" : "Failed";
         String gpaNo4th = student.getGpaWithout4th() != null ? fmtGpa(student.getGpaWithout4th()) : "—";
         String classPos  = student.getClassRank()         != null ? String.valueOf(student.getClassRank())         : "—";
-        String shiftPos  = student.getGenderSectionRank() != null ? String.valueOf(student.getGenderSectionRank()) : "—";
         String secPos    = student.getSectionRank()       != null ? String.valueOf(student.getSectionRank())       : "—";
         ExamAttendanceService.Days days = new ExamAttendanceService.Days(data.getWorkingDays(),
                 data.getPresentDays() != null ? data.getPresentDays().get(student.getEnrollmentId()) : null);
@@ -808,7 +807,7 @@ public class ProgressReportPdfService {
                 + "</table>"
                 + "<table>"
                 + resultSummaryRow("Class Position",   classPos, "lbl-p", "v-blue")
-                + resultSummaryRow("Shift Position",   shiftPos, "lbl-p", "v-blue")
+                // No Shift Position on any progress report (user, 2026-11-10).
                 + resultSummaryRow("Section Position", secPos,   "lbl-p", "v-blue")
                 + "</table>"
                 + "<table>"
