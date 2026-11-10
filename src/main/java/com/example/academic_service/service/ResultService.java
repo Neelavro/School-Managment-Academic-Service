@@ -200,7 +200,7 @@ public class ResultService {
                 if (!sessionAppliesToStudent(s, enrollment)) continue;
                 MarkingStructure structure = bundle.sessionStructureMap.get(s.getId());
                 List<MarkingStructureComponent> components = bundle.sessionComponentsMap.get(s.getId());
-                boolean isFourth = fourthSubjectIds.contains(s.getSubject().getId());
+                boolean isFourth = isChosenFourth(enrollment.getId(), s.getSubject().getId(), overrideMap);
                 Integer mergeGroupId = isFourth ? null : mergeGroupMap.get(s.getSubject().getId());
                 Map<Integer, BigDecimal> compMarks = bundle.markMap
                         .getOrDefault(enrollment.getId(), Collections.emptyMap())
@@ -327,7 +327,7 @@ public class ResultService {
                 if (!sessionAppliesToStudent(s, enrollment)) continue;
                 MarkingStructure structure = bundle.sessionStructureMap.get(s.getId());
                 List<MarkingStructureComponent> components = bundle.sessionComponentsMap.get(s.getId());
-                boolean isFourth = fourthSubjectIds.contains(s.getSubject().getId());
+                boolean isFourth = isChosenFourth(enrollment.getId(), s.getSubject().getId(), overrideMap);
                 Integer mergeGroupId = isFourth ? null : mergeGroupMap.get(s.getSubject().getId());
                 Map<Integer, BigDecimal> compMarks = bundle.markMap
                         .getOrDefault(enrollment.getId(), Collections.emptyMap())
@@ -502,7 +502,7 @@ public class ResultService {
                 if (!subjectAppliesToStudent(subjectId, bundle.sessionsBySubject, enrollment)) continue;
                 AnnualSubjectData asd = computeAnnualSubjectData(subjectId, bundle, enrollment.getId(), sortedGrades);
                 if (asd == null) continue;
-                boolean isFourth = fourthSubjectIds.contains(subjectId);
+                boolean isFourth = isChosenFourth(enrollment.getId(), subjectId, overrideMap);
                 Integer mergeGroupId = isFourth ? null : mergeGroupMap.get(subjectId);
                 if (mergeGroupId != null) {
                     if (asd.appeared && asd.totalMax > 0) {
@@ -617,7 +617,7 @@ public class ResultService {
                 if (!subjectAppliesToStudent(subjectId, bundle.sessionsBySubject, enrollment)) continue;
                 AnnualSubjectData asd = computeAnnualSubjectData(subjectId, bundle, enrollment.getId(), sortedGrades);
                 if (asd == null) continue;
-                boolean isFourth = fourthSubjectIds.contains(subjectId);
+                boolean isFourth = isChosenFourth(enrollment.getId(), subjectId, overrideMap);
                 Integer mergeGroupId = isFourth ? null : mergeGroupMap.get(subjectId);
 
                 AnnualResultResponse.SubjectResult sr = new AnnualResultResponse.SubjectResult();
@@ -782,7 +782,7 @@ public class ResultService {
             if (!sessionAppliesToStudent(s, enrollment)) continue;
             MarkingStructure structure = bundle.sessionStructureMap.get(s.getId());
             List<MarkingStructureComponent> components = bundle.sessionComponentsMap.get(s.getId());
-            boolean isFourth = fourthSubjectIds.contains(s.getSubject().getId());
+            boolean isFourth = isChosenFourth(enrollment.getId(), s.getSubject().getId(), overrideMap);
             Integer mergeGroupId = isFourth ? null : mergeGroupMap.get(s.getSubject().getId());
 
             Map<Integer, BigDecimal> compMarks = bundle.markMap
@@ -951,7 +951,7 @@ public class ResultService {
             AnnualSubjectData asd = computeAnnualSubjectData(subjectId, bundle, enrollmentId, sortedGrades);
             if (asd == null) continue;
 
-            boolean isFourth = fourthSubjectIds.contains(subjectId);
+            boolean isFourth = isChosenFourth(enrollment.getId(), subjectId, overrideMap);
             Integer mergeGroupId = isFourth ? null : mergeGroupMap.get(subjectId);
             StudentAnnualResultResponse.SubjectResult sr = new StudentAnnualResultResponse.SubjectResult();
             sr.setSubjectId(subjectId);
@@ -1089,7 +1089,7 @@ public class ResultService {
                 if (!subjectAppliesToStudent(subjectId, bundle.sessionsBySubject, enrollment)) continue;
                 AnnualSubjectData asd = computeAnnualSubjectData(subjectId, bundle, enrollment.getId(), sortedGrades);
                 if (asd == null) continue;
-                boolean isFourth = fourthSubjectIds.contains(subjectId);
+                boolean isFourth = isChosenFourth(enrollment.getId(), subjectId, overrideMap);
                 Integer mergeGroupId = isFourth ? null : mergeGroupMap.get(subjectId);
 
                 if (mergeGroupId != null) {
@@ -1518,7 +1518,7 @@ public class ResultService {
                 if (!sessionAppliesToStudent(s, enrollment)) continue;
                 MarkingStructure structure = bundle.sessionStructureMap.get(s.getId());
                 List<MarkingStructureComponent> comps = bundle.sessionComponentsMap.get(s.getId());
-                boolean isFourth = fourthSubjectIds.contains(s.getSubject().getId());
+                boolean isFourth = isChosenFourth(enrollment.getId(), s.getSubject().getId(), overrideMap);
                 Integer mergeGroupId = isFourth ? null : mergeGroupMap.get(s.getSubject().getId());
 
                 Map<Integer, BigDecimal> compMarks = bundle.markMap
@@ -1532,10 +1532,7 @@ public class ResultService {
                 // when no override is set). Compulsory-junction subjects are
                 // mandatory replacements for THIS student, not 4th picks,
                 // so they must not get the badge.
-                Integer studentOverrideSubject = overrideMap.get(enrollment.getId());
-                boolean isStudentActualFourth = studentOverrideSubject != null
-                        ? studentOverrideSubject.equals(s.getSubject().getId())
-                        : defaultFourthSubjectIds.contains(s.getSubject().getId());
+                boolean isStudentActualFourth = isFourth;
 
                 ProgressReportData.SubjectResult sr = new ProgressReportData.SubjectResult();
                 sr.setSubjectId(s.getSubject().getId());
@@ -2181,6 +2178,15 @@ public class ResultService {
         Set<Integer> compulsory = compulsoryMap.get(enrollmentId);
         if (compulsory != null) result.addAll(compulsory);
         return result;
+    }
+
+    /**
+     * The student's 4th subject is only the one picked on their override. The other pool subjects ticked there
+     * ("compulsory") are compulsory for that student: counted in the GPA, and failing them fails the result.
+     * (Before 2026-11-10 they were treated as 4th subjects too, so a student could show two.)
+     */
+    private static boolean isChosenFourth(Long enrollmentId, Integer subjectId, Map<Long, Integer> overrideMap) {
+        return subjectId != null && subjectId.equals(overrideMap.get(enrollmentId));
     }
 
     private Set<Integer> buildIncludedFourthSubjectIds(Map<Long, Integer> overrideMap,
