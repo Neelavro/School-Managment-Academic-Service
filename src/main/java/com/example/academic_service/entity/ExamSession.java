@@ -63,4 +63,12 @@ public class ExamSession {
 
     @Column(name = "is_active")
     private Boolean isActive = true;
+
+    /**
+     * Sub-subjects sat in this paper of a parent subject (user, 2026-11-12), e.g. Drawing + Singing on the same day.
+     * Empty = the whole subject. Printed on the admit card as "Parent (Drawing, Singing)".
+     */
+    @Convert(converter = IntListConverter.class)
+    @Column(name = "sub_subject_ids", length = 255)
+    private java.util.List<Integer> subSubjectIds = new java.util.ArrayList<>();
 }

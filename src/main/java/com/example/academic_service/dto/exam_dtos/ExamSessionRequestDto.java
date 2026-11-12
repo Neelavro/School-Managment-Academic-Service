@@ -25,4 +25,7 @@ public class ExamSessionRequestDto {
     private LocalTime endTime;
 
     private Boolean showOnAdmitCard = true;
+
+    /** Sub-subjects of the subject sat in this paper; null/empty = the whole subject. */
+    private java.util.List<Integer> subSubjectIds;
 }

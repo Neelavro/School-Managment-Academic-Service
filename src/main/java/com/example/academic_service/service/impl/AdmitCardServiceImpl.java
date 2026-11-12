@@ -19,6 +19,7 @@ public class AdmitCardServiceImpl {
     private final ExamRoutineRepository examRoutineRepository;
     private final ExamSessionRepository examSessionRepository;
     private final EnrollmentRepository  enrollmentRepository;
+    private final SubjectRepository subjectRepository;
 
     public AdmitCardRoutineResponseDto getAdmitCardData(
             Integer routineId,
@@ -34,6 +35,7 @@ public class AdmitCardServiceImpl {
         // ── All active sessions for this routine ──
         List<ExamSession> allSessions =
                 examSessionRepository.findByExamRoutineIdAndIsActiveTrue(routineId);
+        Map<Integer, String> subNames = subSubjectNames(allSessions);
 
         // ── Build full schedule per classId (only scheduled admit-card sessions) ──
         Map<Integer, List<AdmitCardSessionDto>> fullScheduleByClassId = new HashMap<>();
@@ -44,7 +46,7 @@ public class AdmitCardServiceImpl {
                     .computeIfAbsent(s.getExamClass().getId(), k -> new ArrayList<>())
                     .add(new AdmitCardSessionDto(
                             s.getId(),
-                            s.getSubject() != null ? s.getSubject().getName() : null,
+                            paperName(s, subNames),
                             s.getDate() != null ? s.getDate().toString() : null,
                             s.getStartTime() != null ? s.getStartTime().toString() : null,
                             s.getEndTime() != null ? s.getEndTime().toString() : null,
@@ -82,7 +84,7 @@ public class AdmitCardServiceImpl {
 
             sessionDtos.add(new AdmitCardSessionDto(
                     session.getId(),
-                    session.getSubject() != null ? session.getSubject().getName() : null,
+                    paperName(session, subNames),
                     session.getDate() != null ? session.getDate().toString() : null,
                     session.getStartTime() != null ? session.getStartTime().toString() : null,
                     session.getEndTime() != null ? session.getEndTime().toString() : null,
@@ -121,6 +123,7 @@ public class AdmitCardServiceImpl {
 
         List<ExamSession> allSessions =
                 examSessionRepository.findByExamRoutineIdAndIsActiveTrue(routineId);
+        Map<Integer, String> subNames = subSubjectNames(allSessions);
 
         // Build full schedule per classId (only scheduled admit-card sessions)
         Map<Integer, List<AdmitCardSessionDto>> fullScheduleByClassId = new HashMap<>();
@@ -131,7 +134,7 @@ public class AdmitCardServiceImpl {
                     .computeIfAbsent(s.getExamClass().getId(), k -> new ArrayList<>())
                     .add(new AdmitCardSessionDto(
                             s.getId(),
-                            s.getSubject() != null ? s.getSubject().getName() : null,
+                            paperName(s, subNames),
                             s.getDate() != null ? s.getDate().toString() : null,
                             s.getStartTime() != null ? s.getStartTime().toString() : null,
                             s.getEndTime() != null ? s.getEndTime().toString() : null,
@@ -214,7 +217,7 @@ public class AdmitCardServiceImpl {
 
             sessionDtos.add(new AdmitCardSessionDto(
                     session.getId(),
-                    session.getSubject() != null ? session.getSubject().getName() : null,
+                    paperName(session, subNames),
                     session.getDate() != null ? session.getDate().toString() : null,
                     session.getStartTime() != null ? session.getStartTime().toString() : null,
                     session.getEndTime() != null ? session.getEndTime().toString() : null,
@@ -236,5 +239,22 @@ public class AdmitCardServiceImpl {
                 routine.getLastModifiedAt(),
                 sessionDtos
         );
+    }
+
+    /** Names of the sub-subjects the routine's papers cover (one lookup per routine). */
+    private Map<Integer, String> subSubjectNames(List<ExamSession> sessions) {
+        Set<Integer> ids = new HashSet<>();
+        for (ExamSession s : sessions) if (s.getSubSubjectIds() != null) ids.addAll(s.getSubSubjectIds());
+        Map<Integer, String> names = new HashMap<>();
+        if (!ids.isEmpty()) subjectRepository.findAllById(ids).forEach(x -> names.put(x.getId(), x.getName()));
+        return names;
+    }
+
+    /** A paper's name on the admit card: the subject, plus the sub-subjects it covers, e.g. "Arts & Culture (Drawing, Singing)". */
+    private static String paperName(ExamSession s, Map<Integer, String> subNames) {
+        if (s.getSubject() == null) return null;
+        List<String> parts = new ArrayList<>();
+        if (s.getSubSubjectIds() != null) for (Integer id : s.getSubSubjectIds()) if (subNames.containsKey(id)) parts.add(subNames.get(id));
+        return parts.isEmpty() ? s.getSubject().getName() : s.getSubject().getName() + " (" + String.join(", ", parts) + ")";
     }
 }

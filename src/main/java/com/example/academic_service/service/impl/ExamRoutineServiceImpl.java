@@ -248,6 +248,7 @@ public class ExamRoutineServiceImpl implements ExamRoutineService {
             copy.setSubject(s.getSubject());
             copy.setGroup(s.getGroup());
             copy.setShowOnAdmitCard(s.getShowOnAdmitCard());
+            copy.setSubSubjectIds(s.getSubSubjectIds() != null ? new java.util.ArrayList<>(s.getSubSubjectIds()) : new java.util.ArrayList<>());
             // date and times are intentionally left null — admin assigns them for the new period
             examSessionRepository.save(copy);
         }

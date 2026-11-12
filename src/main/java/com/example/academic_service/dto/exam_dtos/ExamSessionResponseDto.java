@@ -22,6 +22,7 @@ public class ExamSessionResponseDto {
     private LocalDateTime lastModifiedAt;
     private Boolean isActive;
     private Boolean showOnAdmitCard;
+    private java.util.List<Integer> subSubjectIds;
 
     public static ExamSessionResponseDto from(ExamSession session) {
         ExamSessionResponseDto dto = new ExamSessionResponseDto();
@@ -36,6 +37,7 @@ public class ExamSessionResponseDto {
         dto.setLastModifiedAt(session.getLastModifiedAt());
         dto.setIsActive(session.getIsActive());
         dto.setShowOnAdmitCard(session.getShowOnAdmitCard());
+        dto.setSubSubjectIds(session.getSubSubjectIds() != null ? new java.util.ArrayList<>(session.getSubSubjectIds()) : new java.util.ArrayList<>());
         return dto;
     }
 }

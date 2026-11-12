@@ -27,6 +27,7 @@ public class ExamSessionServiceImpl implements ExamSessionService {
     private final ExamRoutineRepository examRoutineRepository;
     private final ClassRepository classRepository;
     private final SubjectRepository subjectRepository;
+    private final com.example.academic_service.repository.SubSubjectClassRepository subSubjectClassRepository;
     private final StudentGroupRepository studentGroupRepository;
     private final AuditLogService auditLogService;
 
@@ -70,6 +71,7 @@ public class ExamSessionServiceImpl implements ExamSessionService {
         session.setStartTime(dto.getStartTime());
         session.setEndTime(dto.getEndTime());
         session.setShowOnAdmitCard(dto.getShowOnAdmitCard() != null ? dto.getShowOnAdmitCard() : true);
+        session.setSubSubjectIds(checkedSubSubjects(dto.getSubSubjectIds(), subject, examClass));
 
         ExamSession saved = examSessionRepository.save(session);
         ExamSessionResponseDto savedDto = ExamSessionResponseDto.from(saved);
@@ -112,6 +114,9 @@ public class ExamSessionServiceImpl implements ExamSessionService {
         session.setStartTime(dto.getStartTime());
         session.setEndTime(dto.getEndTime());
         if (dto.getShowOnAdmitCard() != null) session.setShowOnAdmitCard(dto.getShowOnAdmitCard());
+        // Older clients don't send the list; keep it then, unless the subject or class changed.
+        if (dto.getSubSubjectIds() != null) session.setSubSubjectIds(checkedSubSubjects(dto.getSubSubjectIds(), subject, examClass));
+        else session.setSubSubjectIds(checkedSubSubjects(session.getSubSubjectIds(), subject, examClass, true));
         session.setLastModifiedAt(LocalDateTime.now());
 
         ExamSession saved = examSessionRepository.save(session);
@@ -283,6 +288,7 @@ public class ExamSessionServiceImpl implements ExamSessionService {
             copy.setStartTime(src.getStartTime());
             copy.setEndTime(src.getEndTime());
             copy.setShowOnAdmitCard(src.getShowOnAdmitCard() != null ? src.getShowOnAdmitCard() : true);
+            copy.setSubSubjectIds(src.getSubSubjectIds() != null ? new java.util.ArrayList<>(src.getSubSubjectIds()) : new java.util.ArrayList<>());
 
             ExamSession saved = examSessionRepository.save(copy);
             existingKeys.add(key);
@@ -309,5 +315,30 @@ public class ExamSessionServiceImpl implements ExamSessionService {
         Integer sub  = s.getSubject()   != null ? s.getSubject().getId()   : null;
         Integer grp  = s.getGroup()     != null ? s.getGroup().getId()     : null;
         return cls + "|" + sub + "|" + grp;
+    }
+
+    /**
+     * The sub-subjects a paper covers must be active sub-subjects of the paper's subject, assigned to its class
+     * (user, 2026-11-12). Throws on a bad id (HTTP 400); with {@code dropInvalid} (an update that didn't send the
+     * list) ids that no longer fit are dropped instead.
+     */
+    private java.util.List<Integer> checkedSubSubjects(java.util.List<Integer> ids, Subject subject, Class examClass) {
+        return checkedSubSubjects(ids, subject, examClass, false);
+    }
+
+    private java.util.List<Integer> checkedSubSubjects(java.util.List<Integer> ids, Subject subject, Class examClass, boolean dropInvalid) {
+        java.util.List<Integer> out = new java.util.ArrayList<>();
+        if (ids == null) return out;
+        for (Integer id : new java.util.LinkedHashSet<>(ids)) {
+            if (id == null) continue;
+            Subject sub = subjectRepository.findById(id).orElse(null);
+            String problem = sub == null || !Boolean.TRUE.equals(sub.getIsActive()) ? "Sub-subject not found"
+                    : !subject.getId().equals(sub.getParentSubjectId()) ? sub.getName() + " isn't a sub-subject of " + subject.getName()
+                    : !subSubjectClassRepository.existsBySubSubjectIdAndClassId(id, examClass.getId()) ? sub.getName() + " isn't assigned to " + examClass.getName()
+                    : null;
+            if (problem == null) out.add(id);
+            else if (!dropInvalid) throw new RuntimeException(problem);
+        }
+        return out;
     }
 }
