@@ -82,11 +82,15 @@ class MeritRankingTest {
     }
 
     @Test
-    void sectionPositionOnlyForStudentsInASection() {
+    void sectionPositionFallsBackToGenderSectionWithoutASection() {
         Map<Long, Positions> p = MeritRanking.rank(List.of(
-                c(1, null, 1, null, 1, 5.00, 900, true),
-                c(2, null, 1, 10L, 2, 4.00, 800, true)), true, false);
-        assertNull(p.get(1L).sectionPosition());
+                c(1, null, 1, null, 1, 4.00, 800, true),   // Boys, no section
+                c(2, null, 1, null, 2, 5.00, 900, true),   // Boys, no section
+                c(3, null, 1, 10L, 3, 5.00, 950, true),    // Boys, section A: ranked only within A
+                c(4, null, null, null, 4, 5.00, 990, true)), true, false);
+        assertEquals(2, p.get(1L).sectionPosition());
         assertEquals(1, p.get(2L).sectionPosition());
+        assertEquals(1, p.get(3L).sectionPosition());
+        assertNull(p.get(4L).sectionPosition());
     }
 }

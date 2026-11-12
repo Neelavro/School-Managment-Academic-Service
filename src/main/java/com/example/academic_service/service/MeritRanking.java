@@ -15,7 +15,9 @@ import java.util.stream.Collectors;
  *   who              — passed students only; a failed student has no position (null), so there are no gaps.
  *   class position   — within the student's group (a class without groups is one group).
  *   shift position   — within the group and gender section, only when the class has more than one gender section.
- *   section position — within the group and section, only for students in a section.
+ *   section position — within the group and section; a student with no section is ranked within the group and
+ *                      gender section instead (user, 2026-11-12: "put gender section position if no sections are
+ *                      there", still called Section Position). Null only with neither.
  *
  * Callers pass every student of the class (or of the group being reported), not a filtered list: filters
  * decide who is shown, never the positions.
@@ -62,8 +64,9 @@ public final class MeritRanking {
         if (shifts)
             rankWithin(passed.stream().filter(c -> c.genderSectionId() != null).toList(), merit,
                     c -> c.groupId() + "/" + c.genderSectionId(), shift::put);
-        rankWithin(passed.stream().filter(c -> c.sectionId() != null).toList(), merit,
-                c -> c.groupId() + "/" + c.sectionId(), section::put);
+        rankWithin(passed.stream().filter(c -> c.sectionId() != null || c.genderSectionId() != null).toList(), merit,
+                c -> c.sectionId() != null ? c.groupId() + "/sec" + c.sectionId() : c.groupId() + "/gs" + c.genderSectionId(),
+                section::put);
 
         Map<Long, Positions> out = new HashMap<>();
         for (Candidate c : candidates)
