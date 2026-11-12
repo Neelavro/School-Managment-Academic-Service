@@ -40,11 +40,10 @@ public class ResultService {
         Integer examTypeId = routine.getExamType().getId();
 
         MarkingStructure structure = resolveMarkingStructure(examTypeId, classId, subjectId, groupId);
-        Map<Integer, Integer> parentOf = subSubjects.parentOf();
+        Map<Integer, Integer> parentOf = subSubjects.parentOf(classId);
         List<Integer> childIds = SubSubjects.childrenOf(parentOf).getOrDefault(subjectId, Collections.emptyList());
-        List<MarkingStructureComponent> components = childIds.isEmpty()
-                ? markingStructureComponentRepository.findAllByMarkingStructureAndDeletedAtIsNull(structure)
-                : subSubjects.mergedComponents(structure, childIds, groupId);
+        List<MarkingStructureComponent> components = subSubjects.componentsFor(structure,
+                markingStructureComponentRepository.findAllByMarkingStructureAndDeletedAtIsNull(structure), childIds, groupId);
 
         Class examClass = structure.getExamClass();
         List<Grade> sortedGrades = loadSortedGrades(examClass);
@@ -1317,7 +1316,7 @@ public class ResultService {
                 .findAllByClassIdAndFilters(classId, routineAcademicYearId, null, genderSectionId, sectionId, groupId, null, null);
         List<Long> enrollmentIds = enrollments.stream().map(Enrollment::getId).collect(Collectors.toList());
 
-        Map<Integer, Integer> parentOf = subSubjects.parentOf();
+        Map<Integer, Integer> parentOf = subSubjects.parentOf(classId);
         List<Integer> childIds = SubSubjects.childrenOf(parentOf).getOrDefault(subjectId, Collections.emptyList());
         List<StudentMark> marks = loadSubjectMarks(enrollmentIds, routineId, subjectId, childIds, parentOf);
 
@@ -2392,16 +2391,18 @@ public class ResultService {
             MarkingStructure structure = structures.get(s.getId());
             if (childIds == null || structure == null) continue;
             Integer groupId = s.getGroup() != null ? s.getGroup().getId() : null;
-            components.put(s.getId(), subSubjects.mergedComponents(structure, childIds, groupId));
+            components.put(s.getId(), subSubjects.componentsFor(structure,
+                    components.getOrDefault(s.getId(), Collections.emptyList()), childIds, groupId));
         }
     }
 
-    /** One subject's marks in a routine; a parent's are its sub-subjects' marks added up. */
+    /** One subject's marks in a routine; a parent's are its own where entered, else its sub-subjects' added up. */
     private List<StudentMark> loadSubjectMarks(List<Long> enrollmentIds, Integer routineId, Integer subjectId,
                                                List<Integer> childIds, Map<Integer, Integer> parentOf) {
         if (childIds.isEmpty())
             return studentMarkRepository.findAllByEnrollmentIdInAndRoutineIdAndSubjectId(enrollmentIds, routineId, subjectId);
-        List<StudentMark> raw = new ArrayList<>();
+        List<StudentMark> raw = new ArrayList<>(
+                studentMarkRepository.findAllByEnrollmentIdInAndRoutineIdAndSubjectId(enrollmentIds, routineId, subjectId));
         for (Integer childId : childIds)
             raw.addAll(studentMarkRepository.findAllByEnrollmentIdInAndRoutineIdAndSubjectId(enrollmentIds, routineId, childId));
         return SubSubjects.rollUp(raw, parentOf);
@@ -2561,7 +2562,7 @@ public class ResultService {
             bundle.sessionStructureMap.forEach((sessionId, structure) ->
                     bundle.sessionComponentsMap.put(sessionId, byStructureId.getOrDefault(structure.getId(), Collections.emptyList())));
         }
-        Map<Integer, Integer> parentOf = subSubjects.parentOf();
+        Map<Integer, Integer> parentOf = subSubjects.parentOf(classId);
         useSubSubjectComponents(sessions, bundle.sessionStructureMap, bundle.sessionComponentsMap, parentOf);
 
         if (!enrollments.isEmpty() && !sessions.isEmpty()) {
@@ -2618,7 +2619,7 @@ public class ResultService {
             bundle.sessionStructureMap.forEach((sessionId, structure) ->
                     bundle.sessionComponentsMap.put(sessionId, byStructureId.getOrDefault(structure.getId(), Collections.emptyList())));
         }
-        Map<Integer, Integer> parentOf = subSubjects.parentOf();
+        Map<Integer, Integer> parentOf = subSubjects.parentOf(classId);
         useSubSubjectComponents(sessions, bundle.sessionStructureMap, bundle.sessionComponentsMap, parentOf);
 
         if (!enrollments.isEmpty() && !sessions.isEmpty()) {

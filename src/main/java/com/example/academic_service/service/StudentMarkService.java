@@ -30,13 +30,26 @@ public class StudentMarkService {
     private final ClassSubjectGroupRepository classSubjectGroupRepository;
     private final AuditLogService auditLogService;
     private final SubjectRepository subjectRepository;
+    private final SubSubjectClassRepository subSubjectClassRepository;
+    private final SubSubjects subSubjects;
 
-    /** A parent subject's marks are its sub-subjects' marks added up, so they're entered per sub-subject. */
-    private void refuseParentWithSubSubjects(Integer subjectId) {
-        List<Subject> children = subjectRepository.findByParentSubjectIdAndIsActiveTrue(subjectId);
-        if (children.isEmpty()) return;
-        throw new RuntimeException("Marks for this subject are entered per sub-subject ("
-                + children.stream().map(Subject::getName).collect(Collectors.joining(", ")) + "). Choose a sub-subject.");
+    /**
+     * Sub-subjects (user, 2026-11-12): a sub-subject is marked only in the classes it's assigned to. A parent can
+     * still be marked directly — marks entered on it win over its sub-subjects' for that student.
+     */
+    private Subject checkSubSubjectClass(Integer subjectId, Integer classId) {
+        Subject subject = subjectRepository.findById(subjectId).orElse(null);
+        if (subject != null && subject.getParentSubjectId() != null
+                && !subSubjectClassRepository.existsBySubSubjectIdAndClassId(subjectId, classId))
+            throw new RuntimeException(subject.getName() + " isn't assigned to this class. Assign it under Subjects first.");
+        return subject;
+    }
+
+    /** The components marks are entered against: a parent split in this class also takes its sub-subjects'. */
+    private List<MarkingStructureComponent> sheetComponents(MarkingStructure structure, Integer subjectId, Integer classId, Integer groupId) {
+        List<MarkingStructureComponent> own = markingStructureComponentRepository.findAllByMarkingStructureAndDeletedAtIsNull(structure);
+        List<Integer> childIds = subSubjects.childrenIn(subjectId, classId).stream().map(Subject::getId).toList();
+        return subSubjects.componentsFor(structure, own, childIds, groupId);
     }
 
     public Map<String, Object> getMarkSheet(
@@ -47,7 +60,7 @@ public class StudentMarkService {
             Long sectionId,
             Integer groupId) {
 
-        refuseParentWithSubSubjects(subjectId);
+        Subject sheetSubject = checkSubSubjectClass(subjectId, classId);
         ExamRoutine routine = examRoutineRepository.findById(routineId)
                 .orElseThrow(() -> new RuntimeException("Exam routine not found: " + routineId));
         Integer examTypeId = routine.getExamType().getId();
@@ -63,8 +76,7 @@ public class StudentMarkService {
         }
 
         MarkingStructure structure = structures.get(0);
-        List<MarkingStructureComponent> components =
-                markingStructureComponentRepository.findAllByMarkingStructureAndDeletedAtIsNull(structure);
+        List<MarkingStructureComponent> components = sheetComponents(structure, subjectId, classId, groupId);
         if (components.isEmpty()) {
             throw new RuntimeException("Marking structure has no components defined.");
         }
@@ -85,6 +97,13 @@ public class StudentMarkService {
         response.setClassName(structure.getExamClass().getName());
         response.setTotalMarks(structure.getTotalMarks());
         response.setComponents(componentInfos);
+        Integer parentId = sheetSubject != null ? sheetSubject.getParentSubjectId() : null;
+        if (parentId != null) {
+            response.setParentSubjectName(subjectRepository.findById(parentId).map(Subject::getName).orElse(null));
+        } else {
+            List<String> parts = subSubjects.childrenIn(subjectId, classId).stream().map(Subject::getName).toList();
+            if (!parts.isEmpty()) response.setSubSubjectNames(parts);
+        }
 
         Integer routineAcademicYearId = routine.getAcademicYear() != null ? routine.getAcademicYear().getId() : null;
         List<Enrollment> allEnrollments = enrollmentRepository
@@ -152,6 +171,17 @@ public class StudentMarkService {
             }
         }
 
+        // Sub-subject sheet: students with marks on the parent itself (those count instead).
+        Map<Long, BigDecimal> parentTotals = new HashMap<>();
+        Map<Long, String> parentStatuses = new HashMap<>();
+        if (parentId != null) {
+            for (StudentMark pm : studentMarkRepository.findAllByEnrollmentIdInAndRoutineIdAndSubjectId(enrollmentIds, routineId, parentId)) {
+                if (!SubSubjects.isEntered(pm)) continue;
+                if (pm.getStatus() != null) parentStatuses.put(pm.getEnrollmentId(), pm.getStatus());
+                parentTotals.merge(pm.getEnrollmentId(), pm.getMarksObtained() != null ? pm.getMarksObtained() : BigDecimal.ZERO, BigDecimal::add);
+            }
+        }
+
         Map<Integer, Integer> maxMarksMap = components.stream()
                 .collect(Collectors.toMap(
                         c -> c.getExamComponent().getId(),
@@ -192,6 +222,12 @@ public class StudentMarkService {
             row.setStatus(studentStatus);
 
             row.setFourthSubject(subjectId.equals(fourthSubjectOverrides.get(enrollment.getId())));
+            if (parentTotals.containsKey(enrollment.getId())) {
+                row.setParentEntered(true);
+                String ps = parentStatuses.get(enrollment.getId());
+                row.setParentStatus(ps);
+                row.setParentTotal("ABSENT".equals(ps) || "EXPELLED".equals(ps) ? null : parentTotals.get(enrollment.getId()));
+            }
 
             boolean isAbsent = "ABSENT".equals(studentStatus) || "EXPELLED".equals(studentStatus);
             BigDecimal total = isAbsent ? BigDecimal.ZERO : markEntries.stream()
@@ -214,7 +250,7 @@ public class StudentMarkService {
         if (request.getSubjectId() == null) throw new RuntimeException("Subject id is required");
         if (request.getClassId() == null) throw new RuntimeException("Class id is required");
         if (request.getMarks() == null || request.getMarks().isEmpty()) throw new RuntimeException("No marks provided");
-        refuseParentWithSubSubjects(request.getSubjectId());
+        checkSubSubjectClass(request.getSubjectId(), request.getClassId());
 
         ExamRoutine routine = examRoutineRepository.findById(request.getRoutineId())
                 .orElseThrow(() -> new RuntimeException("Exam routine not found: " + request.getRoutineId()));
@@ -228,8 +264,8 @@ public class StudentMarkService {
 
         Map<Integer, Integer> maxMarksMap = new HashMap<>();
         if (!structures.isEmpty()) {
-            List<MarkingStructureComponent> structureComponents =
-                    markingStructureComponentRepository.findAllByMarkingStructureAndDeletedAtIsNull(structures.get(0));
+            List<MarkingStructureComponent> structureComponents = sheetComponents(structures.get(0), subjectId, classId,
+                    structures.get(0).getGroup() != null ? structures.get(0).getGroup().getId() : null);
             structureComponents.forEach(sc ->
                     maxMarksMap.put(sc.getExamComponent().getId(), sc.getMaxMarks()));
         }

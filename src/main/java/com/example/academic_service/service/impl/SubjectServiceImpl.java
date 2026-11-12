@@ -10,13 +10,21 @@ import com.example.academic_service.service.SubjectService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
+import com.example.academic_service.dto.SubSubjectBulkRequest;
+import com.example.academic_service.dto.SubSubjectClassesRequest;
+import com.example.academic_service.entity.SubSubjectClass;
+import com.example.academic_service.repository.SubSubjectClassRepository;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
 public class SubjectServiceImpl implements SubjectService {
 
     private final SubjectRepository subjectRepository;
+    private final SubSubjectClassRepository subSubjectClassRepository;
+    private final ClassRepository classRepository;
 
     @Override
     public ApiResponse<Subject> create(SubjectRequestDto dto) {
@@ -120,6 +128,89 @@ public class SubjectServiceImpl implements SubjectService {
         subjectRepository.saveAll(children);
         return ApiResponse.success(children.isEmpty() ? "Subject deleted successfully"
                 : "Subject and its " + children.size() + " sub-subject(s) deleted successfully", null);
+    }
+
+    // The sub-subject endpoints throw (HTTP 400) instead of ApiResponse.error, which is HTTP 200 and reads as success.
+    @Override
+    @Transactional
+    public ApiResponse<List<Subject>> createSubSubjects(SubSubjectBulkRequest request) {
+        if (request.getParentSubjectId() == null) throw new RuntimeException("Choose the parent subject");
+        String parentError = parentError(null, request.getParentSubjectId());
+        if (parentError != null) throw new RuntimeException(parentError);
+        List<SubSubjectBulkRequest.Item> items = request.getSubSubjects() == null ? List.of()
+                : request.getSubSubjects().stream().filter(i -> i.getName() != null && !i.getName().isBlank()).toList();
+        if (items.isEmpty()) throw new RuntimeException("Add at least one sub-subject name");
+        // All names and codes are checked before anything is saved.
+        Set<String> names = new HashSet<>(), codes = new HashSet<>();
+        for (SubSubjectBulkRequest.Item i : items) {
+            String name = i.getName().trim();
+            String code = i.getCode() != null && !i.getCode().isBlank() ? i.getCode().trim() : null;
+            if (!names.add(name.toLowerCase())) throw new RuntimeException("'" + name + "' is listed twice");
+            if (subjectRepository.existsByNameIgnoreCase(name)) throw new RuntimeException("A subject named '" + name + "' already exists");
+            if (code != null && !codes.add(code.toLowerCase())) throw new RuntimeException("Code '" + code + "' is listed twice");
+            if (code != null && subjectRepository.existsByCodeIgnoreCase(code)) throw new RuntimeException("A subject with code '" + code + "' already exists");
+        }
+        String classError = classesError(request.getClassIds());
+        if (classError != null) throw new RuntimeException(classError);
+
+        List<Subject> created = new ArrayList<>();
+        for (SubSubjectBulkRequest.Item i : items) {
+            Subject s = new Subject();
+            s.setName(i.getName().trim());
+            s.setCode(i.getCode() != null && !i.getCode().isBlank() ? i.getCode().trim() : null);
+            s.setParentSubjectId(request.getParentSubjectId());
+            created.add(subjectRepository.save(s));
+        }
+        if (request.getClassIds() != null)
+            assign(created.stream().map(Subject::getId).toList(), request.getClassIds(), false);
+        return ApiResponse.success(created.size() + " sub-subject(s) created", created);
+    }
+
+    @Override
+    public ApiResponse<List<SubSubjectClass>> subSubjectClasses() {
+        return ApiResponse.success("Sub-subject classes fetched", subSubjectClassRepository.findAll());
+    }
+
+    @Override
+    @Transactional
+    public ApiResponse<List<SubSubjectClass>> assignSubSubjectClasses(SubSubjectClassesRequest request) {
+        List<Integer> ids = request.getSubSubjectIds() == null ? List.of() : request.getSubSubjectIds();
+        if (ids.isEmpty()) throw new RuntimeException("Choose at least one sub-subject");
+        List<Integer> classIds = request.getClassIds() == null ? List.of() : request.getClassIds();
+        boolean replace = Boolean.TRUE.equals(request.getReplace());
+        if (classIds.isEmpty() && !replace) throw new RuntimeException("Choose at least one class");
+        for (Subject s : subjectRepository.findAllById(ids))
+            if (s.getParentSubjectId() == null) throw new RuntimeException("'" + s.getName() + "' isn't a sub-subject");
+        if (subjectRepository.findAllById(ids).size() != new HashSet<>(ids).size()) throw new RuntimeException("Sub-subject not found");
+        String classError = classesError(classIds);
+        if (classError != null) throw new RuntimeException(classError);
+        assign(ids, classIds, replace);
+        return ApiResponse.success("Classes saved", subSubjectClassRepository.findBySubSubjectIdIn(ids));
+    }
+
+    private String classesError(List<Integer> classIds) {
+        if (classIds == null || classIds.isEmpty()) return null;
+        Set<Integer> unique = new HashSet<>(classIds);
+        return classRepository.findAllById(unique).size() == unique.size() ? null : "Class not found";
+    }
+
+    private void assign(List<Integer> subSubjectIds, List<Integer> classIds, boolean replace) {
+        Set<Integer> wanted = new HashSet<>(classIds);
+        for (Integer id : new LinkedHashSet<>(subSubjectIds)) {
+            List<SubSubjectClass> current = subSubjectClassRepository.findBySubSubjectId(id);
+            Set<Integer> have = new HashSet<>();
+            for (SubSubjectClass c : current) {
+                if (replace && !wanted.contains(c.getClassId())) subSubjectClassRepository.delete(c);
+                else have.add(c.getClassId());
+            }
+            for (Integer classId : wanted) {
+                if (have.contains(classId)) continue;
+                SubSubjectClass a = new SubSubjectClass();
+                a.setSubSubjectId(id);
+                a.setClassId(classId);
+                subSubjectClassRepository.save(a);
+            }
+        }
     }
 
     /**

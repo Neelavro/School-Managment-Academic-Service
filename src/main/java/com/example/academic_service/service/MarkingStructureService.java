@@ -31,6 +31,7 @@ public class MarkingStructureService {
     private final ExamComponentRepository examComponentRepository;
     private final StudentMarkRepository studentMarkRepository;
     private final SubSubjects subSubjects;
+    private final SubSubjectClassRepository subSubjectClassRepository;
 
     @Transactional
     public Map<String, Object> create(MarkingStructureRequest request) {
@@ -67,7 +68,7 @@ public class MarkingStructureService {
                     markingStructureRepository.flush();
                 });
 
-        validateComponents(request.getComponents(), request.getTotalMarks(), hasSubSubjects(subject));
+        validateComponents(request.getComponents(), request.getTotalMarks(), hasSubSubjects(subject, examClass));
         String subError = subSubjectTotalsError(null, examType, examClass, subject, group, request.getTotalMarks());
         if (subError != null) throw new RuntimeException(subError);
 
@@ -142,7 +143,7 @@ public class MarkingStructureService {
             structure.setGroup(newGroup);
         }
 
-        validateComponents(request.getComponents(), request.getTotalMarks(), hasSubSubjects(structure.getSubject()));
+        validateComponents(request.getComponents(), request.getTotalMarks(), hasSubSubjects(structure.getSubject(), structure.getExamClass()));
         String subError = subSubjectTotalsError(structure.getId(), structure.getExamType(), structure.getExamClass(),
                 structure.getSubject(), structure.getGroup(), request.getTotalMarks());
         if (subError != null) throw new RuntimeException(subError);
@@ -239,8 +240,9 @@ public class MarkingStructureService {
         }
     }
 
-    private boolean hasSubSubjects(Subject subject) {
-        return subjectRepository.existsByParentSubjectIdAndIsActiveTrue(subject.getId());
+    /** Does this subject have sub-subjects in this class? (Sub-subjects apply only to the classes they're assigned to.) */
+    private boolean hasSubSubjects(Subject subject, Class examClass) {
+        return !subSubjects.childrenIn(subject.getId(), examClass.getId()).isEmpty();
     }
 
     /**
@@ -258,13 +260,15 @@ public class MarkingStructureService {
         if (subject.getParentSubjectId() != null) {
             Subject parent = subjectRepository.findById(subject.getParentSubjectId()).orElse(null);
             if (parent == null || !Boolean.TRUE.equals(parent.getIsActive())) return null;
+            if (!subSubjectClassRepository.existsBySubSubjectIdAndClassId(subject.getId(), classId))
+                return subject.getName() + " isn't assigned to " + examClass.getName() + ". Assign it under Subjects first.";
             MarkingStructure parentStructure = subSubjects.structureFor(examTypeId, classId, parent.getId(), groupId).orElse(null);
             if (parentStructure == null)
                 return "Set up the marking structure for " + parent.getName() + " (" + where + ") first. "
                         + subject.getName() + " is one of its sub-subjects.";
             int sum = total;
             List<String> parts = new ArrayList<>(List.of(subject.getName() + " " + total));
-            for (Subject sibling : subjectRepository.findByParentSubjectIdAndIsActiveTrue(parent.getId())) {
+            for (Subject sibling : subSubjects.childrenIn(parent.getId(), classId)) {
                 if (sibling.getId().equals(subject.getId())) continue;
                 MarkingStructure ss = subSubjects.structureFor(examTypeId, classId, sibling.getId(), groupId).orElse(null);
                 if (ss == null || ss.getId().equals(selfId)) continue;
@@ -277,7 +281,7 @@ public class MarkingStructureService {
             return null;
         }
 
-        List<Subject> children = subjectRepository.findByParentSubjectIdAndIsActiveTrue(subject.getId());
+        List<Subject> children = subSubjects.childrenIn(subject.getId(), classId);
         if (children.isEmpty()) return null;
         // Every group the sub-subjects have a structure for, plus this structure's own group.
         Set<Integer> contexts = new HashSet<>();
@@ -471,7 +475,7 @@ public class MarkingStructureService {
                 skipped.add(subject.getName() + " already has a structure for this combination");
                 continue;
             }
-            if ((request.getComponents() == null || request.getComponents().isEmpty()) && !hasSubSubjects(subject)) {
+            if ((request.getComponents() == null || request.getComponents().isEmpty()) && !hasSubSubjects(subject, examClass)) {
                 skipped.add(subject.getName() + ": at least one exam component is required");
                 continue;
             }

@@ -17,6 +17,10 @@ public class MarkSheetResponse {
     private Integer totalMarks;
     private List<ComponentInfo> components;
     private List<StudentMarkRow> students;
+    /** Set on a sub-subject's sheet: the subject it's part of. */
+    private String parentSubjectName;
+    /** Set on a parent's sheet when the class splits it: its sub-subjects (marks entered here win over theirs). */
+    private List<String> subSubjectNames;
 
     @Getter
     @Setter
@@ -39,6 +43,13 @@ public class MarkSheetResponse {
         private BigDecimal total;
         private String status; // null / "PRESENT" / "ABSENT" / "EXPELLED"
         private boolean isFourthSubject;
+        /**
+         * Sub-subject sheet only: true when this student already has marks entered on the parent subject — those
+         * count for the result instead of the sub-subjects'. parentTotal / parentStatus show what was entered.
+         */
+        private boolean parentEntered;
+        private BigDecimal parentTotal;
+        private String parentStatus;
 
         @Getter
         @Setter

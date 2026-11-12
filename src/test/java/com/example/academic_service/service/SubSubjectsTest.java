@@ -87,11 +87,41 @@ class SubSubjectsTest {
     }
 
     @Test
-    void parentsOwnOldMarksAreIgnored() {
+    void parentsOwnMarksWinPerStudent() {
         List<StudentMark> out = SubSubjects.rollUp(List.of(
                 mark(1, ARTS, WRITTEN, "90", null),
+                mark(1, DRAWING, WRITTEN, "10", null),
+                mark(2, DRAWING, WRITTEN, "12", null),
+                mark(2, SINGING, WRITTEN, "3", null)), PARENT_OF);
+        assertEquals(Map.of(1, new BigDecimal("90")), parentMarks(out, 1));
+        assertEquals(Map.of(1, new BigDecimal("15")), parentMarks(out, 2));
+    }
+
+    @Test
+    void oldExamWithOnlyParentMarksKeepsThem() {
+        List<StudentMark> out = SubSubjects.rollUp(List.of(
+                mark(1, ARTS, WRITTEN, "40", null),
+                mark(1, ARTS, PRACTICAL, "35", null)), PARENT_OF);
+        assertEquals(Map.of(1, new BigDecimal("40"), 2, new BigDecimal("35")), parentMarks(out, 1));
+    }
+
+    @Test
+    void parentAbsentWins() {
+        List<StudentMark> out = SubSubjects.rollUp(List.of(
+                mark(1, ARTS, WRITTEN, null, "ABSENT"),
+                mark(1, DRAWING, WRITTEN, "10", null)), PARENT_OF);
+        assertEquals(1, out.size());
+        assertEquals("ABSENT", out.get(0).getStatus());
+        assertEquals(ARTS, out.get(0).getSubjectId());
+    }
+
+    @Test
+    void emptyParentRowDoesNotWin() {
+        List<StudentMark> out = SubSubjects.rollUp(List.of(
+                mark(1, ARTS, WRITTEN, null, null),
                 mark(1, DRAWING, WRITTEN, "10", null)), PARENT_OF);
         assertEquals(Map.of(1, new BigDecimal("10")), parentMarks(out, 1));
+        assertEquals(1, out.size());
     }
 
     @Test
@@ -109,7 +139,7 @@ class SubSubjectsTest {
         SubjectRepository subjects = mock(SubjectRepository.class);
         MarkingStructureRepository structures = mock(MarkingStructureRepository.class);
         MarkingStructureComponentRepository components = mock(MarkingStructureComponentRepository.class);
-        SubSubjects sub = new SubSubjects(subjects, structures, components);
+        SubSubjects sub = new SubSubjects(subjects, structures, components, mock(SubSubjectClassRepository.class));
 
         ExamType exam = new ExamType();
         exam.setId(3);
@@ -130,6 +160,43 @@ class SubSubjectsTest {
         assertEquals(70, merged.get(1).getMaxMarks());
         assertNull(merged.get(1).getPassMarks());
         assertSame(parent, merged.get(0).getMarkingStructure());
+    }
+
+    @Test
+    void componentsForFallsBackToParentsOwnWithoutSubSubjectStructures() {
+        MarkingStructureRepository structures = mock(MarkingStructureRepository.class);
+        SubSubjects sub = new SubSubjects(mock(SubjectRepository.class), structures,
+                mock(MarkingStructureComponentRepository.class), mock(SubSubjectClassRepository.class));
+        ExamType exam = new ExamType();
+        exam.setId(3);
+        com.example.academic_service.entity.Class cls = new com.example.academic_service.entity.Class();
+        cls.setId(7);
+        MarkingStructure parent = structure(100, exam, cls, ARTS, 100);
+        List<MarkingStructureComponent> own = List.of(msc(parent, WRITTEN, 100, 33));
+        assertSame(own, sub.componentsFor(parent, own, List.of(DRAWING, SINGING), null));
+        assertSame(own, sub.componentsFor(parent, own, List.of(), null));
+    }
+
+    @Test
+    void componentsForUnitesOwnAndMerged() {
+        MarkingStructureRepository structures = mock(MarkingStructureRepository.class);
+        MarkingStructureComponentRepository components = mock(MarkingStructureComponentRepository.class);
+        SubSubjects sub = new SubSubjects(mock(SubjectRepository.class), structures, components, mock(SubSubjectClassRepository.class));
+        ExamType exam = new ExamType();
+        exam.setId(3);
+        com.example.academic_service.entity.Class cls = new com.example.academic_service.entity.Class();
+        cls.setId(7);
+        MarkingStructure parent = structure(100, exam, cls, ARTS, 100);
+        MarkingStructure drawing = structure(101, exam, cls, DRAWING, 50);
+        when(structures.findClassWideAndDeletedAtIsNull(3, 7, DRAWING)).thenReturn(List.of(drawing));
+        when(components.findAllByMarkingStructureInAndDeletedAtIsNull(anyList())).thenReturn(List.of(msc(drawing, PRACTICAL, 50, 17)));
+
+        List<MarkingStructureComponent> out = sub.componentsFor(parent, List.of(msc(parent, WRITTEN, 100, 33)), List.of(DRAWING), null);
+        assertEquals(2, out.size());
+        assertEquals(1, out.get(0).getExamComponent().getId());
+        assertEquals(100, out.get(0).getMaxMarks());
+        assertNull(out.get(0).getPassMarks());
+        assertEquals(50, out.get(1).getMaxMarks());
     }
 
     private static MarkingStructure structure(int id, ExamType exam, com.example.academic_service.entity.Class cls, int subjectId, int total) {
