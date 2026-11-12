@@ -386,9 +386,15 @@ public class ProgressReportPdfService {
                 + "<td>" + days(days.working()) + "</td><td>" + days(days.present()) + "</td><td>" + days(days.absent()) + "</td></tr>";
     }
 
-    /** A day count, or blank (to fill in by hand) when it was not entered. */
+    /**
+     * Attendance numbers are left blank on every progress report for now (user, 2026-11-12: "for now just make it
+     * blank"): Total Working Days / Present / Absent print empty, to fill in by hand. Set to true to print them again.
+     */
+    private static final boolean PRINT_ATTENDANCE = false;
+
+    /** A day count, or blank (to fill in by hand) when it was not entered or attendance printing is off. */
     private static String days(Integer n) {
-        return n != null ? String.valueOf(n) : "";
+        return PRINT_ATTENDANCE && n != null ? String.valueOf(n) : "";
     }
 
     private static ExamAttendanceService.Days attendance(AnnualProgressReportData data, Integer routineId, Long enrollmentId) {
