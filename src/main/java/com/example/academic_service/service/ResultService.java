@@ -886,6 +886,43 @@ public class ResultService {
         return response;
     }
 
+    // ─── GRAND FINAL RESULT ──────────────────────────────────────────────────────
+
+    /**
+     * Grand Final Results (user, 2026-11-17: "it should show like how the pdf shows"): the annual result with each
+     * student's total, GPA, GPA without 4th, failed subjects, result and positions replaced by the Grand Final row of
+     * the transcript (getAnnualProgressReportData: the averages of the counted exams the student sat, positions ranked
+     * on those). Both totals (raw and scaled) carry the average. A student who sat none of the exams has no total and
+     * no position. Subject columns stay the annual subject results.
+     */
+    public AnnualResultResponse getGrandFinalResult(Integer academicYearId, Integer classId, Integer shiftId, Integer genderSectionId,
+                                                    Long sectionId, Integer groupId, Integer startRoll, Integer endRoll) {
+        AnnualResultResponse annual = getAnnualResult(academicYearId, classId, shiftId, genderSectionId, sectionId, groupId, startRoll, endRoll);
+        Map<Long, AnnualProgressReportData.GrandFinal> grandFinals = new HashMap<>();
+        for (AnnualProgressReportData part : getAnnualProgressReportDataPartitioned(
+                academicYearId, classId, null, null, null, groupId, null, null)) {
+            if (part.getGrandFinals() != null) grandFinals.putAll(part.getGrandFinals());
+        }
+        for (AnnualResultResponse.StudentResultRow row : annual.getStudents()) {
+            AnnualProgressReportData.GrandFinal g = grandFinals.get(row.getEnrollmentId());
+            row.setTotalMarksRaw(g != null ? g.getTotalMarks() : null);
+            row.setTotalMarksScaled(g != null ? g.getTotalMarks() : null);
+            row.setOverallGpa(g != null ? g.getGpa() : 0.0);
+            row.setGpaWithout4th(g != null ? g.getGpaWithout4th() : 0.0);
+            row.setFailedSubjectCount(g != null ? g.getFailedSubjectCount() : row.getFailedSubjectCount());
+            row.setPassed(g != null && g.isPassed());
+            AnnualResultResponse.Merit m = new AnnualResultResponse.Merit();
+            if (g != null && g.isPassed()) {
+                m.setClassRank(g.getClassRank());
+                m.setGroupRank(g.getClassRank());
+                m.setGenderSectionRank(g.getGenderSectionRank());
+                m.setSectionRank(g.getSectionRank());
+            }
+            row.setMerit(m);
+        }
+        return annual;
+    }
+
     // ─── STUDENT ANNUAL RESULT ───────────────────────────────────────────────────
 
     public StudentAnnualResultResponse getStudentAnnualResult(Long enrollmentId, Integer academicYearId) {

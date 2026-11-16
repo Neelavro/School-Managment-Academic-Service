@@ -59,7 +59,8 @@ public class MeritBoardService {
 
     @Transactional(readOnly = true)
     public MeritBoardResponse forYear(Integer academicYearId, Integer classId) {
-        AnnualResultResponse result = resultService.getAnnualResult(academicYearId, classId, null, null, null, null, null, null);
+        // The Grand Final: the transcript's averages and positions (user, 2026-11-17).
+        AnnualResultResponse result = resultService.getGrandFinalResult(academicYearId, classId, null, null, null, null, null, null);
 
         List<MeritBoardResponse.Entry> entries = new ArrayList<>();
         for (AnnualResultResponse.StudentResultRow r : result.getStudents()) {
@@ -67,7 +68,7 @@ public class MeritBoardService {
             MeritBoardResponse.Entry e = entry(r.getEnrollmentId(), r.getStudentSystemId(), r.getStudentName(), r.getClassRoll(),
                     r.getGroupId(), r.getGroupName(), r.getGenderSectionId(), r.getGenderSectionName(),
                     r.getSectionId(), r.getSectionName());
-            // The annual results rank by the scaled total, so that is the total shown.
+            // Both totals carry the Grand Final average.
             e.setTotalMarks(r.getTotalMarksScaled() != null ? r.getTotalMarksScaled() : r.getTotalMarksRaw());
             e.setOverallGpa(r.getOverallGpa());
             e.setPassed(r.isPassed());

@@ -53,8 +53,9 @@ public class ResultController {
             @RequestParam(required = false) Integer groupId,
             @RequestParam(required = false) Integer startRoll,
             @RequestParam(required = false) Integer endRoll) {
-        return ResponseEntity.ok(ApiResponse.success("Annual result fetched",
-                resultService.getAnnualResult(academicYearId, classId, shiftId, genderSectionId, sectionId, groupId, startRoll, endRoll)));
+        // Grand Final Results: the annual result with the transcript's Grand Final numbers (user, 2026-11-17).
+        return ResponseEntity.ok(ApiResponse.success("Grand Final result fetched",
+                resultService.getGrandFinalResult(academicYearId, classId, shiftId, genderSectionId, sectionId, groupId, startRoll, endRoll)));
     }
 
     @GetMapping("/student/routine")
