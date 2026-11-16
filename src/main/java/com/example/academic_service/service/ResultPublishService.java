@@ -55,6 +55,10 @@ import java.util.concurrent.Executors;
  * screen can show them.
  * A check recomputes them for the whole class (one changed mark can move everyone's position) and applying
  * it replaces them. REPORT jobs fill them in for classes published before report_json existed.
+ *
+ * The Grand Final (annual result) of a class is published the same way, under the key routine_id = -academicYearId
+ * (see grandFinalKey): result_json is the portal's Grand Final result and report_json the student's transcript page
+ * (ProgressReportPdfService.grandFinalForPublish). It has no result_publication row: stored rows are the publication.
  */
 @Service
 @RequiredArgsConstructor
@@ -88,6 +92,7 @@ public class ResultPublishService {
     private final EnrollmentRepository enrollmentRepository;
     private final ExamRoutineRepository examRoutineRepository;
     private final GradingPolicyRepository gradingPolicyRepository;
+    private final ProgressReportPdfService progressReportPdfService;
     private final JsonMapper objectMapper; // Spring's own HTTP mapper, so stored JSON matches what the API used to send
 
     // One thread: classes are processed one at a time so a "publish all" doesn't swamp the CPU.
@@ -98,6 +103,15 @@ public class ResultPublishService {
     });
 
     private volatile boolean stopping;
+
+    /** The routine_id a class's Grand Final is stored and queued under: minus the academic year id. */
+    public static int grandFinalKey(int academicYearId) {
+        return -academicYearId;
+    }
+
+    private static boolean isGrandFinal(Integer routineId) {
+        return routineId != null && routineId < 0;
+    }
 
     @PreDestroy
     void shutdown() {
@@ -216,6 +230,12 @@ public class ResultPublishService {
         String kind = (String) job.get("kind");
         long started = System.currentTimeMillis();
         try {
+            if (REPORT.equals(kind) && isGrandFinal(routineId)) {
+                // Grand Final rows always carry their page; nothing to fill in.
+                jdbc.update("UPDATE result_publish_job SET status = ?, finished_at = ? WHERE id = ?",
+                        DONE, Timestamp.valueOf(LocalDateTime.now()), jobId);
+                return;
+            }
             if (REPORT.equals(kind)) {
                 Map<Long, String> reports = computeReports(routineId, classId).json();
                 jdbc.batchUpdate("UPDATE published_result SET report_json = ? WHERE routine_id = ? AND class_id = ? AND enrollment_id = ?",
@@ -228,10 +248,18 @@ public class ResultPublishService {
             }
 
             List<String> skipped = new ArrayList<>();
-            // Reports first: their ranks are the positions stored with each result.
-            ClassReports classReports = computeReports(routineId, classId);
-            Map<Long, String> reports = classReports.json();
-            List<Computed> results = computeClass(jobId, routineId, classId, skipped, classReports.positions());
+            Map<Long, String> reports;
+            List<Computed> results;
+            if (isGrandFinal(routineId)) {
+                GrandFinalClass gf = computeGrandFinal(jobId, -routineId, classId);
+                reports = gf.pages();
+                results = gf.results();
+            } else {
+                // Reports first: their ranks are the positions stored with each result.
+                ClassReports classReports = computeReports(routineId, classId);
+                reports = classReports.json();
+                results = computeClass(jobId, routineId, classId, skipped, classReports.positions());
+            }
             String note = skipped.isEmpty() ? null : truncate(skipped.size() + " student(s) skipped. First: " + skipped.get(0));
 
             if (CHECK.equals(kind)) {
@@ -304,6 +332,25 @@ public class ResultPublishService {
         return results;
     }
 
+    private record GrandFinalClass(List<Computed> results, Map<Long, String> pages) {}
+
+    /** Every student's Grand Final result and transcript page for the class (one pass over the annual data). */
+    private GrandFinalClass computeGrandFinal(Long jobId, Integer academicYearId, Integer classId) {
+        TransactionTemplate readTx = new TransactionTemplate(transactionManager);
+        readTx.setReadOnly(true);
+        List<ProgressReportPdfService.GrandFinalStudent> students = readTx.execute(
+                status -> progressReportPdfService.grandFinalForPublish(academicYearId, classId));
+        List<Computed> results = new ArrayList<>();
+        Map<Long, String> pages = new HashMap<>();
+        for (ProgressReportPdfService.GrandFinalStudent g : students) {
+            results.add(new Computed(g.enrollmentId(), g.studentSystemId(), g.totalMarks(), g.gpa(), g.passed(),
+                    objectMapper.writeValueAsString(g.result())));
+            pages.put(g.enrollmentId(), g.pageHtml());
+        }
+        jdbc.update("UPDATE result_publish_job SET total = ?, done = ? WHERE id = ?", results.size(), results.size(), jobId);
+        return new GrandFinalClass(results, pages);
+    }
+
     /** Replaces the class's stored rows and marks it published, in one transaction. */
     private void storeClass(Integer routineId, Integer classId, List<Computed> results, Map<Long, String> reports) {
         Timestamp now = Timestamp.valueOf(LocalDateTime.now());
@@ -318,6 +365,7 @@ public class ResultPublishService {
                                                   total_marks, gpa, passed, result_json, report_json, computed_at)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, rows);
+            if (isGrandFinal(routineId)) return; // the stored rows are the Grand Final's publication
             int updated = jdbc.update("""
                     UPDATE result_publication SET published = 1, published_at = COALESCE(published_at, ?)
                     WHERE routine_id = ? AND class_id = ?
@@ -488,6 +536,8 @@ public class ResultPublishService {
         keys.addAll(next.keySet());
         keys.remove("subjectResults");
         keys.remove("positions");
+        keys.remove("routines"); // Grand Final: the exams counted and each exam's row (their marks show per subject)
+        keys.remove("exams");
         for (String k : keys) addFieldChange(fields, k, prev.get(k), next.get(k));
         // Positions are reported one by one (classPosition, shiftPosition, sectionPosition) so each shows as a plain value.
         Map<String, Object> prevPos = prev.get("positions") instanceof Map<?, ?> p ? (Map<String, Object>) p : Map.of();
@@ -586,9 +636,12 @@ public class ResultPublishService {
     public int[] apply(Integer routineId, Long jobId) {
         Map<String, Object> job = pendingCheck(jobId, routineId);
         Integer classId = ((Number) job.get("class_id")).intValue();
-        Integer published = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM result_publication WHERE routine_id = ? AND class_id = ? AND published = 1",
-                Integer.class, routineId, classId);
+        Integer published = isGrandFinal(routineId)
+                ? jdbc.queryForObject("SELECT COUNT(*) FROM published_result WHERE routine_id = ? AND class_id = ?",
+                        Integer.class, routineId, classId)
+                : jdbc.queryForObject(
+                        "SELECT COUNT(*) FROM result_publication WHERE routine_id = ? AND class_id = ? AND published = 1",
+                        Integer.class, routineId, classId);
         if (published == null || published == 0)
             throw new RuntimeException("Results for this class aren't published, so there's nothing to update.");
 
@@ -686,7 +739,23 @@ public class ResultPublishService {
         return byClass;
     }
 
+    /** Grand Final classes published for a year: classId → when the stored rows were first written. */
+    public Map<Integer, Timestamp> publishedGrandFinals(int academicYearId) {
+        Map<Integer, Timestamp> m = new HashMap<>();
+        jdbc.query("SELECT class_id, MIN(computed_at) FROM published_result WHERE routine_id = ? GROUP BY class_id",
+                rs -> { m.put(rs.getInt(1), rs.getTimestamp(2)); }, grandFinalKey(academicYearId));
+        return m;
+    }
+
     // ── Student portal ───────────────────────────────────────────────────────
+
+    /** Academic years whose Grand Final is published for the student: [{academicYearId}], newest first. */
+    public List<Integer> grandFinalYearsForStudent(String studentSystemId) {
+        return jdbc.queryForList("""
+                SELECT -routine_id FROM published_result WHERE student_system_id = ? AND routine_id < 0
+                ORDER BY routine_id
+                """, Integer.class, studentSystemId);
+    }
 
     /** A stored result and its version (changes whenever the row is rewritten). */
     public record StoredResult(String version, String json) {}

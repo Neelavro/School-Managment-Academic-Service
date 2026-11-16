@@ -21,6 +21,36 @@ class AnnualProgressReportHtmlTest {
 
     @Test
     void cardShowsEachExamsComponentsAndTheAnnualResult() throws Exception {
+        AnnualProgressReportData data = sampleData();
+
+        List<Grade> grades = sampleGrades();
+
+        String html = new ProgressReportPdfService(null, null, null, null, null)
+                .buildAnnualHtml(List.of(data), "Demo Madrasa", "Dhaka", null, "", "", grades);
+
+        assertTrue(html.contains("GRAND FINAL - 2026"));
+        assertTrue(html.contains(">Half Yearly</th>") && html.contains(">Annual Exam</th>"));
+        assertTrue(html.contains("colspan=\"4\">Half Yearly") && html.contains("colspan=\"5\">Annual Exam"));
+        assertFalse(html.contains("Full<br>Marks") || html.contains("Highest"));
+        assertTrue(html.contains(">Grand Final</td>") && html.contains(">1st Model Test</td>"));
+        assertTrue(html.contains(">Practical</th>"));
+        assertTrue(html.contains(">ABSENT</td>"));
+        assertTrue(html.contains("colspan=\"4\" class=\"status-mark exam-end\">ABSENT"));
+        assertTrue(html.contains("(4<sup>th</sup>)"));
+        // No annual Total / Letter / GP columns and no "Obtained Marks & GPA" row (user, 2026-10-26).
+        assertFalse(html.contains("Obtained Marks") || html.contains("class=\"merged-grade\"") || html.contains("annual-total\">"));
+        assertTrue(html.contains("<tr class=\"grand\"><td class=\"exam\">Grand Final</td><td>1020</td><td>F</td><td>0.00</td>"));
+        assertFalse(html.contains("Shift Position"), "no shift position on the Grand Final card");
+        // Attendance prints blank for now (PRINT_ATTENDANCE = false, user 2026-11-12), to fill in by hand.
+        assertFalse(html.contains("<td>120</td><td>110</td>") || html.contains("<td>220</td><td>205</td>"), "attendance left blank");
+        assertTrue(html.contains("<td></td><td></td><td></td></tr>"), "blank attendance cells");
+
+        String out = System.getProperty("annualHtmlOut");
+        if (out != null) Files.writeString(Path.of(out), html);
+    }
+
+    /** The made-up class used here and in GrandFinalPublishDataTest: one student (enrollment 7), four exams. */
+    static AnnualProgressReportData sampleData() {
         AnnualResultResponse annual = new AnnualResultResponse();
         annual.setAcademicYearName("2026");
         annual.setClassName("Class 8");
@@ -127,33 +157,13 @@ class AnnualProgressReportHtmlTest {
                 1, Map.of(7L, new ExamAttendanceService.Days(120, 110)),
                 2, Map.of(7L, new ExamAttendanceService.Days(100, 95)),
                 3, Map.of(7L, new ExamAttendanceService.Days(null, 20))));
+        return data;
+    }
 
-        List<Grade> grades = List.of(
+    static List<Grade> sampleGrades() {
+        return List.of(
                 grade("A+", 5.0, 80, 100), grade("A", 4.0, 70, 79), grade("A-", 3.5, 60, 69),
                 grade("B", 3.0, 50, 59), grade("C", 2.0, 40, 49), grade("D", 1.0, 33, 39), grade("F", 0.0, 0, 32));
-
-        String html = new ProgressReportPdfService(null, null, null, null, null)
-                .buildAnnualHtml(List.of(data), "Demo Madrasa", "Dhaka", null, "", "", grades);
-
-        assertTrue(html.contains("GRAND FINAL - 2026"));
-        assertTrue(html.contains(">Half Yearly</th>") && html.contains(">Annual Exam</th>"));
-        assertTrue(html.contains("colspan=\"4\">Half Yearly") && html.contains("colspan=\"5\">Annual Exam"));
-        assertFalse(html.contains("Full<br>Marks") || html.contains("Highest"));
-        assertTrue(html.contains(">Grand Final</td>") && html.contains(">1st Model Test</td>"));
-        assertTrue(html.contains(">Practical</th>"));
-        assertTrue(html.contains(">ABSENT</td>"));
-        assertTrue(html.contains("colspan=\"4\" class=\"status-mark exam-end\">ABSENT"));
-        assertTrue(html.contains("(4<sup>th</sup>)"));
-        // No annual Total / Letter / GP columns and no "Obtained Marks & GPA" row (user, 2026-10-26).
-        assertFalse(html.contains("Obtained Marks") || html.contains("class=\"merged-grade\"") || html.contains("annual-total\">"));
-        assertTrue(html.contains("<tr class=\"grand\"><td class=\"exam\">Grand Final</td><td>1020</td><td>F</td><td>0.00</td>"));
-        assertFalse(html.contains("Shift Position"), "no shift position on the Grand Final card");
-        assertTrue(html.contains("<td>120</td><td>110</td><td>10</td></tr>"), "Half Yearly attendance");
-        assertTrue(html.contains("<td></td><td>20</td><td></td></tr>"), "present without working days: no absent");
-        assertTrue(html.contains("<td>220</td><td>205</td><td>15</td></tr>"), "Grand Final adds up the exams with both numbers");
-
-        String out = System.getProperty("annualHtmlOut");
-        if (out != null) Files.writeString(Path.of(out), html);
     }
 
     private static AnnualResultResponse.RoutineInfo routineInfo(int id, String title) {

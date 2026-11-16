@@ -8,6 +8,8 @@ import com.example.academic_service.dto.PaymentResponse;
 import com.example.academic_service.dto.student_portal_dtos.StudentPortalProfileDto;
 import com.example.academic_service.dto.student_portal_dtos.UpcomingExamDto;
 import com.example.academic_service.entity.InvoiceStatus;
+import com.example.academic_service.repository.AcademicYearRepository;
+import com.example.academic_service.service.ProgressReportPdfService;
 import com.example.academic_service.service.ResultPublishService;
 import com.example.academic_service.service.StudentPortalPaymentService;
 import com.example.academic_service.service.StudentPortalService;
@@ -23,6 +25,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -34,6 +38,8 @@ public class StudentPortalController {
     private final StudentPortalService service;
     private final StudentPortalPaymentService paymentService;
     private final ResultPublishService resultPublishService;
+    private final ProgressReportPdfService progressReportPdfService;
+    private final AcademicYearRepository academicYearRepository;
 
     private String resolveStudentSystemId() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -105,6 +111,61 @@ public class StudentPortalController {
                 .contentType(MediaType.APPLICATION_JSON)
                 .cacheControl(CacheControl.noCache().cachePrivate())
                 .body("{\"message\":\"Progress report fetched\",\"data\":" + stored.json() + "}");
+    }
+
+    // ── Grand Final (published per class like an exam; see ResultPublishService.grandFinalKey) ──
+
+    /** The years whose Grand Final is published for this student: [{academicYearId, academicYearName}], newest first. */
+    @GetMapping("/grand-finals")
+    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getMyGrandFinals() {
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Integer yearId : resultPublishService.grandFinalYearsForStudent(resolveStudentSystemId())) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("academicYearId", yearId);
+            m.put("academicYearName", academicYearRepository.findById(yearId).map(y -> y.getYearName()).orElse(null));
+            out.add(m);
+        }
+        return ResponseEntity.ok(ApiResponse.success("Grand Finals fetched", out));
+    }
+
+    /** The stored Grand Final result, sent as-is (ETag like /result). */
+    @GetMapping("/grand-final")
+    public ResponseEntity<String> getMyGrandFinal(
+            @RequestParam Integer academicYearId,
+            @RequestHeader(value = "If-None-Match", required = false) String ifNoneMatch) {
+        ResultPublishService.StoredResult stored = resultPublishService
+                .findForStudent(resolveStudentSystemId(), ResultPublishService.grandFinalKey(academicYearId))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN,
+                        "The Grand Final has not been released yet"));
+        String etag = "\"g" + stored.version() + "\"";
+        CacheControl cache = CacheControl.noCache().cachePrivate();
+        if (etag.equals(ifNoneMatch))
+            return ResponseEntity.status(HttpStatus.NOT_MODIFIED).eTag(etag).cacheControl(cache).build();
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_JSON)
+                .eTag(etag)
+                .cacheControl(cache)
+                .body("{\"message\":\"Grand Final fetched\",\"data\":" + stored.json() + "}");
+    }
+
+    /** The student's Grand Final transcript as a PDF, printed from the page stored at publish. */
+    @GetMapping("/grand-final/transcript")
+    public ResponseEntity<byte[]> getMyGrandFinalTranscript(@RequestParam Integer academicYearId) throws Exception {
+        String sid = resolveStudentSystemId();
+        ResultPublishService.StoredResult stored = resultPublishService
+                .findReportForStudent(sid, ResultPublishService.grandFinalKey(academicYearId))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN,
+                        "The Grand Final has not been released yet"));
+        if (stored.json() == null || stored.json().isBlank())
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "The transcript is still being prepared. Please try again in a few minutes.");
+        StudentPortalProfileDto profile = service.getProfile(sid).getData();
+        byte[] pdf = progressReportPdfService.printStoredGrandFinal(stored.json(), profile != null ? profile.getImageUrl() : null);
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header("Content-Disposition", "attachment; filename=\"grand-final-" + sid + ".pdf\"")
+                .cacheControl(CacheControl.noStore())
+                .body(pdf);
     }
 
     @PutMapping("/change-password")

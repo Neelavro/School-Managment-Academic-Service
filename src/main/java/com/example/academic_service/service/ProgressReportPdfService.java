@@ -17,6 +17,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.concurrent.Semaphore;
 import java.util.stream.Collectors;
 
 @Service
@@ -113,7 +114,10 @@ public class ProgressReportPdfService {
                 nvl(settings.getInstitutionName(), ""), nvl(settings.getAddress(), ""), settings.getHeading(),
                 resolveBase64(settings.getLogoUrl()), resolveBase64(settings.getSignatureUrl()),
                 loadGradingTable(classId));
+        return renderLandscape(html);
+    }
 
+    private byte[] renderLandscape(String html) {
         try (Playwright playwright = Playwright.create()) {
             Browser browser = playwright.chromium().launch(new BrowserType.LaunchOptions().setHeadless(true));
             Page page = browser.newPage();
@@ -128,15 +132,189 @@ public class ProgressReportPdfService {
         }
     }
 
+    // ─── GRAND FINAL publish (student portal) ────────────────────────────────
+
+    // Placeholders in a stored transcript page, filled in when the student downloads it: the school's logo and
+    // signature (kept out of every row) and the student's photo (the current one).
+    private static final String LOGO_TOKEN = "__EDUNIX_LOGO__";
+    private static final String SIGNATURE_TOKEN = "__EDUNIX_SIGNATURE__";
+    private static final String PHOTO_TOKEN = "__EDUNIX_PHOTO__";
+    private static final String BLANK_IMAGE = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+
+    // Students download their own transcript; each print starts a browser, so at most two run at once.
+    private static final Semaphore PORTAL_PRINTS = new Semaphore(2, true);
+
+    /** One student's published Grand Final: the portal's result (JSON-ready map) and their transcript page. */
+    public record GrandFinalStudent(Long enrollmentId, String studentSystemId, BigDecimal totalMarks, Double gpa,
+                                    boolean passed, Map<String, Object> result, String pageHtml) {}
+
+    /**
+     * Everything the Grand Final publish stores for a class, from the same data as the Grand Final transcript:
+     * per student, the transcript page (logo, signature and photo left as placeholders) and the portal's result —
+     * each exam's marks per subject, each exam's summary row and the Grand Final row (averages, positions).
+     * Must run inside a (read-only) transaction.
+     */
+    public List<GrandFinalStudent> grandFinalForPublish(Integer academicYearId, Integer classId) {
+        List<AnnualProgressReportData> partitions = resultService.getAnnualProgressReportDataPartitioned(
+                academicYearId, classId, null, null, null, null, null, null);
+        SystemSettings settings = systemSettingsService.getSettings();
+        String institutionName = nvl(settings.getInstitutionName(), "");
+        String address = nvl(settings.getAddress(), "");
+        List<Grade> gradingTable = loadGradingTable(classId);
+
+        List<GrandFinalStudent> out = new ArrayList<>();
+        for (AnnualProgressReportData part : partitions) {
+            List<Integer> routineIds = part.getRoutines().stream().map(AnnualProgressReportData.RoutineColumn::getRoutineId).toList();
+            List<Long> enrollmentIds = part.getAnnual().getStudents().stream()
+                    .map(AnnualResultResponse.StudentResultRow::getEnrollmentId).filter(Objects::nonNull).toList();
+            part.setAttendance(examAttendanceService.daysFor(routineIds, enrollmentIds));
+            for (AnnualResultResponse.StudentResultRow student : part.getAnnual().getStudents()) {
+                if (student.getEnrollmentId() == null) continue;
+                String page = buildAnnualPage(part, student, institutionName, address, settings.getHeading(),
+                        LOGO_TOKEN, SIGNATURE_TOKEN, gradingTable, true);
+                AnnualProgressReportData.GrandFinal g = part.getGrandFinals() != null
+                        ? part.getGrandFinals().get(student.getEnrollmentId()) : null;
+                Map<String, Object> result = grandFinalResult(part, student, g);
+                out.add(new GrandFinalStudent(student.getEnrollmentId(), student.getStudentSystemId(),
+                        g != null ? g.getTotalMarks() : null, g != null ? g.getGpa() : null,
+                        g != null && g.isPassed(), result, page));
+            }
+        }
+        return out;
+    }
+
+    /**
+     * The portal's Grand Final result. Top-level values are the Grand Final row (what the update review compares
+     * field by field); subjectResults are the subject rows with each exam's marks; exams are the exam rows.
+     */
+    private Map<String, Object> grandFinalResult(AnnualProgressReportData data, AnnualResultResponse.StudentResultRow student,
+                                                 AnnualProgressReportData.GrandFinal g) {
+        AnnualResultResponse annual = data.getAnnual();
+        Map<String, Object> r = new LinkedHashMap<>();
+        r.put("enrollmentId", student.getEnrollmentId());
+        r.put("studentSystemId", student.getStudentSystemId());
+        r.put("studentName", student.getStudentName());
+        r.put("classRoll", student.getClassRoll());
+        r.put("className", annual.getClassName());
+        r.put("genderSectionName", student.getGenderSectionName());
+        r.put("sectionName", student.getSectionName());
+        r.put("groupName", student.getGroupName());
+        r.put("academicYearId", annual.getAcademicYearId());
+        r.put("academicYearName", annual.getAcademicYearName());
+        r.put("useGpaForResult", annual.isUseGpaForResult());
+        r.put("examsCounted", g != null ? g.getExamsCounted() : 0);
+        r.put("totalMarks", g != null ? g.getTotalMarks() : null);
+        r.put("overallGpa", g != null ? g.getGpa() : null);
+        r.put("gradeName", g != null ? resolveGradeNameFromGpa(g.getGpa(), null) : null);
+        r.put("gpaWithout4th", g != null ? g.getGpaWithout4th() : null);
+        r.put("passed", g != null && g.isPassed());
+        r.put("failedSubjectCount", g != null ? g.getFailedSubjectCount() : null);
+        Map<String, Object> positions = null;
+        if (g != null && g.isPassed()) {
+            positions = new LinkedHashMap<>();
+            positions.put("classPosition", g.getClassRank());
+            positions.put("sectionPosition", g.getSectionRank());
+        }
+        r.put("positions", positions);
+
+        List<Map<String, Object>> routines = new ArrayList<>();
+        for (AnnualProgressReportData.RoutineColumn rc : data.getRoutines()) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("routineId", rc.getRoutineId());
+            m.put("title", rc.getTitle());
+            routines.add(m);
+        }
+        r.put("routines", routines);
+
+        Map<Integer, String> names = new HashMap<>();
+        for (AnnualResultResponse.SubjectInfo si : annual.getSubjects()) names.put(si.getSubjectId(), si.getSubjectName());
+        Map<Integer, String> titles = new HashMap<>();
+        for (AnnualProgressReportData.RoutineColumn rc : data.getRoutines()) titles.put(rc.getRoutineId(), rc.getTitle());
+        List<Map<String, Object>> subjects = new ArrayList<>();
+        for (AnnualResultResponse.SubjectResult sr : student.getSubjectResults()) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("subjectId", sr.getSubjectId());
+            m.put("subjectName", names.getOrDefault(sr.getSubjectId(), ""));
+            m.put("fourthSubject", sr.isFourthSubject());
+            // All exams added (the update review shows it, with each exam's change under it).
+            m.put("marksObtained", sr.getMarksRaw());
+            m.put("status", sr.isAppeared() ? null : sr.getStatus());
+            List<Map<String, Object>> exams = new ArrayList<>();
+            if (sr.getRoutineBreakdowns() != null) {
+                for (AnnualResultResponse.RoutineBreakdown rb : sr.getRoutineBreakdowns()) {
+                    Map<String, Object> e = new LinkedHashMap<>();
+                    e.put("routineId", rb.getRoutineId());
+                    e.put("title", titles.get(rb.getRoutineId()));
+                    e.put("marksObtained", rb.getMarksObtained());
+                    e.put("maxMarks", rb.getMaxMarks());
+                    e.put("gradeName", rb.getGradeName());
+                    e.put("gpaValue", rb.getGpaValue());
+                    e.put("appeared", rb.isAppeared());
+                    e.put("status", rb.getStatus());
+                    exams.add(e);
+                }
+            }
+            m.put("exams", exams);
+            subjects.add(m);
+        }
+        r.put("subjectResults", subjects);
+
+        List<Map<String, Object>> examRows = new ArrayList<>();
+        Map<Integer, Map<Long, ProgressReportData.StudentReport>> summaries =
+                data.getExamSummaries() != null ? data.getExamSummaries() : Collections.emptyMap();
+        for (AnnualProgressReportData.RoutineColumn rc : data.getRoutines()) {
+            ProgressReportData.StudentReport s = summaries.getOrDefault(rc.getRoutineId(), Collections.emptyMap())
+                    .get(student.getEnrollmentId());
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("routineId", rc.getRoutineId());
+            m.put("title", rc.getTitle());
+            m.put("sat", s != null);
+            if (s != null) {
+                m.put("totalMarks", s.getTotalMarks());
+                m.put("overallGpa", s.getOverallGpa());
+                m.put("gradeName", resolveGradeNameFromGpa(s.getOverallGpa(), null));
+                m.put("gpaWithout4th", s.getGpaWithout4th());
+                m.put("passed", s.isPassed());
+                m.put("failedSubjectCount", s.getFailedSubjectCount());
+                m.put("classPosition", s.isPassed() ? s.getClassRank() : null);
+                m.put("sectionPosition", s.isPassed() ? s.getSectionRank() : null);
+            }
+            examRows.add(m);
+        }
+        r.put("exams", examRows);
+        return r;
+    }
+
+    /** Prints one stored Grand Final page (see grandFinalForPublish) with the school's images and the student's photo. */
+    public byte[] printStoredGrandFinal(String pageHtml, String photoUrl) throws InterruptedException {
+        SystemSettings settings = systemSettingsService.getSettings();
+        String logo = resolveBase64(settings.getLogoUrl());
+        String signature = resolveBase64(settings.getSignatureUrl());
+        String page = pageHtml
+                .replace(LOGO_TOKEN, logo.isEmpty() ? BLANK_IMAGE : logo)
+                .replace(SIGNATURE_TOKEN, signature.isEmpty() ? BLANK_IMAGE : signature)
+                .replace(PHOTO_TOKEN, buildPhotoTag(photoUrl));
+        PORTAL_PRINTS.acquire();
+        try {
+            return renderLandscape(wrapAnnual(page));
+        } finally {
+            PORTAL_PRINTS.release();
+        }
+    }
+
     String buildAnnualHtml(List<AnnualProgressReportData> partitions, String institutionName, String address,
                            String heading, String logoBase64, String signatureBase64, List<Grade> gradingTable) {
         StringBuilder pages = new StringBuilder();
         for (AnnualProgressReportData part : partitions) {
             for (AnnualResultResponse.StudentResultRow student : part.getAnnual().getStudents()) {
                 pages.append(buildAnnualPage(part, student, institutionName, address, heading,
-                        logoBase64, signatureBase64, gradingTable));
+                        logoBase64, signatureBase64, gradingTable, false));
             }
         }
+        return wrapAnnual(pages.toString());
+    }
+
+    private String wrapAnnual(String pages) {
         return "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><style>"
                 + getCss() + getLandscapeCss()
                 + "</style></head><body class=\"land\">"
@@ -150,11 +328,13 @@ public class ProgressReportPdfService {
 
     private String buildAnnualPage(AnnualProgressReportData data, AnnualResultResponse.StudentResultRow student,
                                    String institutionName, String address, String heading,
-                                   String logoBase64, String signatureBase64, List<Grade> gradingTable) {
+                                   String logoBase64, String signatureBase64, List<Grade> gradingTable,
+                                   boolean photoPlaceholder) {
         AnnualResultResponse annual = data.getAnnual();
         AnnualProgressReportData.StudentDetails details = data.getDetails().get(student.getEnrollmentId());
 
-        String photoTag = buildPhotoTag(details != null ? details.getImageUrl() : null);
+        // A stored page (Grand Final publish) gets the photo when it's printed, so it's always the current one.
+        String photoTag = photoPlaceholder ? PHOTO_TOKEN : buildPhotoTag(details != null ? details.getImageUrl() : null);
         String logoTag  = logoBase64.isEmpty()
                 ? "<div class=\"logo\">LOGO</div>"
                 : "<img src=\"" + logoBase64 + "\" style=\"width:13mm;height:13mm;object-fit:contain;border-radius:50%;border:1.5px solid #0F6E56;\">";
