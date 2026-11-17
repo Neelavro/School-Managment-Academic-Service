@@ -30,6 +30,11 @@ public class AdmitCardPdfService {
     private static final int PAGE_W = 794;
     private static final int PAGE_H = 1123;
 
+    /** Exam schedule order: by date, then by start time (two papers on one day print earliest first). */
+    private static final Comparator<AdmitCardSessionDto> SCHEDULE_ORDER = Comparator
+            .comparing(AdmitCardSessionDto::getDate, Comparator.nullsLast(Comparator.<String>naturalOrder()))
+            .thenComparing(AdmitCardSessionDto::getStartTime, Comparator.nullsLast(Comparator.<String>naturalOrder()));
+
     private final AdmitCardServiceImpl admitCardService;
     private final EnrollmentRepository enrollmentRepository;
     private final ExamRoutineRepository examRoutineRepository;
@@ -116,7 +121,7 @@ public class AdmitCardPdfService {
                 List<AdmitCardSessionDto> fullSchedule = data.sessions.get(0).getFullSchedule();
                 if (fullSchedule != null && !fullSchedule.isEmpty()) {
                     data.sessions = new ArrayList<>(fullSchedule);
-                    data.sessions.sort(Comparator.comparing(AdmitCardSessionDto::getDate));
+                    data.sessions.sort(SCHEDULE_ORDER);
                 }
             }
         }
@@ -213,7 +218,7 @@ public class AdmitCardPdfService {
                             .filter(s -> s.getGroupId() == null ||
                                     studentGroupId == null ||
                                     s.getGroupId().equals(studentGroupId))
-                            .sorted(Comparator.comparing(AdmitCardSessionDto::getDate))
+                            .sorted(SCHEDULE_ORDER)
                             .collect(Collectors.toList());
                 }
             }
@@ -522,7 +527,7 @@ public class AdmitCardPdfService {
             sectionLabel += (sectionLabel.isEmpty() ? "" : " - ") + data.sectionName;
 
         List<AdmitCardSessionDto> sessions = new ArrayList<>(data.sessions);
-        sessions.sort(Comparator.comparing(AdmitCardSessionDto::getDate));
+        sessions.sort(SCHEDULE_ORDER);
         int total     = sessions.size();
         int leftCount = Math.min((int) Math.ceil(total / 2.0), 10);
         List<AdmitCardSessionDto> left  = sessions.subList(0, leftCount);
@@ -677,7 +682,7 @@ public class AdmitCardPdfService {
             sectionLabel += (sectionLabel.isEmpty() ? "" : " - ") + data.sectionName;
 
         List<AdmitCardSessionDto> sessions = new ArrayList<>(data.sessions);
-        sessions.sort(Comparator.comparing(AdmitCardSessionDto::getDate));
+        sessions.sort(SCHEDULE_ORDER);
         int leftCount = Math.min((int) Math.ceil(sessions.size() / 2.0), 10);
         var left  = sessions.subList(0, leftCount);
         var right = sessions.subList(leftCount, sessions.size());
