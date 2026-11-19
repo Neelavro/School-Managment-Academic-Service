@@ -12,6 +12,10 @@ import java.util.Optional;
 
 @Repository
 public interface StudentMarkRepository extends JpaRepository<StudentMark, Long> {
+    @Modifying
+    @Query("DELETE FROM StudentMark m WHERE m.enrollmentId = :enrollmentId")
+    int deleteAllForEnrollment(@Param("enrollmentId") Long enrollmentId);
+
 
     Optional<StudentMark> findByEnrollmentIdAndRoutineIdAndSubjectIdAndExamComponentId(
             Long enrollmentId, Integer routineId, Integer subjectId, Integer examComponentId);

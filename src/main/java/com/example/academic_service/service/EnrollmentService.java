@@ -54,6 +54,9 @@ public interface EnrollmentService {
     // Soft delete
     void deleteEnrollment(Long id);
 
+    /** Permanently deletes an archived enrollment and its marks/attendance. The student record stays. */
+    void deleteEnrollmentPermanently(Long id);
+
     // Reactivate
     EnrollmentResponseDto activateEnrollment(Long id);
 

@@ -14,6 +14,10 @@ import java.util.Set;
 
 @Repository
 public interface AttendanceRepository extends JpaRepository<Attendance, Long> {
+    @Modifying
+    @Query("DELETE FROM Attendance a WHERE a.enrollmentId = :enrollmentId")
+    int deleteAllForEnrollment(@Param("enrollmentId") Long enrollmentId);
+
 
     // Full absent rows (enrollmentId + source) for a set of enrollments on a date.
     // Used by both the student status endpoint and the reconciler's manual check.

@@ -15,6 +15,8 @@ import java.util.Optional;
 
 @Repository
 public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
+    long countByEnrollmentId(Long enrollmentId);
+
 
     Optional<Invoice> findByInvoiceNumber(String invoiceNumber);
 

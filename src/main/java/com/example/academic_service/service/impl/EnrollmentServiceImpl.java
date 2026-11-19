@@ -40,6 +40,11 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     private final GenderSectionRepository genderSectionRepository;
     private final StudentGroupRepository studentGroupRepository;
     private final StudentStatusRepository studentStatusRepository;
+    private final StudentMarkRepository studentMarkRepository;
+    private final AttendanceRepository attendanceRepository;
+    private final ExamAttendanceRepository examAttendanceRepository;
+    private final StudentFourthSubjectOverrideRepository fourthSubjectOverrideRepository;
+    private final InvoiceRepository invoiceRepository;
 
     @Override
     public List<StudentStatus> getStudentStatus() {
@@ -289,6 +294,29 @@ public class EnrollmentServiceImpl implements EnrollmentService {
                 .orElseThrow(() -> new RuntimeException("Enrollment not found: " + id));
         existing.setIsActive(false);
         enrollmentRepository.save(existing);
+    }
+
+    // ── Permanent delete (Archived Students) ──────────────────────────────────
+    // Only an archived (inactive) enrollment can go. Its marks, attendance, exam attendance and
+    // 4th-subject override go with it; the student record is never touched. Fee invoices are tied
+    // to accounting journal entries, so an enrollment with any invoice is refused.
+    @Override
+    @Transactional
+    public void deleteEnrollmentPermanently(Long id) {
+        Enrollment existing = enrollmentRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Enrollment not found: " + id));
+        if (Boolean.TRUE.equals(existing.getIsActive()))
+            throw new RuntimeException("Only archived enrollments can be deleted. Deactivate it first.");
+        long invoices = invoiceRepository.countByEnrollmentId(id);
+        if (invoices > 0)
+            throw new RuntimeException("This enrollment has " + invoices + " fee invoice"
+                    + (invoices == 1 ? "" : "s") + " and can't be deleted.");
+        studentMarkRepository.deleteAllForEnrollment(id);
+        attendanceRepository.deleteAllForEnrollment(id);
+        examAttendanceRepository.deleteAllForEnrollment(id);
+        fourthSubjectOverrideRepository.deleteByEnrollmentId(id);
+        enrollmentRepository.delete(existing);
+        log.info("Enrollment {} permanently deleted (student {})", id, existing.getStudentSystemId());
     }
 
     // ── Reactivate ────────────────────────────────────────────────────────────

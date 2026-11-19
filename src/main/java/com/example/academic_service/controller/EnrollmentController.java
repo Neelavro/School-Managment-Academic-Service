@@ -122,6 +122,12 @@ public class EnrollmentController {
         return ResponseEntity.ok("Enrollment deactivated successfully");
     }
 
+    @DeleteMapping("/{id}/permanent")
+    public ResponseEntity<String> deleteEnrollmentPermanently(@PathVariable Long id) {
+        enrollmentService.deleteEnrollmentPermanently(id);
+        return ResponseEntity.ok("Enrollment deleted");
+    }
+
     @PostMapping("/transfer")
     public ResponseEntity<List<EnrollmentResponseDto>> transferEnrollments(
             @RequestBody TransferRequestDto request
