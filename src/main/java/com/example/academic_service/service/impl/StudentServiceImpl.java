@@ -3,8 +3,6 @@ package com.example.academic_service.service.impl;
 import com.example.academic_service.entity.Gender;
 import com.example.academic_service.entity.Student;
 import com.example.academic_service.entity.StudentStatus;
-import com.example.academic_service.entity.Enrollment;
-import com.example.academic_service.repository.EnrollmentRepository;
 import com.example.academic_service.repository.GenderRepository;
 import com.example.academic_service.repository.StudentRepository;
 import com.example.academic_service.repository.StudentStatusRepository;
@@ -26,7 +24,6 @@ import java.util.List;
 public class StudentServiceImpl implements StudentService {
 
     private final StudentRepository studentRepository;
-    private final EnrollmentRepository enrollmentRepository;
     private final GenderRepository genderRepository;
     private final StudentStatusRepository studentStatusRepository;
     private final PasswordEncoder passwordEncoder;
@@ -180,11 +177,6 @@ public class StudentServiceImpl implements StudentService {
         String before = AuditHelper.toJson(studentSnapshot(student));
         student.setIsActive(false);
         studentRepository.save(student);
-        // An inactive student has no active enrollment: move them to Archived Students too, otherwise they
-        // stay on every student list (lists are filtered by enrollment.isActive).
-        List<Enrollment> active = enrollmentRepository.findByStudentSystemIdAndIsActive(student.getStudentSystemId(), true);
-        active.forEach(e -> e.setIsActive(false));
-        enrollmentRepository.saveAll(active);
         auditLogService.log(AuditHelper.getUserId(), AuditHelper.getIp(),
             AuditActionType.DELETE, Submodule.STUDENTS, "Student", id.toString(),
             "Deactivated student: " + student.getNameEnglish() + " (" + student.getStudentSystemId() + ")",
