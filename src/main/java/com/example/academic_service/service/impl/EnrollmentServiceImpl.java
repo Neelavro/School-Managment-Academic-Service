@@ -16,6 +16,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -45,6 +46,7 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     private final ExamAttendanceRepository examAttendanceRepository;
     private final StudentFourthSubjectOverrideRepository fourthSubjectOverrideRepository;
     private final InvoiceRepository invoiceRepository;
+    private final JdbcTemplate jdbc;
 
     @Override
     public List<StudentStatus> getStudentStatus() {
@@ -297,8 +299,8 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     }
 
     // ── Permanent delete (Archived Students) ──────────────────────────────────
-    // Only an archived (inactive) enrollment can go. Its marks, attendance, exam attendance and
-    // 4th-subject override go with it; the student record is never touched. Fee invoices are tied
+    // Only an archived (inactive) enrollment can go. Its marks, attendance, exam attendance,
+    // 4th-subject override and published-result rows go with it; the student record is never touched. Fee invoices are tied
     // to accounting journal entries, so an enrollment with any invoice is refused.
     @Override
     @Transactional
@@ -315,6 +317,9 @@ public class EnrollmentServiceImpl implements EnrollmentService {
         attendanceRepository.deleteAllForEnrollment(id);
         examAttendanceRepository.deleteAllForEnrollment(id);
         fourthSubjectOverrideRepository.deleteByEnrollmentId(id);
+        // Published results (no FK): otherwise a deleted enrollment keeps showing in published results.
+        for (String table : List.of("published_result", "result_update_change", "result_update_report"))
+            jdbc.update("DELETE FROM " + table + " WHERE enrollment_id = ?", id);
         enrollmentRepository.delete(existing);
         log.info("Enrollment {} permanently deleted (student {})", id, existing.getStudentSystemId());
     }
